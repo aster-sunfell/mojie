@@ -10,7 +10,8 @@ public interface AgentTool {
     ToolSpec spec();
     ToolResult execute(JsonNode arguments, ToolContext context);
 
-    record Evidence(String kind, String resourceId, String version, Integer line, Integer codePointOffset) {}
+    record Evidence(String kind, String resourceType, String resourceId, String version,
+                    Integer line, Integer codePointOffset) {}
     record ToolResult(boolean success, Object data, ToolError error, List<Evidence> evidence) {
         public ToolResult { evidence = List.copyOf(evidence); }
         public static ToolResult ok(Object data, List<Evidence> evidence) { return new ToolResult(true, data, null, evidence); }

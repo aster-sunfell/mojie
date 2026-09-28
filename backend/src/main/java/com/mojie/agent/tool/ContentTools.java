@@ -100,12 +100,11 @@ public final class ContentTools {
                     if (version < 0) return missing();
                     chapter = repository.chapterRevision(ctx.projectId(), id, version);
                     if (chapter == null) return missing();
-                    ctx.readChapters().put(id, chapter);
                 }
             }
             return ToolResult.ok(Map.of("chapterId", id, "title", chapter.title(), "chapterOrder", chapter.order(),
                     "version", chapter.version(), "content", chapter.content()),
-                    List.of(new Evidence("FULL_CHAPTER", id, Long.toString(chapter.version()), null, null)));
+                    List.of(new Evidence("FULL_CHAPTER", "CHAPTER", id, Long.toString(chapter.version()), null, null)));
         };
     }
 
@@ -121,10 +120,9 @@ public final class ContentTools {
                     .sorted(Comparator.comparingInt(ToolContext.Chapter::order).thenComparing(ToolContext.Chapter::id)).toList();
             if (chapters.size() > 1000) return ToolResult.error("SEARCH_SCOPE_TOO_LARGE", "Search view exceeds 1000 chapters", false);
             if (ctx.chapterView() == null) {
-                Map<String, Long> view = repository.captureChapterView(ctx.runId(), ctx.projectId(),
+                ContentRepository.ChapterView view = repository.captureChapterView(ctx.runId(), ctx.projectId(),
                         ctx.targetChapterId(), ctx.baseVersion(), ctx.readChapters());
-                String viewId = sha256(ctx.runId() + new TreeMap<>(view));
-                ctx.setChapterView(view, viewId);
+                ctx.setChapterView(view.versions(), view.viewId());
             }
             String query = "search_chapters:" + ctx.chapterViewId() + ":" + keyword + ":" + scope;
             int offset = cursor.offset(args, ctx, query);
@@ -154,7 +152,7 @@ public final class ContentTools {
                         hit.put("matchEnd", cp + keyword.codePointCount(0, keyword.length())); hit.put("snippetStart", excerpt.start());
                         hit.put("snippet", excerpt.text()); hit.put("snippetTruncated", excerpt.truncated());
                         hits.add(hit);
-                        allEvidence.add(new Evidence("SEARCH_SNIPPET", meta.id(), Long.toString(version), line, cp));
+                        allEvidence.add(new Evidence("SEARCH_SNIPPET", "CHAPTER", meta.id(), Long.toString(version), line, cp));
                         from = at + keyword.length();
                     }
                 }
@@ -203,7 +201,7 @@ public final class ContentTools {
                 ContentRepository.Setting s = byId.get(id);
                 if (s == null) return missing();
                 rows.add(Map.of("settingId", id, "type", s.type(), "title", s.title(), "content", s.content()));
-                evidence.add(new Evidence("FULL_SETTING", id, sha256(s.title() + "\n" + s.content()), null, null));
+                evidence.add(new Evidence("FULL_SETTING", "SETTING", id, sha256(s.title() + "\n" + s.content()), null, null));
             }
             return ToolResult.ok(Map.of("settings", rows), evidence);
         };
@@ -231,7 +229,7 @@ public final class ContentTools {
                 int cp = value.codePointCount(0, at);
                 hits.add(Map.of("settingId", s.id(), "type", s.type(), "title", s.title(), "matchField", field,
                         "snippet", snippet(value, at, keyword.length()).text(), "codePointOffset", cp));
-                evidence.add(new Evidence("SEARCH_SNIPPET", s.id(), sha256(s.title() + "\n" + s.content()), null, cp));
+                evidence.add(new Evidence("SEARCH_SNIPPET", "SETTING", s.id(), sha256(s.title() + "\n" + s.content()), null, cp));
             }
             int end = Math.min(offset + limit, hits.size());
             int start = Math.min(offset, end);

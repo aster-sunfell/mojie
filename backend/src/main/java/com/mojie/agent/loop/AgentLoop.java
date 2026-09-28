@@ -129,9 +129,7 @@ public final class AgentLoop {
                     }
                     toolText += resultSize;
                     long replySeq = trace.toolFinished(runId, callIndex, call, executionId, result, wire, toolText, true);
-                    if (result.success() && call.name().equals("read_chapter")
-                            && call.arguments() != null && call.arguments().isObject()
-                            && context.targetChapterId().equals(call.arguments().path("chapterId").asText())) context.markTargetRead();
+                    acknowledgeRead(call, result, context);
                     replies.add(new ToolReply(call.id(), executionId, payload));
                     replySeqs.add(replySeq);
                 }
@@ -155,6 +153,20 @@ public final class AgentLoop {
         catch (IllegalArgumentException e) {
             String code = "INVALID_SEARCH_CURSOR".equals(e.getMessage()) ? "INVALID_SEARCH_CURSOR" : "VALIDATION_ERROR";
             return ToolResult.error(code, e.getMessage(), true);
+        }
+    }
+
+    private static void acknowledgeRead(ToolCall call, ToolResult result, ToolContext context) {
+        if (!result.success() || !"read_chapter".equals(call.name()) || !(result.data() instanceof Map<?, ?> data)) return;
+        Object rawId = data.get("chapterId");
+        if (!(rawId instanceof String id)) return;
+        if (context.targetChapterId().equals(id)) {
+            context.markTargetRead();
+            return;
+        }
+        if (data.get("title") instanceof String title && data.get("chapterOrder") instanceof Number order
+                && data.get("version") instanceof Number version && data.get("content") instanceof String content) {
+            context.readChapters().putIfAbsent(id, new ToolContext.Chapter(id, title, order.intValue(), version.longValue(), content));
         }
     }
 

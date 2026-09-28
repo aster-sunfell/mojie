@@ -258,9 +258,9 @@ class AgentLoopTest {
         public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
             return chapters(projectId).stream().filter(c -> c.id().equals(id)).findFirst().orElse(null);
         }
-        public Map<String, Long> captureChapterView(String runId, String projectId, String targetId, long baseVersion,
-                                                     Map<String, ToolContext.Chapter> alreadyRead) {
-            return Map.of("prior", 1L, "target", baseVersion);
+        public ChapterView captureChapterView(String runId, String projectId, String targetId, long baseVersion,
+                                              Map<String, ToolContext.Chapter> alreadyRead) {
+            return new ChapterView("view-" + runId, Map.of("prior", 1L, "target", baseVersion));
         }
         public List<Setting> settings(String projectId) { return List.of(new Setting("s1", "CHARACTER", "林舟", "怕水")); }
     }
