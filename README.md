@@ -4,7 +4,7 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 ## 当前实现
 
-`backend/` 已加入 Java 21 Agent loop 核心、七个工具、PostgreSQL 迁移、JDBC 持久化和有界任务调度。测试和接入边界见 [backend/README.md](backend/README.md)。内容管理接口、真实模型、HTTP/SSE 和前端尚未接入。
+`backend/` 已加入 Java 21 Agent loop 核心、七个工具、PostgreSQL 迁移、JDBC 持久化、有界任务调度及 Anthropic SDK 适配器。测试和接入边界见 [backend/README.md](backend/README.md)。内容管理接口、HTTP/SSE 和前端尚未接入；真实模型评估尚未执行。
 
 ## 文档入口
 
