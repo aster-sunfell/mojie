@@ -127,3 +127,105 @@ test('setting search queries the server beyond the loaded page', async () => {
   await screen.findByText('远处的山谷')
   expect(fetch).toHaveBeenCalledWith('/api/v1/projects/p/settings?limit=50&keyword=%E6%B2%B3%E6%B5%81', expect.any(Object))
 })
+
+test.each([
+  ['取消', 'c', '未保存的草稿', false],
+  ['放弃', 'c2', '第二章正文', false],
+  ['保存', 'c2', '第二章正文', true],
+])('switching chapters with %s follows the selected draft decision', async (decision, expectedId, expectedText, saved) => {
+  window.history.replaceState({}, '', '/projects/p/chapters/c')
+  const other = { ...chapter, id: 'c2', chapterOrder: 2, title: '第二章', content: '第二章正文' }
+  vi.spyOn(window, 'prompt').mockReturnValue(decision)
+  globalThis.fetch = vi.fn((url, options = {}) => {
+    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
+    if (url === '/api/v1/projects/p/chapters?limit=50')
+      return Promise.resolve(reply({ items: [chapter, other], nextCursor: null }))
+    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
+    if (url === '/api/v1/chapters/c2') return Promise.resolve(reply(other))
+    if (url === '/api/v1/chapters/c/content' && options.method === 'PUT')
+      return Promise.resolve(reply({ ...chapter, content: '未保存的草稿', version: 2 }))
+    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply({ items: [], nextCursor: null }))
+    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('原文'))
+  fireEvent.change(document.querySelector('.editor'), { target: { value: '未保存的草稿' } })
+  fireEvent.click(screen.getByRole('button', { name: /第二章/ }))
+  await waitFor(() => expect(window.location.pathname).toBe(`/projects/p/chapters/${expectedId}`))
+  await waitFor(() => expect(document.querySelector('.editor')?.value).toBe(expectedText))
+  expect(window.prompt).toHaveBeenCalledTimes(1)
+  expect(fetch.mock.calls.some(([url, options]) => url === '/api/v1/chapters/c/content' && options?.method === 'PUT')).toBe(saved)
+})
+
+test('failed save during chapter switch preserves the draft and stays on the chapter', async () => {
+  window.history.replaceState({}, '', '/projects/p/chapters/c')
+  const other = { ...chapter, id: 'c2', chapterOrder: 2, title: '第二章', content: '第二章正文' }
+  vi.spyOn(window, 'prompt').mockReturnValue('保存')
+  globalThis.fetch = vi.fn((url, options = {}) => {
+    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
+    if (url === '/api/v1/projects/p/chapters?limit=50')
+      return Promise.resolve(reply({ items: [chapter, other], nextCursor: null }))
+    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
+    if (url === '/api/v1/chapters/c/content' && options.method === 'PUT')
+      return Promise.resolve({ ok: false, status: 409, json: async () => ({ code: 'VERSION_CONFLICT', message: 'Version changed' }) })
+    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply({ items: [], nextCursor: null }))
+    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('原文'))
+  fireEvent.change(document.querySelector('.editor'), { target: { value: '未保存的草稿' } })
+  fireEvent.click(screen.getByRole('button', { name: /第二章/ }))
+  await screen.findByText('章节版本已变化，请先查看最新正文。')
+  expect(window.location.pathname).toBe('/projects/p/chapters/c')
+  expect(document.querySelector('.editor').value).toBe('未保存的草稿')
+})
+
+test('accepted proposal stays applied when follow-up reads fail and retries only the refresh', async () => {
+  window.history.replaceState({}, '', '/projects/p/chapters/c')
+  const applied = { ...chapter, content: '采纳后的正文', version: 2 }
+  const run = { id: 'r', projectId: 'p', targetChapterId: 'c', status: 'SUCCEEDED', proposalId: 'q',
+    queuedAt: '2026-09-29T00:00:00Z', baseVersion: 1, modelCallCount: 2, toolCallCount: 2,
+    lastEventSeq: 7, steps: [], sources: [] }
+  const proposal = { id: 'q', status: 'PENDING', baseVersion: 1, baseContent: '原文',
+    proposedContent: '采纳后的正文', reason: '修正设定冲突' }
+  let chapterReads = 0
+  let proposalReads = 0
+  let acceptCalls = 0
+  globalThis.fetch = vi.fn((url, options = {}) => {
+    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
+    if (url === '/api/v1/projects/p/chapters?limit=50')
+      return Promise.resolve(reply({ items: [chapter], nextCursor: null }))
+    if (url === '/api/v1/chapters/c') {
+      chapterReads++
+      return Promise.resolve(chapterReads === 2
+        ? { ok: false, status: 500, json: async () => ({ code: 'INTERNAL_ERROR', message: 'Server request failed' }) }
+        : reply(chapterReads === 1 ? chapter : applied))
+    }
+    if (url.startsWith('/api/v1/agent/runs?'))
+      return Promise.resolve(reply({ items: [run], nextCursor: null }))
+    if (url === '/api/v1/agent/runs/r') return Promise.resolve(reply(run))
+    if (url === '/api/v1/edit-proposals/q' && options.method === 'GET') {
+      proposalReads++
+      return Promise.resolve(proposalReads === 1 ? reply(proposal)
+        : { ok: false, status: 500, json: async () => ({ code: 'INTERNAL_ERROR', message: 'Server request failed' }) })
+    }
+    if (url === '/api/v1/edit-proposals/q/accept' && options.method === 'POST') {
+      acceptCalls++
+      return Promise.resolve(reply({ status: 'APPLIED', appliedVersion: 2 }))
+    }
+    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: '整体采纳' }))
+  await screen.findByText('建议已采纳，但正文刷新失败。请重试刷新正文。')
+  expect(screen.getByText('已保存为章节版本 2')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '整体采纳' })).toBeNull()
+  expect(acceptCalls).toBe(1)
+  fireEvent.click(screen.getByRole('button', { name: '重试刷新正文' }))
+  await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('采纳后的正文'))
+  expect(screen.queryByText('建议已采纳，但正文刷新失败。请重试刷新正文。')).toBeNull()
+  expect(acceptCalls).toBe(1)
+})
