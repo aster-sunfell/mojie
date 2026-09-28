@@ -16,7 +16,8 @@ public final class ContentController {
     public record Body(String content, Integer expectedVersion) {}
     public record Setting(String type, String title, String content) {}
 
-    @GetMapping("/projects") public Map<String,Object> projects(@RequestParam(required = false) Integer limit) { return data(content.projects(owner, limit)); }
+    @GetMapping("/projects") public Map<String,Object> projects(@RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer limit) { return data(content.projectPage(owner, cursor, limit)); }
     @PostMapping("/projects") public ResponseEntity<Map<String,Object>> createProject(@RequestBody Title body) {
         return ResponseEntity.status(201).body(data(content.createProject(owner, body.title())));
     }
@@ -27,8 +28,9 @@ public final class ContentController {
     @DeleteMapping("/projects/{id}") public ResponseEntity<Void> deleteProject(@PathVariable String id) {
         content.deleteProject(owner, id); return ResponseEntity.noContent().build();
     }
-    @GetMapping("/projects/{id}/chapters") public Map<String,Object> chapters(@PathVariable String id, @RequestParam(required = false) Integer limit) {
-        return data(content.chapters(owner, id, limit));
+    @GetMapping("/projects/{id}/chapters") public Map<String,Object> chapters(@PathVariable String id,
+            @RequestParam(required = false) String cursor, @RequestParam(required = false) Integer limit) {
+        return data(content.chapterPage(owner, id, cursor, limit));
     }
     @PostMapping("/projects/{id}/chapters") public ResponseEntity<Map<String,Object>> createChapter(@PathVariable String id, @RequestBody Title body) {
         return ResponseEntity.status(201).body(data(content.createChapter(owner, id, body.title())));
@@ -44,16 +46,17 @@ public final class ContentController {
     @DeleteMapping("/chapters/{id}") public ResponseEntity<Void> deleteChapter(@PathVariable String id) {
         content.deleteChapter(owner, id); return ResponseEntity.noContent().build();
     }
-    @GetMapping("/chapters/{id}/revisions") public Map<String,Object> revisions(@PathVariable String id, @RequestParam(required = false) Integer limit) {
-        return data(content.revisions(owner, id, limit));
+    @GetMapping("/chapters/{id}/revisions") public Map<String,Object> revisions(@PathVariable String id,
+            @RequestParam(required = false) String cursor, @RequestParam(required = false) Integer limit) {
+        return data(content.revisionPage(owner, id, cursor, limit));
     }
     @GetMapping("/chapters/{id}/revisions/{version}") public Map<String,Object> revision(@PathVariable String id, @PathVariable int version) {
         return data(content.revision(owner, id, version));
     }
     @GetMapping("/projects/{id}/settings") public Map<String,Object> settings(@PathVariable String id,
             @RequestParam(required = false) String type, @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer limit) {
-        return data(content.settings(owner, id, type, keyword, limit));
+            @RequestParam(required = false) String cursor, @RequestParam(required = false) Integer limit) {
+        return data(content.settingPage(owner, id, type, keyword, cursor, limit));
     }
     @PostMapping("/projects/{id}/settings") public ResponseEntity<Map<String,Object>> createSetting(@PathVariable String id, @RequestBody Setting body) {
         return ResponseEntity.status(201).body(data(content.createSetting(owner, id, body.type(), body.title(), body.content())));

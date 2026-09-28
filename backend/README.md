@@ -34,4 +34,6 @@ Build the executable JAR with `mvn package` and run `java -jar target/mojie-agen
 
 `/api/v1` exposes project/chapter/setting CRUD, immutable chapter revisions, run submission/list/detail/cancellation, committed SSE event replay, proposal detail/accept/reject, health and capabilities. The web frontend lives in `../web`. Vite proxies `/api` to port 8080 by default; use `MOJIE_API_URL` to target another local port. Search database statements use a local PostgreSQL timeout bounded by five seconds and the run's remaining time.
 
+Project, chapter, setting, revision and run lists return `data: {items, nextCursor}`. Pass the opaque `nextCursor` back as `cursor` with the same resource and filters to continue; `null` marks the final page. The default page size is 20 and the maximum is 50. Set a stable, private `MOJIE_CURSOR_KEY` (at least 16 bytes) across server restarts and instances; changing it invalidates outstanding list cursors.
+
 Remaining release gates: browser end-to-end recovery coverage, real-model analysis and 6,000-code-point proposal evaluation, and model-specific context-window calibration. The current Java context estimate is conservative but has not been validated against an actual model tokenizer.

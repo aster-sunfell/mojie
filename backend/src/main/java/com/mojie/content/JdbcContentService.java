@@ -1,5 +1,7 @@
 package com.mojie.content;
 
+import com.mojie.common.Page;
+import com.mojie.common.PageCursor;
 import java.sql.*;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -8,6 +10,7 @@ import javax.sql.DataSource;
 /** Author-facing content writes. Directory and setting mutations serialize with run admission on project. */
 public final class JdbcContentService {
     private final DataSource dataSource;
+    private final PageCursor cursors = PageCursor.configured();
     public JdbcContentService(DataSource dataSource) { this.dataSource = Objects.requireNonNull(dataSource); }
 
     public static final class ContentException extends RuntimeException {
@@ -36,6 +39,18 @@ public final class JdbcContentService {
         if (value == null) return 20;
         if (value < 1 || value > 50) throw error("VALIDATION_ERROR", "Invalid limit");
         return value;
+    }
+    private Page<Map<String,Object>> page(List<Map<String,Object>> rows, int size, String scope,
+                                           java.util.function.Function<Map<String,Object>, String> marker) {
+        if (rows.size() <= size) return new Page<>(rows, null);
+        List<Map<String,Object>> items = rows.subList(0, size);
+        return new Page<>(items, cursors.encode(scope, marker.apply(items.getLast())));
+    }
+    private static String[] pair(String marker) {
+        if (marker == null) return new String[]{null, null};
+        String[] parts = marker.split("\\|", -1);
+        if (parts.length != 2) throw new IllegalArgumentException("Invalid cursor");
+        return parts;
     }
     private interface Work<T> { T run(Connection connection) throws SQLException; }
     private <T> T db(boolean write, Work<T> work) {
@@ -66,7 +81,8 @@ public final class JdbcContentService {
             StringBuilder camel = new StringBuilder(parts[0]);
             for (int j = 1; j < parts.length; j++) camel.append(Character.toUpperCase(parts[j].charAt(0))).append(parts[j].substring(1));
             Object item = rs.getObject(i);
-            if (item instanceof UUID || item instanceof OffsetDateTime) item = item.toString();
+            if (item instanceof Timestamp timestamp) item = timestamp.toInstant().toString();
+            else if (item instanceof UUID || item instanceof OffsetDateTime) item = item.toString();
             value.put(camel.toString(), item);
         }
         return value;
@@ -102,8 +118,23 @@ public final class JdbcContentService {
     }
 
     public List<Map<String,Object>> projects(String owner, Integer requestedLimit) {
+        return projectPage(owner, null, requestedLimit).items();
+    }
+    public Page<Map<String,Object>> projectPage(String owner, String cursor, Integer requestedLimit) {
         int size = limit(requestedLimit);
-        return db(false, c -> many(c, "SELECT id, name AS title, updated_at FROM tb_project WHERE owner_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC, id DESC LIMIT ?", owner, size));
+        String scope = "projects:" + owner;
+        String[] marker = pair(cursors.decode(scope, cursor));
+        if (marker[0] != null) {
+            try { OffsetDateTime.parse(marker[0]); UUID.fromString(marker[1]); }
+            catch (RuntimeException e) { throw new IllegalArgumentException("Invalid cursor", e); }
+        }
+        return db(false, c -> page(many(c, """
+                SELECT id, name AS title, updated_at FROM tb_project
+                 WHERE owner_id = ? AND deleted_at IS NULL
+                   AND (?::timestamptz IS NULL OR (updated_at, id) < (?::timestamptz, ?::uuid))
+                 ORDER BY updated_at DESC, id DESC LIMIT ?
+                """, owner, marker[0], marker[0], marker[1], size + 1), size, scope,
+                item -> item.get("updatedAt") + "|" + item.get("id")));
     }
     public Map<String,Object> project(String owner, String id) {
         String projectId = uuid(id);
@@ -133,10 +164,27 @@ public final class JdbcContentService {
         });
     }
     public List<Map<String,Object>> chapters(String owner, String id, Integer requestedLimit) {
+        return chapterPage(owner, id, null, requestedLimit).items();
+    }
+    public Page<Map<String,Object>> chapterPage(String owner, String id, String cursor, Integer requestedLimit) {
         String projectId = uuid(id); int size = limit(requestedLimit);
+        String scope = "chapters:" + owner + ":" + projectId;
+        String[] marker = pair(cursors.decode(scope, cursor));
+        Integer order = null;
+        if (marker[0] != null) {
+            try { order = Integer.parseInt(marker[0]); UUID.fromString(marker[1]); if (order < 1) throw new IllegalArgumentException(); }
+            catch (RuntimeException e) { throw new IllegalArgumentException("Invalid cursor"); }
+        }
+        final Integer afterOrder = order;
         return db(false, c -> {
             one(c, "SELECT id FROM tb_project WHERE id = ?::uuid AND owner_id = ? AND deleted_at IS NULL", projectId, owner);
-            return many(c, "SELECT id, project_id, chapter_order, title, version FROM tb_chapter WHERE project_id = ?::uuid AND deleted_at IS NULL ORDER BY chapter_order, id LIMIT ?", projectId, size);
+            return page(many(c, """
+                    SELECT id, project_id, chapter_order, title, version FROM tb_chapter
+                     WHERE project_id = ?::uuid AND deleted_at IS NULL
+                       AND (?::integer IS NULL OR (chapter_order, id) > (?, ?::uuid))
+                     ORDER BY chapter_order, id LIMIT ?
+                    """, projectId, afterOrder, afterOrder, marker[1], size + 1), size, scope,
+                    item -> item.get("chapterOrder") + "|" + item.get("id"));
         });
     }
     public Map<String,Object> chapter(String owner, String id) {
@@ -185,10 +233,26 @@ public final class JdbcContentService {
         });
     }
     public List<Map<String,Object>> revisions(String owner, String id, Integer requestedLimit) {
+        return revisionPage(owner, id, null, requestedLimit).items();
+    }
+    public Page<Map<String,Object>> revisionPage(String owner, String id, String cursor, Integer requestedLimit) {
         String chapterId = uuid(id); int size = limit(requestedLimit);
+        String scope = "revisions:" + owner + ":" + chapterId;
+        String marker = cursors.decode(scope, cursor);
+        Integer before = null;
+        if (marker != null) {
+            try { before = Integer.parseInt(marker); if (before < 1) throw new IllegalArgumentException(); }
+            catch (RuntimeException e) { throw new IllegalArgumentException("Invalid cursor"); }
+        }
+        final Integer beforeVersion = before;
         return db(false, c -> {
             one(c, "SELECT ch.id FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE ch.id = ?::uuid AND p.owner_id = ?", chapterId, owner);
-            return many(c, "SELECT version, source, proposal_id, created_at FROM tb_chapter_revision WHERE chapter_id = ?::uuid ORDER BY version DESC LIMIT ?", chapterId, size);
+            return page(many(c, """
+                    SELECT version, source, proposal_id, created_at FROM tb_chapter_revision
+                     WHERE chapter_id = ?::uuid AND (?::integer IS NULL OR version < ?)
+                     ORDER BY version DESC LIMIT ?
+                    """, chapterId, beforeVersion, beforeVersion, size + 1), size, scope,
+                    item -> item.get("version").toString());
         });
     }
     public Map<String,Object> revision(String owner, String id, int version) {
@@ -196,11 +260,29 @@ public final class JdbcContentService {
         return db(false, c -> one(c, "SELECT r.chapter_id, r.version, r.content, r.source, r.proposal_id, r.created_at FROM tb_chapter_revision r JOIN tb_chapter ch ON ch.id = r.chapter_id JOIN tb_project p ON p.id = ch.project_id WHERE r.chapter_id = ?::uuid AND r.version = ? AND p.owner_id = ?", chapterId, version, owner));
     }
     public List<Map<String,Object>> settings(String owner, String id, String filterType, String keyword, Integer requestedLimit) {
+        return settingPage(owner, id, filterType, keyword, null, requestedLimit).items();
+    }
+    public Page<Map<String,Object>> settingPage(String owner, String id, String filterType, String keyword,
+                                                 String cursor, Integer requestedLimit) {
         String projectId = uuid(id); int size = limit(requestedLimit);
         if (filterType != null) type(filterType);
+        String scope = "settings:" + owner + ":" + projectId + ":" + filterType + ":" + keyword;
+        String marker = cursors.decode(scope, cursor);
+        if (marker != null) {
+            try { UUID.fromString(marker); }
+            catch (RuntimeException e) { throw new IllegalArgumentException("Invalid cursor"); }
+        }
         return db(false, c -> {
             one(c, "SELECT id FROM tb_project WHERE id = ?::uuid AND owner_id = ? AND deleted_at IS NULL", projectId, owner);
-            return many(c, "SELECT id, project_id, type, title, content, updated_at FROM tb_setting WHERE project_id = ?::uuid AND deleted_at IS NULL AND (?::text IS NULL OR type = ?) AND (?::text IS NULL OR position(? in title) > 0 OR position(? in content) > 0) ORDER BY id LIMIT ?", projectId, filterType, filterType, keyword, keyword, keyword, size);
+            return page(many(c, """
+                    SELECT id, project_id, type, title, content, updated_at FROM tb_setting
+                     WHERE project_id = ?::uuid AND deleted_at IS NULL
+                       AND (?::text IS NULL OR type = ?)
+                       AND (?::text IS NULL OR position(? in title) > 0 OR position(? in content) > 0)
+                       AND (?::uuid IS NULL OR id > ?::uuid)
+                     ORDER BY id LIMIT ?
+                    """, projectId, filterType, filterType, keyword, keyword, keyword, marker, marker, size + 1),
+                    size, scope, item -> item.get("id").toString());
         });
     }
     public Map<String,Object> createSetting(String owner, String id, String settingType, String title, String content) {

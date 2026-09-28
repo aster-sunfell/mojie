@@ -1,6 +1,8 @@
 package com.mojie.agent.run.infra;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mojie.common.Page;
+import com.mojie.common.PageCursor;
 import java.sql.*;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -10,27 +12,51 @@ import javax.sql.DataSource;
 public final class JdbcRunQuery {
     private final DataSource dataSource;
     private final JsonMapper json = JsonMapper.builder().build();
+    private final PageCursor cursors = PageCursor.configured();
     public JdbcRunQuery(DataSource dataSource) { this.dataSource = Objects.requireNonNull(dataSource); }
     public static final class NotFound extends RuntimeException { public NotFound() { super("Run or proposal unavailable"); } }
     public record Event(long seq, String type, Object payload, String occurredAt) {}
 
     public List<Map<String,Object>> list(String owner, String projectId, String chapterId, String status, int limit) {
+        return page(owner, projectId, chapterId, status, null, limit).items();
+    }
+    public Page<Map<String,Object>> page(String owner, String projectId, String chapterId, String status,
+                                          String cursor, int limit) {
         if (limit < 1 || limit > 50) throw new IllegalArgumentException("Invalid limit");
         UUID.fromString(projectId);
         if (chapterId != null) UUID.fromString(chapterId);
+        String scope = "runs:" + owner + ":" + projectId + ":" + chapterId + ":" + status;
+        String marker = cursors.decode(scope, cursor);
+        String afterTime = null, afterId = null;
+        if (marker != null) {
+            String[] parts = marker.split("\\|", -1);
+            if (parts.length != 2) throw new IllegalArgumentException("Invalid cursor");
+            try { OffsetDateTime.parse(parts[0]); UUID.fromString(parts[1]); }
+            catch (RuntimeException e) { throw new IllegalArgumentException("Invalid cursor", e); }
+            afterTime = parts[0]; afterId = parts[1];
+        }
         try (Connection c = dataSource.getConnection(); PreparedStatement s = c.prepareStatement("""
                 SELECT r.id, r.project_id, r.target_chapter_id, r.base_version, r.instruction,
                        r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
-                       r.analysis, r.error_code, r.error_detail, r.last_event_seq, p.id AS proposal_id
+                       r.analysis, r.error_code, r.error_detail, r.last_event_seq, p.id AS proposal_id,
+                       r.created_at
                   FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
                  WHERE r.owner_id = ? AND r.project_id = ?::uuid
                    AND (?::uuid IS NULL OR r.target_chapter_id = ?::uuid)
                    AND (?::text IS NULL OR r.status = ?)
+                   AND (?::timestamptz IS NULL OR (r.created_at, r.id) < (?::timestamptz, ?::uuid))
                  ORDER BY r.created_at DESC, r.id DESC LIMIT ?
                 """)) {
             s.setString(1, owner); s.setString(2, projectId); s.setString(3, chapterId); s.setString(4, chapterId);
-            s.setString(5, status); s.setString(6, status); s.setInt(7, limit);
-            try (ResultSet rs = s.executeQuery()) { return rows(rs); }
+            s.setString(5, status); s.setString(6, status); s.setString(7, afterTime);
+            s.setString(8, afterTime); s.setString(9, afterId); s.setInt(10, limit + 1);
+            try (ResultSet rs = s.executeQuery()) {
+                List<Map<String,Object>> rows = rows(rs);
+                if (rows.size() <= limit) return new Page<>(rows, null);
+                List<Map<String,Object>> items = rows.subList(0, limit);
+                Map<String,Object> last = items.getLast();
+                return new Page<>(items, cursors.encode(scope, last.get("createdAt") + "|" + last.get("id")));
+            }
         } catch (SQLException e) { throw new IllegalStateException("Run list unavailable", e); }
     }
 
@@ -133,7 +159,8 @@ public final class JdbcRunQuery {
             String[] parts = name.split("_"); StringBuilder key = new StringBuilder(parts[0]);
             for (int j = 1; j < parts.length; j++) key.append(Character.toUpperCase(parts[j].charAt(0))).append(parts[j].substring(1));
             Object value = rs.getObject(i);
-            if (value instanceof UUID || value instanceof OffsetDateTime) value = value.toString();
+            if (value instanceof Timestamp timestamp) value = timestamp.toInstant().toString();
+            else if (value instanceof UUID || value instanceof OffsetDateTime) value = value.toString();
             if (value instanceof java.sql.Array array) value = Arrays.asList((Object[]) array.getArray());
             if ((name.equals("args") || name.equals("result") || name.equals("content") || name.equals("usage")) && value != null)
                 value = decode(value.toString());

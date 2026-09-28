@@ -17,9 +17,9 @@ test('late save response preserves newer typing and uses the returned version on
   const writes = []
   globalThis.fetch = vi.fn((url, options = {}) => {
     if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
-    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply([chapter]))
+    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply({ items: [chapter], nextCursor: null }))
     if (url === '/api/v1/chapters/c' && options.method === 'GET') return Promise.resolve(reply(chapter))
-    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply([]))
+    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply({ items: [], nextCursor: null }))
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     if (url === '/api/v1/chapters/c/content' && options.method === 'PUT') {
       writes.push(JSON.parse(options.body))
@@ -51,10 +51,10 @@ test('save response from a previous chapter cannot replace the selected chapter'
   const pending = new Promise(resolve => { finishSave = resolve })
   globalThis.fetch = vi.fn((url, options = {}) => {
     if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
-    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply([chapter, other]))
+    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply({ items: [chapter, other], nextCursor: null }))
     if (url === '/api/v1/chapters/c' && options.method === 'GET') return Promise.resolve(reply(chapter))
     if (url === '/api/v1/chapters/c2' && options.method === 'GET') return Promise.resolve(reply(other))
-    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply([]))
+    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply({ items: [], nextCursor: null }))
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     if (url === '/api/v1/chapters/c/content' && options.method === 'PUT') return pending
     throw new Error(`Unexpected request ${url}`)
@@ -72,4 +72,25 @@ test('save response from a previous chapter cannot replace the selected chapter'
   await act(async () => { finishSave(reply({ ...chapter, content: '第一章新稿', version: 2 })) })
   expect(document.querySelector('.editor').value).toBe('第二章正文')
   expect(document.querySelector('.editorHeader h1').textContent).toBe('第二章')
+})
+
+test('chapter navigation loads the next page without losing the first page', async () => {
+  window.history.replaceState({}, '', '/projects/p/chapters/c')
+  const later = { ...chapter, id: 'c51', chapterOrder: 51, title: '第五十一章' }
+  globalThis.fetch = vi.fn((url) => {
+    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
+    if (url === '/api/v1/projects/p/chapters?limit=50')
+      return Promise.resolve(reply({ items: [chapter], nextCursor: 'page-two' }))
+    if (url === '/api/v1/projects/p/chapters?limit=50&cursor=page-two')
+      return Promise.resolve(reply({ items: [later], nextCursor: null }))
+    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
+    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply({ items: [], nextCursor: null }))
+    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: '加载更多章节' }))
+  await screen.findByRole('button', { name: /第五十一章/ })
+  expect(screen.getByRole('button', { name: /第一章/ })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '加载更多章节' })).toBeNull()
 })

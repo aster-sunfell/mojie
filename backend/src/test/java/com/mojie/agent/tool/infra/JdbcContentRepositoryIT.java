@@ -7,6 +7,7 @@ import com.mojie.agent.model.ModelGateway.*;
 import com.mojie.agent.run.infra.JdbcRunTerminalStore;
 import com.mojie.agent.run.infra.JdbcRunAdmission;
 import com.mojie.agent.run.infra.JdbcRunLifecycle;
+import com.mojie.agent.run.infra.JdbcRunQuery;
 import com.mojie.agent.tool.ContentRepository;
 import com.mojie.agent.tool.ContentTools;
 import com.mojie.agent.tool.ToolContext;
@@ -338,6 +339,18 @@ class JdbcContentRepositoryIT {
                  ResultSet rows = sql.executeQuery("SELECT status, error_code FROM tb_agent_run WHERE id='" + abandoned.runId() + "'")) {
                 rows.next(); assertEquals("FAILED", rows.getString(1)); assertEquals("SERVICE_RESTARTED", rows.getString(2));
             }
+            JdbcRunQuery runQuery = new JdbcRunQuery(dataSource);
+            var firstRunPage = runQuery.page("owner", admittedProject, null, null, null, 2);
+            var secondRunPage = runQuery.page("owner", admittedProject, null, null, firstRunPage.nextCursor(), 2);
+            assertEquals(2, firstRunPage.items().size());
+            assertEquals(2, secondRunPage.items().size());
+            assertNotNull(firstRunPage.nextCursor());
+            assertTrue(Collections.disjoint(firstRunPage.items().stream().map(item -> item.get("id")).toList(),
+                    secondRunPage.items().stream().map(item -> item.get("id")).toList()));
+            assertThrows(IllegalArgumentException.class, () -> runQuery.page("owner", admittedProject, null,
+                    null, firstRunPage.nextCursor() + "tampered", 2));
+            assertThrows(IllegalArgumentException.class, () -> runQuery.page("owner", admittedProject, null,
+                    "FAILED", firstRunPage.nextCursor(), 2));
         } finally {
             try (Connection admin = DriverManager.getConnection(baseUrl, user, password);
                  Statement statement = admin.createStatement()) {

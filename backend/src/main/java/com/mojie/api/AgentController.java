@@ -59,8 +59,9 @@ public final class AgentController {
     }
     @GetMapping("/agent/runs") public Map<String,Object> runs(@RequestParam String projectId,
             @RequestParam(required = false) String chapterId, @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
             @RequestParam(required = false, defaultValue = "20") int limit) {
-        return data(query.list(owner, projectId, chapterId, status, limit));
+        return data(query.page(owner, projectId, chapterId, status, cursor, limit));
     }
     @GetMapping("/agent/runs/{id}") public Map<String,Object> run(@PathVariable String id) {
         return data(query.detail(owner, id));

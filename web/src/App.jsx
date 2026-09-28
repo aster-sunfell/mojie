@@ -15,9 +15,12 @@ const active = status => status === 'QUEUED' || status === 'RUNNING'
 
 function ProjectHome({ open }) {
   const [projects, setProjects] = useState([])
+  const [cursor, setCursor] = useState(null)
   const [title, setTitle] = useState('')
   const [error, setError] = useState('')
-  const load = () => api('/projects?limit=50').then(setProjects).catch(e => setError(readableError(e)))
+  const load = (after = null) => api(`/projects?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+    .then(page => { setProjects(current => after ? [...current, ...page.items] : page.items); setCursor(page.nextCursor) })
+    .catch(e => setError(readableError(e)))
   useEffect(() => { load() }, [])
   async function create(event) {
     event.preventDefault()
@@ -28,16 +31,20 @@ function ProjectHome({ open }) {
     <form className="card create" onSubmit={create}><label>新建作品</label><div className="row"><input value={title} onChange={e => setTitle(e.target.value)} maxLength={80} placeholder="作品名称" required /><button>创建</button></div></form>
     {error && <p className="error">{error}</p>}
     <section className="projectGrid">{projects.map(project => <button className="projectCard" onClick={() => open(project.id)} key={project.id}><strong>{project.title}</strong><span>最近更新 {new Date(project.updatedAt).toLocaleString()}</span></button>)}</section>
+    {cursor && <button className="secondary" onClick={() => load(cursor)}>加载更多作品</button>}
   </main>
 }
 
 function Settings({ projectId, disabled }) {
   const [items, setItems] = useState([])
+  const [cursor, setCursor] = useState(null)
   const [form, setForm] = useState({ type: 'CHARACTER', title: '', content: '' })
   const [editing, setEditing] = useState(null)
   const [keyword, setKeyword] = useState('')
   const [error, setError] = useState('')
-  const load = useCallback(() => api(`/projects/${projectId}/settings?limit=50`).then(setItems).catch(e => setError(readableError(e))), [projectId])
+  const load = useCallback((after = null) => api(`/projects/${projectId}/settings?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+    .then(page => { setItems(current => after ? [...current, ...page.items] : page.items); setCursor(page.nextCursor) })
+    .catch(e => setError(readableError(e))), [projectId])
   useEffect(() => { load() }, [load])
   async function save(event) {
     event.preventDefault()
@@ -59,6 +66,7 @@ function Settings({ projectId, disabled }) {
       <small>{({ CHARACTER: '人物', WORLD: '世界观', RULE: '写作约束' })[item.type]}</small><strong>{item.title}</strong><p>{item.content}</p>
       <div className="row"><button className="link" disabled={disabled} onClick={() => { setEditing(item.id); setForm({ type: item.type, title: item.title, content: item.content }) }}>编辑</button><button className="link danger" disabled={disabled} onClick={() => remove(item.id)}>删除</button></div>
     </article>)}{items.length === 0 && <p className="muted">暂无设定</p>}</div>
+    {cursor && <button className="secondary" onClick={() => load(cursor)}>加载更多设定</button>}
     <form onSubmit={save} className="settingForm"><h3>{editing ? '编辑设定' : '新增设定'}</h3>
       <select disabled={disabled} value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option value="CHARACTER">人物</option><option value="WORLD">世界观</option><option value="RULE">写作约束</option></select>
       <input disabled={disabled} value={form.title} maxLength={80} required placeholder="标题" onChange={e => setForm({ ...form, title: e.target.value })} />
@@ -70,9 +78,13 @@ function Settings({ projectId, disabled }) {
 
 function History({ chapterId, close }) {
   const [revisions, setRevisions] = useState([])
+  const [cursor, setCursor] = useState(null)
   const [selected, setSelected] = useState(null)
   const [error, setError] = useState('')
-  useEffect(() => { api(`/chapters/${chapterId}/revisions?limit=50`).then(setRevisions).catch(e => setError(readableError(e))) }, [chapterId])
+  const load = useCallback((after = null) => api(`/chapters/${chapterId}/revisions?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+    .then(page => { setRevisions(current => after ? [...current, ...page.items] : page.items); setCursor(page.nextCursor) })
+    .catch(e => setError(readableError(e))), [chapterId])
+  useEffect(() => { load() }, [load])
   async function view(version) {
     try { setSelected(await api(`/chapters/${chapterId}/revisions/${version}`)) }
     catch (e) { setError(readableError(e)) }
@@ -80,6 +92,7 @@ function History({ chapterId, close }) {
   return <div className="overlay"><div className="drawer"><div className="sectionTitle"><h2>章节历史</h2><button className="secondary" onClick={close}>关闭</button></div>
     {error && <p className="error">{error}</p>}
     <div className="historyList">{revisions.map(item => <button key={item.version} onClick={() => view(item.version)} className={selected?.version === item.version ? 'selected' : ''}>版本 {item.version} · {item.source} <small>{new Date(item.createdAt).toLocaleString()}</small></button>)}</div>
+    {cursor && <button className="secondary" onClick={() => load(cursor)}>加载更多版本</button>}
     {selected && <><h3>只读版本 {selected.version}</h3><pre className="historicalText">{selected.content || '（空章节）'}</pre></>}
   </div></div>
 }
@@ -134,17 +147,19 @@ function Proposal({ id, dirty, refreshChapter, refreshRun, onAcceptanceBusy }) {
 function AgentPanel({ projectId, chapter, dirty, refreshChapter, onAcceptanceBusy }) {
   const [instruction, setInstruction] = useState('检查当前章节与人物设定、前文经历是否矛盾；如有必要，请给出修改建议。')
   const [runs, setRuns] = useState([])
+  const [runCursor, setRunCursor] = useState(null)
   const [runId, setRunId] = useState(null)
   const [capabilities, setCapabilities] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [source, setSource] = useState(null)
   const pending = React.useRef(null)
-  const loadRuns = useCallback(async () => {
+  const loadRuns = useCallback(async (after = null) => {
     if (!projectId || !chapter?.id) return
-    const items = await api(`/agent/runs?projectId=${projectId}&chapterId=${chapter.id}&limit=50`)
-    setRuns(items)
-    setRunId(current => current || items[0]?.id || null)
+    const page = await api(`/agent/runs?projectId=${projectId}&chapterId=${chapter.id}&limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+    setRuns(current => after ? [...current, ...page.items] : page.items)
+    setRunCursor(page.nextCursor)
+    if (!after) setRunId(current => current || page.items[0]?.id || null)
   }, [projectId, chapter?.id])
   useEffect(() => { setRunId(null); pending.current = null; loadRuns().catch(e => setError(readableError(e))) }, [loadRuns])
   useEffect(() => { api('/system/capabilities').then(setCapabilities).catch(() => {}) }, [])
@@ -189,6 +204,7 @@ function AgentPanel({ projectId, chapter, dirty, refreshChapter, onAcceptanceBus
       {error && <p className="error">{error}</p>}
       <div className="sectionTitle"><h3>任务记录</h3><button className="link" onClick={() => loadRuns().catch(e => setError(readableError(e)))}>刷新</button></div>
       <div className="runList">{runs.map(item => <button key={item.id} onClick={() => setRunId(item.id)} className={runId === item.id ? 'selected' : ''}><span>{statusName(item.status)}</span><small>{new Date(item.queuedAt).toLocaleString()}</small></button>)}{runs.length === 0 && <p className="muted">当前章节暂无任务</p>}</div>
+      {runCursor && <button className="secondary" onClick={() => loadRuns(runCursor).catch(e => setError(readableError(e)))}>加载更多任务</button>}
       {runError && <p className="error">{runError}</p>}
       {run && <div className="runDetail"><div className="sectionTitle"><h3>{statusName(run.status)}</h3>{active(run.status) && <button className="secondary" onClick={cancel} disabled={run.cancelRequested}>{run.cancelRequested ? '正在停止' : '停止'}</button>}</div>
         <p className="muted">基准版本 {run.baseVersion} · 模型 {run.modelCallCount}/8 · 工具 {run.toolCallCount}/12</p>
@@ -208,6 +224,7 @@ function AgentPanel({ projectId, chapter, dirty, refreshChapter, onAcceptanceBus
 function Workspace({ projectId, selectedChapterId, navigate }) {
   const [project, setProject] = useState(null)
   const [chapters, setChapters] = useState([])
+  const [chapterCursor, setChapterCursor] = useState(null)
   const [chapter, setChapter] = useState(null)
   const [draft, setDraft] = useState('')
   const [saveStatus, setSaveStatus] = useState('已保存')
@@ -223,7 +240,8 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
   selectedRef.current = selectedChapterId
   chapterRef.current = chapter
   const dirty = chapter && draft !== chapter.content
-  const loadChapters = useCallback(() => api(`/projects/${projectId}/chapters?limit=50`).then(setChapters), [projectId])
+  const loadChapters = useCallback((after = null) => api(`/projects/${projectId}/chapters?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+    .then(page => { setChapters(current => after ? [...current, ...page.items] : page.items); setChapterCursor(page.nextCursor) }), [projectId])
   const refreshChapter = useCallback(async () => {
     if (!selectedChapterId) return null
     const value = await api(`/chapters/${selectedChapterId}`)
@@ -299,12 +317,13 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
   }
   useEffect(() => {
     if (!projectId) return
-    const timer = window.setInterval(() => api(`/agent/runs?projectId=${projectId}&limit=20`).then(items => setRunBusy(items.some(item => active(item.status)))).catch(() => {}), 5000)
+    const timer = window.setInterval(() => api(`/agent/runs?projectId=${projectId}&limit=20`).then(page => setRunBusy(page.items.some(item => active(item.status)))).catch(() => {}), 5000)
     return () => window.clearInterval(timer)
   }, [projectId])
   if (error && !project) return <main className="home"><p className="error">{error}</p><button onClick={() => navigate('/')}>返回作品列表</button></main>
   return <div className="workspace"><nav className="sidebar"><button className="back" onClick={() => leave('/')}>← 全部作品</button><h1>{project?.title || '加载中…'}</h1><div className="sectionTitle"><h2>章节</h2><button className="iconButton" title="新增章节" onClick={addChapter} disabled={runBusy}>＋</button></div>
     <div className="chapterList">{chapters.map(item => <button key={item.id} className={selectedChapterId === item.id ? 'selected' : ''} onClick={() => leave(`/projects/${projectId}/chapters/${item.id}`)}><small>{String(item.chapterOrder).padStart(2, '0')}</small><strong>{item.title}</strong><small>v{item.version}</small></button>)}</div>
+    {chapterCursor && <button className="secondary" onClick={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}>加载更多章节</button>}
     <button className="settingsToggle" onClick={() => setShowSettings(!showSettings)}>{showSettings ? '关闭设定' : '管理设定'}</button>
   </nav><main className="editorArea">{showSettings ? <Settings projectId={projectId} disabled={runBusy} /> : chapter ? <><div className="editorHeader"><div><span className="eyebrow">CHAPTER {chapter.chapterOrder}</span><h1>{chapter.title}</h1><p>版本 {chapter.version} · {cp(draft)} 字 · {saveStatus}</p></div><div className="row"><button className="secondary" onClick={() => setShowHistory(true)}>查看历史</button><button onClick={save} disabled={!dirty || accepting || saveStatus === '保存中'}>保存正文</button></div></div>
       {error && <p className="error">{error}</p>}
