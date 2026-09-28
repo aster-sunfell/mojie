@@ -10,5 +10,6 @@
 - `docs/api/openapi.yaml` 列出 19 条路径、28 个操作；YAML 解析及本地 `$ref` 检查通过。`docs/api/HTTP_SSE_contract_v0.1.md` 记录事件序号、重连和错误/分页结构；`m4-ac-matrix-2026-09-29.md` 逐项标记 AC-01–41 的证据与缺口。
 - `RunSchedulerIT.fullConsistencyReviewPagesEvidenceAndPublishesOnlyAProposal` 在 PostgreSQL 18.6 上用模拟模型走完七工具：列章节、读取目标章、按类型列设定并翻页、搜索设定并翻页、批读设定、搜索前文并翻页、读取前文、提出候选稿。任务以 5 次模型调用、11 次工具调用成功；11 条步骤顺序正确，来源均确认进入模型输入，建议为 PENDING，正式正文保持版本 2。这覆盖确定性的 AC-04、AC-40 路径；真实模型质量仍待人工核查。
 - `check-text-roundtrip.mjs` 通过实际 HTTP 保存首尾空行、连续空行、CRLF/CR、中文与表情。当前正文和历史版本逐字等于归一化预期；重复保存保持版本 2、历史 2 条。前端切章三种选择及保存冲突有 jsdom 回归；采纳成功后若正文或建议详情刷新失败，已确认的 APPLIED 状态保留，页面只提供读取重试，不再次发起采纳。
+- 章节搜索改为只按归一化后的 LF 分行；U+2028 等未归一化字符仍属于原行。`AgentLoopTest.chapterSearchKeepsNonLfCharactersAndReplaysLiteralPages` 验证表情后的码点位置、重复词非重叠命中、特殊符号字面匹配、合法游标重放与改词拒绝。Java 全套 `mvn verify -q` 在 PostgreSQL 18.6 上通过。
 
 尚未满足发布门槛：真实模型固定五输入、接近 6000 码点建议稿和上下文边界评估；真实浏览器断线/重连验收；M0 上游参考环境的可复核运行证据；AC-01–41 的逐项签收。因此本记录不是 MVP 发布通过声明。

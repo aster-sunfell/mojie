@@ -205,6 +205,41 @@ class AgentLoopTest {
         }
     }
 
+    @Test void chapterSearchKeepsNonLfCharactersAndReplaysLiteralPages() {
+        FakeContent repository = new FakeContent("😀甲\u2028乙游泳游泳\n%_\\.* 游泳");
+        AgentTool search = ContentTools.all(repository, KEY).stream()
+                .filter(tool -> tool.spec().name().equals("search_chapters")).findFirst().orElseThrow();
+        ToolContext context = new ToolContext(UUID.randomUUID().toString(), "p", "target", 2, "目标正文");
+        AgentTool.ToolResult first = search.execute(JSON.valueToTree(Map.of("keyword", "游泳", "limit", 1)), context);
+        assertTrue(first.success());
+        Map<?,?> firstData = (Map<?,?>) first.data();
+        Map<?,?> firstHit = (Map<?,?>) ((List<?>) firstData.get("matches")).getFirst();
+        assertEquals(1, firstHit.get("lineNumber"));
+        assertEquals(4, firstHit.get("matchStart"));
+        assertEquals(6, firstHit.get("matchEnd"));
+        assertEquals(true, firstData.get("hasMore"));
+
+        String cursor = (String) firstData.get("nextCursor");
+        var nextArgs = JSON.valueToTree(Map.of("keyword", "游泳", "limit", 2, "cursor", cursor));
+        Map<?,?> next = (Map<?,?>) search.execute(nextArgs, context).data();
+        List<?> matches = (List<?>) next.get("matches");
+        assertEquals(2, matches.size());
+        assertEquals(1, ((Map<?,?>) matches.get(0)).get("lineNumber"));
+        assertEquals(6, ((Map<?,?>) matches.get(0)).get("matchStart"));
+        assertEquals(2, ((Map<?,?>) matches.get(1)).get("lineNumber"));
+        assertEquals(6, ((Map<?,?>) matches.get(1)).get("matchStart"));
+        assertEquals(false, next.get("hasMore"));
+        assertEquals(next, search.execute(nextArgs, context).data());
+
+        Map<?,?> literal = (Map<?,?>) search.execute(JSON.valueToTree(Map.of("keyword", "%_\\.*")), context).data();
+        assertEquals(1, ((List<?>) literal.get("matches")).size());
+        assertEquals(2, ((Map<?,?>) ((List<?>) literal.get("matches")).getFirst()).get("lineNumber"));
+        assertThrows(IllegalArgumentException.class, () -> search.execute(
+                JSON.valueToTree(Map.of("keyword", "泳", "cursor", cursor)), context));
+        assertThrows(IllegalArgumentException.class, () -> search.execute(
+                JSON.valueToTree(Map.of("keyword", "游泳\n")), context));
+    }
+
     @Test void readSettingsRejectsMixedScopeAsOneResult() {
         AgentTool tool = ContentTools.all(content, KEY).stream().filter(t -> t.spec().name().equals("read_settings")).findFirst().orElseThrow();
         ToolContext ctx = input().context();
@@ -253,8 +288,11 @@ class AgentLoopTest {
         public void toolAborted(String runId, int index, ToolCall call, String reason) { aborted.add(call.id()); }
     }
     static final class FakeContent implements ContentRepository {
+        private final String priorContent;
+        FakeContent() { this("林舟不会游泳，也不想游泳"); }
+        FakeContent(String priorContent) { this.priorContent = priorContent; }
         public List<ToolContext.Chapter> chapters(String projectId) {
-            return List.of(new ToolContext.Chapter("prior", "前文", 1, 1, "林舟不会游泳，也不想游泳"),
+            return List.of(new ToolContext.Chapter("prior", "前文", 1, 1, priorContent),
                     new ToolContext.Chapter("target", "目标", 2, 2, "当前版本"));
         }
         public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {

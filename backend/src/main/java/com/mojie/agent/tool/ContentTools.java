@@ -140,7 +140,7 @@ public final class ContentTools {
                 String content = meta.id().equals(ctx.targetChapterId()) ? ctx.baseContent()
                         : repository.chapterRevision(ctx.projectId(), meta.id(), version, searchRemaining(ctx, searchEnd)).content();
                 int line = 0;
-                for (String value : content.split("\\R", -1)) {
+                for (String value : content.split("\n", -1)) {
                     searchRemaining(ctx, searchEnd);
                     line++;
                     int from = 0, at;
