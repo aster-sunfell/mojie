@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mojie.agent.model.ModelGateway;
 import com.mojie.agent.model.ModelGateway.*;
 import com.mojie.agent.run.infra.JdbcRunAdmission;
+import com.mojie.agent.run.infra.JdbcRunQuery;
+import com.mojie.content.JdbcContentService;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import java.sql.*;
@@ -15,6 +18,111 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class RunSchedulerIT {
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    @Test void fullConsistencyReviewPagesEvidenceAndPublishesOnlyAProposal() throws Exception {
+        withDatabase(dataSource -> {
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            JdbcContentService content = new JdbcContentService(dataSource);
+            String project = (String) content.createProject("owner", "林舟演示").get("id");
+            String prior = (String) content.createChapter("owner", project, "河边").get("id");
+            content.saveChapter("owner", prior, "林舟不会游泳。\n林舟再次说他不会游泳。", 1);
+            String target = (String) content.createChapter("owner", project, "深水").get("id");
+            String original = "林舟潜入深水，独自游到对岸。";
+            content.saveChapter("owner", target, original, 1);
+            String firstSetting = (String) content.createSetting("owner", project, "CHARACTER", "林舟", "林舟不会游泳。").get("id");
+            String secondSetting = (String) content.createSetting("owner", project, "CHARACTER", "向导", "向导提醒林舟别游泳。").get("id");
+            content.createSetting("owner", project, "WORLD", "河流", "雨后水位上涨。");
+            int[] turn = {0};
+            ModelGateway scripted = request -> {
+                int index = ++turn[0];
+                if (index == 1) return calls("review-1",
+                        tool("read-target", "read_chapter", Map.of("chapterId", target)),
+                        tool("list-chapters", "list_chapters", Map.of()),
+                        tool("list-settings-first", "list_settings", Map.of("type", "CHARACTER", "limit", 1)));
+                if (index == 2) {
+                    assertEquals(original, data(request, "read-target").get("content"));
+                    assertFalse(data(request, "list-chapters").toString().contains(original));
+                    assertFalse(data(request, "list-settings-first").toString().contains("不会游泳"));
+                    return calls("review-2",
+                            tool("list-settings-next", "list_settings", Map.of("type", "CHARACTER", "limit", 1,
+                                    "cursor", data(request, "list-settings-first").get("nextCursor"))),
+                            tool("search-settings-first", "search_settings", Map.of("keyword", "游泳", "limit", 1)));
+                }
+                if (index == 3) {
+                    assertEquals(false, data(request, "list-settings-next").get("hasMore"));
+                    assertEquals(true, data(request, "search-settings-first").get("hasMore"));
+                    assertFalse(((Map<?,?>) ((List<?>) data(request, "search-settings-first").get("items"))
+                            .getFirst()).containsKey("content"));
+                    return calls("review-3",
+                            tool("search-settings-next", "search_settings", Map.of("keyword", "游泳", "limit", 1,
+                                    "cursor", data(request, "search-settings-first").get("nextCursor"))),
+                            tool("read-settings", "read_settings", Map.of("settingIds", List.of(firstSetting, secondSetting))),
+                            tool("search-chapters-first", "search_chapters", Map.of("keyword", "游泳", "limit", 1)));
+                }
+                if (index == 4) {
+                    assertEquals(false, data(request, "search-settings-next").get("hasMore"));
+                    assertTrue(data(request, "read-settings").toString().contains("不会游泳"));
+                    assertEquals(true, data(request, "search-chapters-first").get("hasMore"));
+                    return calls("review-4",
+                            tool("search-chapters-next", "search_chapters", Map.of("keyword", "游泳", "limit", 1,
+                                    "cursor", data(request, "search-chapters-first").get("nextCursor"))),
+                            tool("read-prior", "read_chapter", Map.of("chapterId", prior)),
+                            tool("candidate", "propose_edit", Map.of("proposedContent", "林舟借助绳索渡过深水。",
+                                    "reason", "人物设定明确不会游泳，前文也重复说明。")));
+                }
+                assertEquals(5, index);
+                assertEquals(false, data(request, "search-chapters-next").get("hasMore"));
+                assertTrue(data(request, "read-prior").toString().contains("不会游泳"));
+                assertEquals(true, request.messages().getLast().replies().stream()
+                        .filter(reply -> reply.callId().equals("candidate")).findFirst().orElseThrow().result().get("success"));
+                return new Response("建议补充过河方式，以保持人物设定和前文一致。", List.of(),
+                        FinishReason.FINAL, "review-5", "end_turn", null);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, scripted)) {
+                scheduler.start();
+                String runId = scheduler.submit(new JdbcRunAdmission.Request("owner", project, target, 2,
+                        "检查第三章与人物设定及前文是否矛盾", UUID.randomUUID().toString())).runId();
+                await(() -> "SUCCEEDED".equals(status(dataSource, runId)));
+                Map<String,Object> detail = new JdbcRunQuery(dataSource).detail("owner", runId);
+                assertEquals(5, detail.get("modelCallCount"));
+                assertEquals(11, detail.get("toolCallCount"));
+                List<?> steps = (List<?>) detail.get("steps");
+                assertEquals(List.of("read_chapter", "list_chapters", "list_settings", "list_settings", "search_settings",
+                        "search_settings", "read_settings", "search_chapters", "search_chapters",
+                        "read_chapter", "propose_edit"),
+                        steps.stream().map(item -> ((Map<?,?>) item).get("toolName")).toList());
+                assertNotNull(detail.get("proposalId"));
+                Map<String,Object> proposal = new JdbcRunQuery(dataSource).proposal("owner", detail.get("proposalId").toString());
+                assertEquals("PENDING", proposal.get("status"));
+                assertEquals(original, content.chapter("owner", target).get("content"));
+                assertEquals(2, content.chapter("owner", target).get("version"));
+                List<?> sources = (List<?>) detail.get("sources");
+                assertTrue(sources.stream().anyMatch(item -> "FULL_CHAPTER".equals(((Map<?,?>) item).get("kind"))
+                        && target.equals(((Map<?,?>) item).get("chapterId"))));
+                assertTrue(sources.stream().anyMatch(item -> "FULL_CHAPTER".equals(((Map<?,?>) item).get("kind"))
+                        && prior.equals(((Map<?,?>) item).get("chapterId"))));
+                assertEquals(2, sources.stream().filter(item -> "FULL_SETTING".equals(((Map<?,?>) item).get("kind"))).count());
+                assertTrue(sources.stream().anyMatch(item -> "SEARCH_SNIPPET".equals(((Map<?,?>) item).get("kind"))));
+                assertTrue(sources.stream().allMatch(item -> Boolean.TRUE.equals(((Map<?,?>) item).get("providedToModel"))));
+            }
+        });
+    }
+
+    private static ToolCall tool(String id, String name, Map<String,?> args) {
+        return new ToolCall(id, name, JSON.valueToTree(args));
+    }
+    private static Response calls(String id, ToolCall... tools) {
+        return new Response("", List.of(tools), FinishReason.TOOL_CALLS, id, "tool_use", null);
+    }
+    @SuppressWarnings("unchecked")
+    private static Map<String,Object> data(ModelGateway.Request request, String callId) {
+        ToolReply reply = request.messages().getLast().replies().stream()
+                .filter(item -> item.callId().equals(callId)).findFirst().orElseThrow();
+        assertEquals(true, reply.result().get("success"), callId + " failed: " + reply.result());
+        return (Map<String,Object>) reply.result().get("data");
+    }
+
     @Test void scriptedRunCompletesAndReleasesCapacity() throws Exception {
         withDatabase(dataSource -> {
             ModelGateway scripted = request -> responseFor(request);

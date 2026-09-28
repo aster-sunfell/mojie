@@ -8,5 +8,6 @@
 - Java 进程重启后，原 100/200 数据仍可分页访问。另用带持久测试卷的 PostgreSQL 容器验证存储故障：停库后作品详情返回脱敏 `INTERNAL_ERROR`、HTTP 500，约 5.0 秒；恢复数据库后，同一 Java 进程可在约 7 ms 读取原作品。连接等待上限由 `MOJIE_DB_CONNECTION_TIMEOUT_MS` 配置，默认 5000 ms。运行中的模型任务在存储故障下的完整恢复仍以事务注入测试覆盖，未在这次手动容器测试中执行。
 - 提供 `deploy/nginx.conf.example` 作为同源部署与 SSE 关闭代理缓冲的配置示例。当前环境没有 Nginx，尚未做 `nginx -t` 或浏览器经代理的实测。
 - `docs/api/openapi.yaml` 列出 19 条路径、28 个操作；YAML 解析及本地 `$ref` 检查通过。`docs/api/HTTP_SSE_contract_v0.1.md` 记录事件序号、重连和错误/分页结构；`m4-ac-matrix-2026-09-29.md` 逐项标记 AC-01–41 的证据与缺口。
+- `RunSchedulerIT.fullConsistencyReviewPagesEvidenceAndPublishesOnlyAProposal` 在 PostgreSQL 18.6 上用模拟模型走完七工具：列章节、读取目标章、按类型列设定并翻页、搜索设定并翻页、批读设定、搜索前文并翻页、读取前文、提出候选稿。任务以 5 次模型调用、11 次工具调用成功；11 条步骤顺序正确，来源均确认进入模型输入，建议为 PENDING，正式正文保持版本 2。这覆盖确定性的 AC-04、AC-40 路径；真实模型质量仍待人工核查。
 
 尚未满足发布门槛：真实模型固定五输入、接近 6000 码点建议稿和上下文边界评估；真实浏览器断线/重连验收；M0 上游参考环境的可复核运行证据；AC-01–41 的逐项签收。因此本记录不是 MVP 发布通过声明。
