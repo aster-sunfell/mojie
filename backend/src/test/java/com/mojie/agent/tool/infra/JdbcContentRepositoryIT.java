@@ -5,6 +5,8 @@ import com.mojie.agent.loop.*;
 import com.mojie.agent.model.ModelGateway;
 import com.mojie.agent.model.ModelGateway.*;
 import com.mojie.agent.run.infra.JdbcRunTerminalStore;
+import com.mojie.agent.run.infra.JdbcRunAdmission;
+import com.mojie.agent.run.infra.JdbcRunLifecycle;
 import com.mojie.agent.tool.ContentRepository;
 import com.mojie.agent.tool.ContentTools;
 import com.mojie.agent.tool.ToolContext;
@@ -165,6 +167,79 @@ class JdbcContentRepositoryIT {
                 try (ResultSet rows = sql.executeQuery("SELECT count(*) FROM tb_edit_proposal WHERE run_id='" + cancelRun + "'")) {
                     rows.next(); assertEquals(0, rows.getInt(1));
                 }
+            }
+
+            String admittedProject = UUID.randomUUID().toString();
+            String admittedChapter = UUID.randomUUID().toString();
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                sql.execute("INSERT INTO tb_project(id, owner_id, name) VALUES ('" + admittedProject + "','owner','admitted')");
+                sql.execute("INSERT INTO tb_chapter(id, project_id, chapter_order, title, content) VALUES " +
+                        "('" + admittedChapter + "','" + admittedProject + "',1,'chapter','base')");
+                sql.execute("INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES " +
+                        "('" + admittedChapter + "',1,'base','CREATE')");
+            }
+            UUID processId = UUID.randomUUID();
+            JdbcRunAdmission admission = new JdbcRunAdmission(dataSource, Clock.systemUTC(), processId);
+            JdbcRunAdmission.Request request = new JdbcRunAdmission.Request("owner", admittedProject, admittedChapter,
+                    1, "检查章节", UUID.randomUUID().toString());
+            JdbcRunAdmission.Config config = new JdbcRunAdmission.Config("prompt", "{\"tools\":[]}", "scripted", Map.of("maxTokens", 100));
+            JdbcRunAdmission.Receipt accepted = admission.create(request, config);
+            assertTrue(accepted.created());
+            assertEquals("QUEUED", accepted.status());
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                sql.execute("UPDATE tb_chapter SET version=2, content='changed' WHERE id='" + admittedChapter + "'");
+                sql.execute("INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES " +
+                        "('" + admittedChapter + "',2,'changed','MANUAL')");
+            }
+            assertEquals(accepted.runId(), admission.create(request, config).runId());
+            assertFalse(admission.create(request, config).created());
+            JdbcRunAdmission.AdmissionException conflict = assertThrows(JdbcRunAdmission.AdmissionException.class,
+                    () -> admission.create(new JdbcRunAdmission.Request("owner", admittedProject, admittedChapter, 1,
+                            "不同要求", request.clientRequestId()), config));
+            assertEquals("IDEMPOTENCY_CONFLICT", conflict.code());
+            JdbcRunAdmission.AdmissionException busy = assertThrows(JdbcRunAdmission.AdmissionException.class,
+                    () -> admission.create(new JdbcRunAdmission.Request("owner", admittedProject, admittedChapter, 2,
+                            "新任务", UUID.randomUUID().toString()), config));
+            assertEquals("RESOURCE_BUSY", busy.code());
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                try (ResultSet rows = sql.executeQuery("SELECT active_run_id FROM tb_project WHERE id='" + admittedProject + "'")) {
+                    rows.next(); assertEquals(accepted.runId(), rows.getString(1));
+                }
+                try (ResultSet rows = sql.executeQuery("SELECT base_version, base_content, last_event_seq FROM tb_agent_run WHERE id='" + accepted.runId() + "'")) {
+                    rows.next(); assertEquals(1, rows.getInt(1)); assertEquals("base", rows.getString(2)); assertEquals(1, rows.getLong(3));
+                }
+            }
+            JdbcRunLifecycle lifecycle = new JdbcRunLifecycle(dataSource, terminal);
+            assertTrue(lifecycle.start(admittedProject, accepted.runId(), processId));
+            assertFalse(lifecycle.start(admittedProject, accepted.runId(), processId));
+            assertEquals(new JdbcRunLifecycle.CancelResult("RUNNING", true),
+                    lifecycle.requestCancel(admittedProject, accepted.runId()));
+            assertEquals("CANCELLED", terminal.finish(admittedProject, accepted.runId(),
+                    new LoopOutcome.Completed("late", null, 0, 0, 0)).status());
+
+            JdbcRunAdmission.Receipt queued = admission.create(new JdbcRunAdmission.Request("owner", admittedProject,
+                    admittedChapter, 2, "queued", UUID.randomUUID().toString()), config);
+            assertEquals(new JdbcRunLifecycle.CancelResult("CANCELLED", true),
+                    lifecycle.requestCancel(admittedProject, queued.runId()));
+            assertFalse(lifecycle.start(admittedProject, queued.runId(), processId));
+
+            JdbcRunAdmission.Receipt overdue = admission.create(new JdbcRunAdmission.Request("owner", admittedProject,
+                    admittedChapter, 2, "overdue", UUID.randomUUID().toString()), config);
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                sql.execute("UPDATE tb_agent_run SET deadline_at = now() - interval '1 second' WHERE id='" + overdue.runId() + "'");
+            }
+            assertTrue(lifecycle.sweepTimeouts().contains(overdue.runId()));
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement();
+                 ResultSet rows = sql.executeQuery("SELECT status, error_code FROM tb_agent_run WHERE id='" + overdue.runId() + "'")) {
+                rows.next(); assertEquals("FAILED", rows.getString(1)); assertEquals("RUN_TIMEOUT", rows.getString(2));
+            }
+
+            JdbcRunAdmission.Receipt abandoned = admission.create(new JdbcRunAdmission.Request("owner", admittedProject,
+                    admittedChapter, 2, "abandoned", UUID.randomUUID().toString()), config);
+            assertTrue(lifecycle.failPreviousProcessRuns(UUID.randomUUID()).contains(abandoned.runId()));
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement();
+                 ResultSet rows = sql.executeQuery("SELECT status, error_code FROM tb_agent_run WHERE id='" + abandoned.runId() + "'")) {
+                rows.next(); assertEquals("FAILED", rows.getString(1)); assertEquals("SERVICE_RESTARTED", rows.getString(2));
             }
         } finally {
             try (Connection admin = DriverManager.getConnection(baseUrl, user, password);

@@ -1,6 +1,6 @@
 # Agent run transaction boundaries
 
-This describes the implemented database primitives for [Agent Tool Loop PRD v0.1](../prd/Agent_Tool_Loop_PRD_v0.1.md). Run admission and scheduling are still pending.
+This describes the implemented database primitives for [Agent Tool Loop PRD v0.1](../prd/Agent_Tool_Loop_PRD_v0.1.md).
 
 1. `JdbcContentRepository.captureChapterView` reads chapter ID, order and version in a short repeatable-read, read-only transaction. It then locks the run and writes all pinned versions in a separate short transaction. Search scans immutable revisions after that commit.
 2. `JdbcLoopTrace.modelStarted` locks the run, checks input message references, reserves one model call, writes the call and `model.started` event in one transaction. The model request occurs after commit.
@@ -8,3 +8,7 @@ This describes the implemented database primitives for [Agent Tool Loop PRD v0.1
 4. `JdbcRunTerminalStore.finish` locks `tb_project` then `tb_agent_run`, checks cancellation/deadline, validates the final model call and that a full target-chapter reply appeared in its input references, and commits status, optional `PENDING` proposal, terminal event and conditional slot release together. A repeated finish returns the committed terminal result.
 
 The lock order for future writers is `tb_project → tb_agent_run / tb_edit_proposal → tb_chapter`. `tb_agent_event.seq` is allocated by incrementing `tb_agent_run.last_event_seq` under the run row lock. `tb_agent_message.message_seq` is allocated under the same lock. Network model calls and chapter text scans occur outside database transactions.
+
+5. `JdbcRunAdmission` checks idempotency before capacity acquisition, then locks the project, rechecks the key and slot, checks the target chapter version, and commits the run, base snapshot, initial message, queued event and active slot together. A unique-key race is rolled back before a new transaction re-reads the existing run.
+6. `RunScheduler` holds ten admission permits and a fixed two-worker/eight-queue executor. It registers a complete handle before submitting the task. A queued cancellation wins by changing the handle phase to `CANCELLED_BEFORE_START`, removing its task and releasing its permit. A started task releases its permit only in the worker's `finally` after actual exit; `FutureTask.cancel` does not release it.
+7. `JdbcRunLifecycle` claims a queued run once, records running cancellation requests, immediately settles queued cancellation, scans due deadlines and fails old-process tasks before readiness. The scheduler's separate two-second sweep signals local handles after the database transition. A late model response cannot publish success because `JdbcRunTerminalStore` re-reads the terminal state.
