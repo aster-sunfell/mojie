@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api, readableError } from './api.js'
 import { useRun } from './useRun.js'
 
@@ -216,43 +216,85 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
   const [accepting, setAccepting] = useState(false)
+  const selectedRef = useRef(selectedChapterId)
+  const chapterRef = useRef(chapter)
+  const draftRef = useRef(draft)
+  const saveInFlight = useRef(null)
+  selectedRef.current = selectedChapterId
+  chapterRef.current = chapter
   const dirty = chapter && draft !== chapter.content
   const loadChapters = useCallback(() => api(`/projects/${projectId}/chapters?limit=50`).then(setChapters), [projectId])
   const refreshChapter = useCallback(async () => {
     if (!selectedChapterId) return null
     const value = await api(`/chapters/${selectedChapterId}`)
-    setChapter(value); setDraft(value.content); setSaveStatus('已保存'); await loadChapters()
+    if (selectedRef.current !== selectedChapterId) return null
+    const hasLocalDraft = chapterRef.current?.id === selectedChapterId
+      && draftRef.current !== chapterRef.current.content
+    chapterRef.current = value
+    setChapter(value)
+    if (!hasLocalDraft) { draftRef.current = value.content; setDraft(value.content); setSaveStatus('已保存') }
+    else setSaveStatus('未保存')
+    await loadChapters()
     return value
   }, [selectedChapterId, loadChapters])
   useEffect(() => { api(`/projects/${projectId}`).then(setProject).catch(e => setError(readableError(e))); loadChapters().catch(e => setError(readableError(e))) }, [projectId, loadChapters])
-  useEffect(() => { setChapter(null); setDraft(''); if (selectedChapterId) refreshChapter().catch(e => setError(readableError(e))) }, [selectedChapterId, refreshChapter])
+  useEffect(() => {
+    chapterRef.current = null; draftRef.current = ''
+    setChapter(null); setDraft('')
+    if (selectedChapterId) refreshChapter().catch(e => setError(readableError(e)))
+  }, [selectedChapterId, refreshChapter])
   useEffect(() => {
     const check = event => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', check)
     return () => window.removeEventListener('beforeunload', check)
   }, [dirty])
-  const save = useCallback(async () => {
-    if (!chapter || accepting) return false
+  const save = useCallback(() => {
+    if (saveInFlight.current) return saveInFlight.current
+    if (!chapter || accepting) return Promise.resolve(false)
+    const chapterId = chapter.id
+    const submitted = draftRef.current
     setSaveStatus('保存中')
-    try {
-      const value = await api(`/chapters/${chapter.id}/content`, 'PUT', { content: draft, expectedVersion: chapter.version })
-      setChapter(value); setDraft(value.content); setSaveStatus('已保存'); await loadChapters(); return true
-    } catch (e) { setSaveStatus(e.code === 'VERSION_CONFLICT' ? '版本冲突' : '保存失败'); setError(readableError(e)); return false }
-  }, [chapter, draft, loadChapters, accepting])
+    const pending = (async () => {
+      try {
+        const value = await api(`/chapters/${chapterId}/content`, 'PUT', { content: submitted, expectedVersion: chapter.version })
+        if (selectedRef.current !== chapterId) return false
+        chapterRef.current = value; setChapter(value)
+        const unchanged = draftRef.current === submitted
+        if (unchanged) { draftRef.current = value.content; setDraft(value.content) }
+        setSaveStatus(unchanged ? '已保存' : '未保存')
+        await loadChapters()
+        return selectedRef.current === chapterId && draftRef.current === submitted
+      } catch (e) {
+        if (selectedRef.current === chapterId) {
+          setSaveStatus(e.code === 'VERSION_CONFLICT' ? '版本冲突' : '保存失败')
+          setError(readableError(e))
+        }
+        return false
+      }
+    })()
+    saveInFlight.current = pending
+    pending.finally(() => { if (saveInFlight.current === pending) saveInFlight.current = null })
+    return pending
+  }, [chapter, loadChapters, accepting])
   useEffect(() => { const key = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save])
-  async function leave(path) {
+  async function prepareLeave() {
     if (accepting) return
     if (dirty) {
       const decision = window.prompt('正文未保存。输入“保存”后离开、“放弃”直接离开，或“取消”继续编辑。', '取消')
-      if (decision === '保存') { if (!(await save())) return }
-      else if (decision !== '放弃') return
+      if (decision === '保存') return await save()
+      if (decision !== '放弃') return false
     }
+    return true
+  }
+  async function leave(path) {
+    if (!(await prepareLeave())) return
     navigate(path)
   }
   async function addChapter() {
     const title = window.prompt('新章节标题')
     if (!title) return
-    try { const created = await api(`/projects/${projectId}/chapters`, 'POST', { title }); await loadChapters(); await leave(`/projects/${projectId}/chapters/${created.id}`) }
+    if (!(await prepareLeave())) return
+    try { const created = await api(`/projects/${projectId}/chapters`, 'POST', { title }); await loadChapters(); navigate(`/projects/${projectId}/chapters/${created.id}`) }
     catch (e) { setError(readableError(e)) }
   }
   useEffect(() => {
@@ -266,7 +308,7 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
     <button className="settingsToggle" onClick={() => setShowSettings(!showSettings)}>{showSettings ? '关闭设定' : '管理设定'}</button>
   </nav><main className="editorArea">{showSettings ? <Settings projectId={projectId} disabled={runBusy} /> : chapter ? <><div className="editorHeader"><div><span className="eyebrow">CHAPTER {chapter.chapterOrder}</span><h1>{chapter.title}</h1><p>版本 {chapter.version} · {cp(draft)} 字 · {saveStatus}</p></div><div className="row"><button className="secondary" onClick={() => setShowHistory(true)}>查看历史</button><button onClick={save} disabled={!dirty || accepting || saveStatus === '保存中'}>保存正文</button></div></div>
       {error && <p className="error">{error}</p>}
-      <textarea className="editor" value={draft} disabled={accepting} onChange={e => { setDraft(e.target.value); setSaveStatus('未保存') }} placeholder="从这里开始写作…" />
+      <textarea className="editor" value={draft} disabled={accepting} onChange={e => { draftRef.current = e.target.value; setDraft(e.target.value); setSaveStatus('未保存') }} placeholder="从这里开始写作…" />
       {showHistory && <History chapterId={chapter.id} close={() => setShowHistory(false)} />}
     </> : <div className="emptyEditor">从左侧选择章节，或新建第一章。</div>}</main>
     <AgentPanel projectId={projectId} chapter={chapter} dirty={dirty} refreshChapter={refreshChapter} onAcceptanceBusy={setAccepting} />

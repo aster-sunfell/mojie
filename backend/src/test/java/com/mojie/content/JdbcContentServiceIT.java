@@ -27,6 +27,8 @@ class JdbcContentServiceIT {
             assertEquals(1, content.chapter(owner, chapter).get("version"));
             Map<String,Object> saved = content.saveChapter(owner, chapter, "林舟不会游泳。", 1);
             assertEquals(2, saved.get("version"));
+            assertEquals(2, content.saveChapter(owner, chapter, "林舟不会游泳。", 2).get("version"));
+            assertEquals(2, content.revisions(owner, chapter, 20).size());
             assertEquals("", content.revision(owner, chapter, 1).get("content"));
             assertEquals("林舟不会游泳。", content.revision(owner, chapter, 2).get("content"));
             JdbcContentService.ContentException conflict = assertThrows(JdbcContentService.ContentException.class,

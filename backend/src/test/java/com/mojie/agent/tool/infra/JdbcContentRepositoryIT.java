@@ -16,11 +16,17 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import java.sql.*;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
+import java.io.PrintWriter;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.*;
+import java.util.logging.Logger;
+import javax.sql.DataSource;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -109,7 +115,11 @@ class JdbcContentRepositoryIT {
             assertInstanceOf(LoopOutcome.Completed.class, outcome, () -> outcome.toString());
             assertEquals(2, calls.get());
             JdbcRunTerminalStore terminal = new JdbcRunTerminalStore(dataSource, Clock.systemUTC());
-            JdbcRunTerminalStore.Result committed = terminal.finish(project, run, outcome);
+            assertThrows(IllegalStateException.class, () -> new JdbcRunTerminalStore(
+                    loseFirstCommitAcknowledgement(dataSource), Clock.systemUTC()).finish(project, run, outcome));
+            // The commit reached PostgreSQL even though its acknowledgement was lost. Retry must read it back.
+            JdbcRunTerminalStore.Result committed = terminal.finish(project, run,
+                    new LoopOutcome.Failed("PERSISTENCE_ERROR", "Commit result was unknown"));
             assertEquals("SUCCEEDED", committed.status());
             assertNull(committed.proposalId());
             assertEquals(committed, terminal.finish(project, run, outcome));
@@ -339,6 +349,32 @@ class JdbcContentRepositoryIT {
         try (ResultSet rows = statement.executeQuery("SELECT count(*) FROM " + table)) {
             rows.next(); assertEquals(expected, rows.getInt(1), table);
         }
+    }
+    private static DataSource loseFirstCommitAcknowledgement(PGSimpleDataSource delegate) {
+        AtomicBoolean pending = new AtomicBoolean(true);
+        return new DataSource() {
+            @Override public Connection getConnection() throws SQLException {
+                Connection raw = delegate.getConnection();
+                return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(), new Class<?>[]{Connection.class},
+                        (proxy, method, args) -> {
+                            try {
+                                if (method.getName().equals("commit") && pending.compareAndSet(true, false)) {
+                                    raw.commit();
+                                    throw new SQLException("Commit acknowledgement lost");
+                                }
+                                return method.invoke(raw, args);
+                            } catch (InvocationTargetException e) { throw e.getCause(); }
+                        });
+            }
+            @Override public Connection getConnection(String username, String password) throws SQLException { return getConnection(); }
+            @Override public PrintWriter getLogWriter() throws SQLException { return delegate.getLogWriter(); }
+            @Override public void setLogWriter(PrintWriter out) throws SQLException { delegate.setLogWriter(out); }
+            @Override public void setLoginTimeout(int seconds) throws SQLException { delegate.setLoginTimeout(seconds); }
+            @Override public int getLoginTimeout() throws SQLException { return delegate.getLoginTimeout(); }
+            @Override public Logger getParentLogger() { return Logger.getGlobal(); }
+            @Override public <T> T unwrap(Class<T> iface) throws SQLException { return delegate.unwrap(iface); }
+            @Override public boolean isWrapperFor(Class<?> iface) throws SQLException { return delegate.isWrapperFor(iface); }
+        };
     }
     private static String insertRun(PGSimpleDataSource dataSource, String project, String target,
                                     String promptHash, String schemaHash) throws SQLException {

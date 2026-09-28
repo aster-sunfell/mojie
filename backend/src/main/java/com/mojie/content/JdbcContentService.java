@@ -166,8 +166,10 @@ public final class JdbcContentService {
         String chapterId = uuid(id), body = text(content, "content", 0, 6000);
         if (expectedVersion < 1) throw error("VALIDATION_ERROR", "Invalid expectedVersion");
         return db(true, c -> {
-            Map<String,Object> old = one(c, "SELECT ch.id, ch.version FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.owner_id = ? AND p.deleted_at IS NULL FOR UPDATE OF ch", chapterId, owner);
+            Map<String,Object> old = one(c, "SELECT ch.id, ch.version, ch.content FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.owner_id = ? AND p.deleted_at IS NULL FOR UPDATE OF ch", chapterId, owner);
             if (((Number) old.get("version")).intValue() != expectedVersion) throw error("VERSION_CONFLICT", "Chapter version changed");
+            if (body.equals(old.get("content")))
+                return one(c, "SELECT id, project_id, chapter_order, title, content, version, updated_at FROM tb_chapter WHERE id = ?::uuid", chapterId);
             change(c, "UPDATE tb_chapter SET content = ?, version = version + 1, updated_at = now() WHERE id = ?::uuid AND version = ?", body, chapterId, expectedVersion);
             change(c, "INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES (?::uuid, ?, ?, 'MANUAL')", chapterId, expectedVersion + 1, body);
             return one(c, "SELECT id, project_id, chapter_order, title, content, version, updated_at FROM tb_chapter WHERE id = ?::uuid", chapterId);
