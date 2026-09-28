@@ -37,6 +37,7 @@ public final class AgentLoop {
 
     public LoopOutcome run(LoopInput input) {
         ToolContext context = input.context();
+        context.executionClock(clock, input.deadline());
         String runId = context.runId();
         List<Message> messages = new ArrayList<>();
         messages.add(Message.user(input.instruction()));

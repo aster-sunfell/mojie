@@ -4,7 +4,11 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 ## 当前实现
 
-`backend/` 已加入 Java 21 Agent loop 核心、七个工具、PostgreSQL 迁移、JDBC 持久化、有界任务调度及 Anthropic SDK 适配器。测试和接入边界见 [backend/README.md](backend/README.md)。内容管理接口、HTTP/SSE 和前端尚未接入；真实模型评估尚未执行。
+`backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Anthropic 适配器、内容管理和 HTTP/SSE 接口。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md) 和 [本次联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md)。真实模型评估仍需在配置 API key 后执行。
+
+## 本地运行
+
+需要 Java 21、Maven、Node 20+、PostgreSQL 18。先执行 `docker compose -f deploy/compose.yaml up -d`，再在 `backend/` 运行 `mvn package && java -jar target/mojie-agent-core-0.1.0-SNAPSHOT-exec.jar`，在 `web/` 运行 `npm install && npm run dev`，打开 `http://127.0.0.1:5173`。未设置 `ANTHROPIC_API_KEY` 时可编辑内容，任务提交入口会说明模型未配置。
 
 ## 文档入口
 

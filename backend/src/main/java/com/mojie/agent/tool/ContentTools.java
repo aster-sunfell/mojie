@@ -110,37 +110,38 @@ public final class ContentTools {
 
     private static Action searchChapters(ContentRepository repository, Cursor cursor) {
         return (args, ctx) -> {
+            long searchEnd = System.nanoTime() + 5_000_000_000L;
+            try {
             requireKeys(args, "keyword", "scope", "limit", "cursor");
             String keyword = required(args, "keyword", 1, 128);
             if (keyword.contains("\n") || keyword.contains("\r")) throw new IllegalArgumentException("keyword cannot contain a newline");
             String scope = optional(args, "scope", "BEFORE_TARGET");
             if (!scope.equals("BEFORE_TARGET") && !scope.equals("ALL_CHAPTERS")) throw new IllegalArgumentException("Invalid scope");
             int limit = number(args, "limit", 10, 1, 20);
-            List<ToolContext.Chapter> chapters = repository.chapters(ctx.projectId()).stream()
+            List<ToolContext.Chapter> chapters = repository.chapters(ctx.projectId(), searchRemaining(ctx, searchEnd)).stream()
                     .sorted(Comparator.comparingInt(ToolContext.Chapter::order).thenComparing(ToolContext.Chapter::id)).toList();
             if (chapters.size() > 1000) return ToolResult.error("SEARCH_SCOPE_TOO_LARGE", "Search view exceeds 1000 chapters", false);
             if (ctx.chapterView() == null) {
                 ContentRepository.ChapterView view = repository.captureChapterView(ctx.runId(), ctx.projectId(),
-                        ctx.targetChapterId(), ctx.baseVersion(), ctx.readChapters());
+                        ctx.targetChapterId(), ctx.baseVersion(), ctx.readChapters(), searchRemaining(ctx, searchEnd));
                 ctx.setChapterView(view.versions(), view.viewId());
             }
             String query = "search_chapters:" + ctx.chapterViewId() + ":" + keyword + ":" + scope;
             int offset = cursor.offset(args, ctx, query);
             int targetOrder = chapters.stream().filter(c -> c.id().equals(ctx.targetChapterId())).findFirst()
                     .map(ToolContext.Chapter::order).orElseThrow(() -> new IllegalArgumentException("Target chapter unavailable"));
-            long searchEnd = System.nanoTime() + 5_000_000_000L;
             List<Map<String, Object>> hits = new ArrayList<>();
             List<Evidence> allEvidence = new ArrayList<>();
             for (ToolContext.Chapter meta : chapters) {
-                if (System.nanoTime() > searchEnd) return ToolResult.error("SEARCH_TIMEOUT", "Search exceeded five seconds", false);
+                searchRemaining(ctx, searchEnd);
                 if (scope.equals("BEFORE_TARGET") && meta.order() >= targetOrder) continue;
                 Long version = ctx.chapterView().get(meta.id());
                 if (version == null) continue;
                 String content = meta.id().equals(ctx.targetChapterId()) ? ctx.baseContent()
-                        : repository.chapterRevision(ctx.projectId(), meta.id(), version).content();
+                        : repository.chapterRevision(ctx.projectId(), meta.id(), version, searchRemaining(ctx, searchEnd)).content();
                 int line = 0;
                 for (String value : content.split("\\R", -1)) {
-                    if (System.nanoTime() > searchEnd) return ToolResult.error("SEARCH_TIMEOUT", "Search exceeded five seconds", false);
+                    searchRemaining(ctx, searchEnd);
                     line++;
                     int from = 0, at;
                     while ((at = value.indexOf(keyword, from)) >= 0) {
@@ -165,6 +166,9 @@ public final class ContentTools {
             data.put("nextCursor", end < hits.size() ? cursor.encode(ctx, query, end) : null);
             if (jsonSize(data) > 12_000) return ToolResult.error("RESULT_TOO_LARGE", "Search page exceeds 12000 code points", true);
             return ToolResult.ok(data, allEvidence.subList(start, end));
+            } catch (ContentRepository.SearchTimeoutException e) {
+                return ToolResult.error("SEARCH_TIMEOUT", "Search exceeded its deadline", false);
+            }
         };
     }
 
@@ -209,6 +213,8 @@ public final class ContentTools {
 
     private static Action searchSettings(ContentRepository repository, Cursor cursor) {
         return (args, ctx) -> {
+            long searchEnd = System.nanoTime() + 5_000_000_000L;
+            try {
             requireKeys(args, "keyword", "type", "limit", "cursor");
             String keyword = required(args, "keyword", 1, 128);
             if (keyword.contains("\n") || keyword.contains("\r")) throw new IllegalArgumentException("keyword cannot contain a newline");
@@ -218,7 +224,8 @@ public final class ContentTools {
             int offset = cursor.offset(args, ctx, query);
             List<Map<String, Object>> hits = new ArrayList<>();
             List<Evidence> evidence = new ArrayList<>();
-            for (ContentRepository.Setting s : repository.settings(ctx.projectId()).stream().sorted(Comparator.comparing(ContentRepository.Setting::id)).toList()) {
+            for (ContentRepository.Setting s : repository.settings(ctx.projectId(), searchRemaining(ctx, searchEnd)).stream().sorted(Comparator.comparing(ContentRepository.Setting::id)).toList()) {
+                searchRemaining(ctx, searchEnd);
                 if (!type.isEmpty() && !s.type().equals(type)) continue;
                 int titleAt = s.title().indexOf(keyword);
                 int contentAt = titleAt < 0 ? s.content().indexOf(keyword) : -1;
@@ -236,7 +243,17 @@ public final class ContentTools {
             ToolResult page = page(hits.subList(start, end), offset, limit, hits.size(), cursor, ctx, query, evidence.subList(start, end));
             if (jsonSize(page.data()) > 12_000) return ToolResult.error("RESULT_TOO_LARGE", "Search page exceeds 12000 code points", true);
             return page;
+            } catch (ContentRepository.SearchTimeoutException e) {
+                return ToolResult.error("SEARCH_TIMEOUT", "Search exceeded its deadline", false);
+            }
         };
+    }
+
+    private static long searchRemaining(ToolContext ctx, long searchEnd) {
+        long own = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(searchEnd - System.nanoTime());
+        long remaining = Math.min(own, ctx.remainingMillis());
+        if (remaining <= 0) throw new ContentRepository.SearchTimeoutException(null);
+        return remaining;
     }
 
     private static Action propose() {

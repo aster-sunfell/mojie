@@ -24,6 +24,19 @@ public final class JdbcContentRepository implements ContentRepository {
         } catch (SQLException e) { throw failure(e); }
     }
 
+    @Override public List<ToolContext.Chapter> chapters(String projectId, long timeoutMillis) {
+        try (Connection connection = dataSource.getConnection()) {
+            searchTimeout(connection, timeoutMillis);
+            List<ToolContext.Chapter> result = loadChapters(connection, """
+                    SELECT c.id, c.title, c.chapter_order, c.version, c.content
+                      FROM tb_chapter c JOIN tb_project p ON p.id = c.project_id
+                     WHERE c.project_id = ?::uuid AND c.deleted_at IS NULL AND p.deleted_at IS NULL
+                     ORDER BY c.chapter_order, c.id
+                    """, projectId);
+            connection.commit(); return result;
+        } catch (SQLException e) { throw searchFailure(e); }
+    }
+
     @Override public ToolContext.Chapter chapterRevision(String projectId, String chapterId, long version) {
         String sql = """
                 SELECT c.id, c.title, c.chapter_order, r.version, r.content
@@ -41,14 +54,40 @@ public final class JdbcContentRepository implements ContentRepository {
         } catch (SQLException e) { throw failure(e); }
     }
 
+    @Override public ToolContext.Chapter chapterRevision(String projectId, String chapterId, long version, long timeoutMillis) {
+        String sql = """
+                SELECT c.id, c.title, c.chapter_order, r.version, r.content
+                  FROM tb_chapter c JOIN tb_project p ON p.id = c.project_id
+                  JOIN tb_chapter_revision r ON r.chapter_id = c.id
+                 WHERE c.project_id = ?::uuid AND c.id = ?::uuid AND r.version = ?
+                   AND c.deleted_at IS NULL AND p.deleted_at IS NULL
+                """;
+        try (Connection connection = dataSource.getConnection()) {
+            searchTimeout(connection, timeoutMillis);
+            ToolContext.Chapter result;
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, projectId); statement.setString(2, chapterId); statement.setLong(3, version);
+                try (ResultSet rows = statement.executeQuery()) { result = rows.next() ? chapter(rows) : null; }
+            }
+            connection.commit(); return result;
+        } catch (SQLException e) { throw searchFailure(e); }
+    }
+
     @Override public ChapterView captureChapterView(String runId, String projectId, String targetId,
                                                     long baseVersion, Map<String, ToolContext.Chapter> alreadyRead) {
+        return captureChapterView(runId, projectId, targetId, baseVersion, alreadyRead, 5_000);
+    }
+
+    @Override public ChapterView captureChapterView(String runId, String projectId, String targetId,
+                                                    long baseVersion, Map<String, ToolContext.Chapter> alreadyRead,
+                                                    long timeoutMillis) {
         // The version list is read in one short repeatable-read transaction. No database write occurs there.
         List<ViewRow> snapshot;
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             connection.setReadOnly(true);
             connection.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+            setLocalTimeout(connection, timeoutMillis);
             snapshot = loadViewRows(connection, """
                     SELECT c.id, c.chapter_order, c.version
                       FROM tb_chapter c JOIN tb_project p ON p.id = c.project_id
@@ -56,7 +95,7 @@ public final class JdbcContentRepository implements ContentRepository {
                      ORDER BY c.chapter_order, c.id
                     """, projectId);
             connection.commit();
-        } catch (SQLException e) { throw failure(e); }
+        } catch (SQLException e) { throw searchFailure(e); }
 
         Map<String, Long> proposed = new LinkedHashMap<>();
         for (ViewRow chapter : snapshot) {
@@ -70,6 +109,7 @@ public final class JdbcContentRepository implements ContentRepository {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
+                setLocalTimeout(connection, timeoutMillis);
                 String statusSql = "SELECT status FROM tb_agent_run WHERE id = ?::uuid AND project_id = ?::uuid FOR UPDATE";
                 try (PreparedStatement statement = connection.prepareStatement(statusSql)) {
                     statement.setString(1, runId); statement.setString(2, projectId);
@@ -100,10 +140,10 @@ public final class JdbcContentRepository implements ContentRepository {
                 return new ChapterView(viewId.toString(), proposed);
             } catch (SQLException | RuntimeException e) {
                 connection.rollback();
-                if (e instanceof SQLException sql) throw failure(sql);
+                if (e instanceof SQLException sql) throw searchFailure(sql);
                 throw e;
             }
-        } catch (SQLException e) { throw failure(e); }
+        } catch (SQLException e) { throw searchFailure(e); }
     }
 
     @Override public List<Setting> settings(String projectId) {
@@ -121,6 +161,39 @@ public final class JdbcContentRepository implements ContentRepository {
                 return result;
             }
         } catch (SQLException e) { throw failure(e); }
+    }
+
+    @Override public List<Setting> settings(String projectId, long timeoutMillis) {
+        try (Connection connection = dataSource.getConnection()) {
+            searchTimeout(connection, timeoutMillis);
+            List<Setting> result = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement("""
+                    SELECT s.id, s.type, s.title, s.content
+                      FROM tb_setting s JOIN tb_project p ON p.id = s.project_id
+                     WHERE s.project_id = ?::uuid AND s.deleted_at IS NULL AND p.deleted_at IS NULL
+                     ORDER BY s.id
+                    """)) {
+                statement.setString(1, projectId);
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) result.add(new Setting(rows.getString(1), rows.getString(2), rows.getString(3), rows.getString(4)));
+                }
+            }
+            connection.commit(); return result;
+        } catch (SQLException e) { throw searchFailure(e); }
+    }
+
+    private static void searchTimeout(Connection connection, long timeoutMillis) throws SQLException {
+        connection.setAutoCommit(false);
+        setLocalTimeout(connection, timeoutMillis);
+    }
+    private static void setLocalTimeout(Connection connection, long timeoutMillis) throws SQLException {
+        long bounded = Math.max(1, Math.min(timeoutMillis, 5_000));
+        try (PreparedStatement statement = connection.prepareStatement("SELECT set_config('statement_timeout', ?, true)")) {
+            statement.setString(1, bounded + "ms"); statement.execute();
+        }
+    }
+    private static RuntimeException searchFailure(SQLException error) {
+        return "57014".equals(error.getSQLState()) ? new ContentRepository.SearchTimeoutException(error) : failure(error);
     }
 
     private static ChapterView readView(Connection connection, String runId) throws SQLException {
