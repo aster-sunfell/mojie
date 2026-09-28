@@ -11,6 +11,7 @@ import com.mojie.agent.tool.ContentRepository;
 import com.mojie.agent.tool.ContentTools;
 import com.mojie.agent.tool.ToolContext;
 import com.mojie.agent.trace.infra.JdbcLoopTrace;
+import com.mojie.proposal.infra.JdbcEditProposalService;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -19,6 +20,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -146,12 +148,97 @@ class JdbcContentRepositoryIT {
             JdbcRunTerminalStore.Result published = terminal.finish(project, proposalRun, proposed);
             assertEquals("SUCCEEDED", published.status());
             assertNotNull(published.proposalId());
+            JdbcEditProposalService decisions = new JdbcEditProposalService(dataSource);
+            String rejectedId = UUID.randomUUID().toString();
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                sql.execute("INSERT INTO tb_edit_proposal(id, run_id, project_id, target_chapter_id, base_version, " +
+                        "base_content, proposed_content, reason, status) VALUES ('" + rejectedId + "','" + run + "','" +
+                        project + "','" + target + "',1,'old target','rejected text','unneeded','PENDING')");
+            }
+            assertEquals("REJECTED", decisions.reject("owner", rejectedId).status());
+            assertEquals("REJECTED", decisions.reject("owner", rejectedId).status());
+            assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(JdbcEditProposalService.ProposalException.class,
+                    () -> decisions.accept("owner", rejectedId)).code());
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
                 try (ResultSet rows = sql.executeQuery("SELECT status, proposed_content FROM tb_edit_proposal WHERE id='" + published.proposalId() + "'")) {
                     rows.next(); assertEquals("PENDING", rows.getString(1)); assertEquals("new target", rows.getString(2));
                 }
                 try (ResultSet rows = sql.executeQuery("SELECT content, version FROM tb_chapter WHERE id='" + target + "'")) {
                     rows.next(); assertEquals("old target", rows.getString(1)); assertEquals(1, rows.getInt(2));
+                }
+            }
+            assertEquals(new JdbcEditProposalService.Decision("APPLIED", 2), decisions.accept("owner", published.proposalId()));
+            assertEquals(new JdbcEditProposalService.Decision("APPLIED", 2), decisions.accept("owner", published.proposalId()));
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                try (ResultSet rows = sql.executeQuery("SELECT content, version FROM tb_chapter WHERE id='" + target + "'")) {
+                    rows.next(); assertEquals("new target", rows.getString(1)); assertEquals(2, rows.getInt(2));
+                }
+                try (ResultSet rows = sql.executeQuery("SELECT count(*) FROM tb_chapter_revision WHERE proposal_id='" + published.proposalId() + "'")) {
+                    rows.next(); assertEquals(1, rows.getInt(1));
+                }
+            }
+
+            String staleRun = UUID.randomUUID().toString(), staleProposal = UUID.randomUUID().toString();
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                sql.execute("INSERT INTO tb_agent_run(id, owner_id, project_id, target_chapter_id, instruction, " +
+                        "client_request_id, request_digest, base_version, base_content, status, deadline_at, finished_at, " +
+                        "model_id, prompt_hash, tool_schema_hash, config_snapshot) VALUES (" +
+                        "'" + staleRun + "','owner','" + project + "','" + target + "','stale'," +
+                        "'" + UUID.randomUUID() + "','" + "e".repeat(64) + "',1,'old target','SUCCEEDED',now(),now()," +
+                        "'scripted','" + promptHash + "','" + schemaHash + "','{}'::jsonb)");
+                sql.execute("INSERT INTO tb_edit_proposal(id, run_id, project_id, target_chapter_id, base_version, " +
+                        "base_content, proposed_content, reason, status) VALUES ('" + staleProposal + "','" + staleRun + "','" +
+                        project + "','" + target + "',1,'old target','stale text','stale','PENDING')");
+            }
+            assertEquals("CONFLICTED", decisions.accept("owner", staleProposal).status());
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                try (ResultSet rows = sql.executeQuery("SELECT status FROM tb_edit_proposal WHERE id='" + staleProposal + "'")) {
+                    rows.next(); assertEquals("CONFLICTED", rows.getString(1));
+                }
+                try (ResultSet rows = sql.executeQuery("SELECT version FROM tb_chapter WHERE id='" + target + "'")) {
+                    rows.next(); assertEquals(2, rows.getInt(1));
+                }
+            }
+
+            String raceRun = UUID.randomUUID().toString(), raceProposal = UUID.randomUUID().toString();
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                sql.execute("INSERT INTO tb_agent_run(id, owner_id, project_id, target_chapter_id, instruction, " +
+                        "client_request_id, request_digest, base_version, base_content, status, deadline_at, finished_at, " +
+                        "model_id, prompt_hash, tool_schema_hash, config_snapshot) VALUES (" +
+                        "'" + raceRun + "','owner','" + project + "','" + target + "','race'," +
+                        "'" + UUID.randomUUID() + "','" + "f".repeat(64) + "',2,'new target','SUCCEEDED',now(),now()," +
+                        "'scripted','" + promptHash + "','" + schemaHash + "','{}'::jsonb)");
+                sql.execute("INSERT INTO tb_edit_proposal(id, run_id, project_id, target_chapter_id, base_version, " +
+                        "base_content, proposed_content, reason, status) VALUES ('" + raceProposal + "','" + raceRun + "','" +
+                        project + "','" + target + "',2,'new target','race text','race','PENDING')");
+            }
+            ExecutorService contenders = Executors.newFixedThreadPool(2);
+            CountDownLatch startRace = new CountDownLatch(1);
+            try {
+                Future<Object> accept = contenders.submit(() -> {
+                    startRace.await();
+                    try { return decisions.accept("owner", raceProposal); }
+                    catch (JdbcEditProposalService.ProposalException e) { return e.code(); }
+                });
+                Future<Object> reject = contenders.submit(() -> {
+                    startRace.await();
+                    try { return decisions.reject("owner", raceProposal); }
+                    catch (JdbcEditProposalService.ProposalException e) { return e.code(); }
+                });
+                startRace.countDown();
+                Object acceptedRace = accept.get(5, TimeUnit.SECONDS);
+                Object rejectedRace = reject.get(5, TimeUnit.SECONDS);
+                assertTrue((acceptedRace instanceof JdbcEditProposalService.Decision
+                                && "PROPOSAL_STATE_CONFLICT".equals(rejectedRace))
+                        || (rejectedRace instanceof JdbcEditProposalService.Decision
+                                && "PROPOSAL_STATE_CONFLICT".equals(acceptedRace)));
+            } finally { contenders.shutdownNow(); }
+            try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
+                try (ResultSet rows = sql.executeQuery("SELECT status FROM tb_edit_proposal WHERE id='" + raceProposal + "'")) {
+                    rows.next(); assertTrue(Set.of("APPLIED", "REJECTED").contains(rows.getString(1)));
+                }
+                try (ResultSet rows = sql.executeQuery("SELECT count(*) FROM tb_chapter_revision WHERE proposal_id='" + raceProposal + "'")) {
+                    rows.next(); assertTrue(rows.getInt(1) <= 1);
                 }
             }
 
