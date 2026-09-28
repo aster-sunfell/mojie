@@ -94,3 +94,26 @@ test('chapter navigation loads the next page without losing the first page', asy
   expect(screen.getByRole('button', { name: /第一章/ })).toBeTruthy()
   expect(screen.queryByRole('button', { name: '加载更多章节' })).toBeNull()
 })
+
+test('setting search queries the server beyond the loaded page', async () => {
+  window.history.replaceState({}, '', '/projects/p/chapters/c')
+  const remote = { id: 's60', type: 'WORLD', title: '远处的山谷', content: '河流湍急' }
+  globalThis.fetch = vi.fn((url) => {
+    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
+    if (url === '/api/v1/projects/p/chapters?limit=50')
+      return Promise.resolve(reply({ items: [chapter], nextCursor: null }))
+    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
+    if (url === '/api/v1/projects/p/settings?limit=50')
+      return Promise.resolve(reply({ items: [], nextCursor: 'more' }))
+    if (url === '/api/v1/projects/p/settings?limit=50&keyword=%E6%B2%B3%E6%B5%81')
+      return Promise.resolve(reply({ items: [remote], nextCursor: null }))
+    if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply({ items: [], nextCursor: null }))
+    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: '管理设定' }))
+  fireEvent.change(screen.getByPlaceholderText('筛选标题或正文'), { target: { value: '河流' } })
+  await screen.findByText('远处的山谷')
+  expect(fetch).toHaveBeenCalledWith('/api/v1/projects/p/settings?limit=50&keyword=%E6%B2%B3%E6%B5%81', expect.any(Object))
+})

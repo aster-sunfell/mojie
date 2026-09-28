@@ -42,10 +42,24 @@ function Settings({ projectId, disabled }) {
   const [editing, setEditing] = useState(null)
   const [keyword, setKeyword] = useState('')
   const [error, setError] = useState('')
-  const load = useCallback((after = null) => api(`/projects/${projectId}/settings?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
-    .then(page => { setItems(current => after ? [...current, ...page.items] : page.items); setCursor(page.nextCursor) })
-    .catch(e => setError(readableError(e))), [projectId])
-  useEffect(() => { load() }, [load])
+  const activeKeyword = useRef(keyword)
+  const requestNumber = useRef(0)
+  activeKeyword.current = keyword
+  const load = useCallback((after = null) => {
+    const request = ++requestNumber.current
+    const params = new URLSearchParams({ limit: '50' })
+    if (activeKeyword.current) params.set('keyword', activeKeyword.current)
+    if (after) params.set('cursor', after)
+    return api(`/projects/${projectId}/settings?${params}`)
+      .then(page => {
+        if (request !== requestNumber.current) return
+        setItems(current => after ? [...current, ...page.items] : page.items)
+        setCursor(page.nextCursor)
+        setError('')
+      })
+      .catch(e => { if (request === requestNumber.current) setError(readableError(e)) })
+  }, [projectId])
+  useEffect(() => { load() }, [load, keyword])
   async function save(event) {
     event.preventDefault()
     try {
@@ -60,12 +74,12 @@ function Settings({ projectId, disabled }) {
     catch (e) { setError(readableError(e)) }
   }
   return <section className="settings"><div className="sectionTitle"><h2>作品设定</h2>{disabled && <small>任务运行期间暂不可修改设定</small>}</div>
-    <input value={keyword} onChange={e => setKeyword(e.target.value)} placeholder="筛选标题或正文" />
+    <input value={keyword} onChange={e => { setKeyword(e.target.value); setCursor(null) }} placeholder="筛选标题或正文" />
     {error && <p className="error">{error}</p>}
-    <div className="settingList">{items.filter(item => !keyword || `${item.title}${item.content}`.includes(keyword)).map(item => <article className="setting" key={item.id}>
+    <div className="settingList">{items.map(item => <article className="setting" key={item.id}>
       <small>{({ CHARACTER: '人物', WORLD: '世界观', RULE: '写作约束' })[item.type]}</small><strong>{item.title}</strong><p>{item.content}</p>
       <div className="row"><button className="link" disabled={disabled} onClick={() => { setEditing(item.id); setForm({ type: item.type, title: item.title, content: item.content }) }}>编辑</button><button className="link danger" disabled={disabled} onClick={() => remove(item.id)}>删除</button></div>
-    </article>)}{items.length === 0 && <p className="muted">暂无设定</p>}</div>
+    </article>)}{items.length === 0 && <p className="muted">{keyword ? '没有匹配的设定' : '暂无设定'}</p>}</div>
     {cursor && <button className="secondary" onClick={() => load(cursor)}>加载更多设定</button>}
     <form onSubmit={save} className="settingForm"><h3>{editing ? '编辑设定' : '新增设定'}</h3>
       <select disabled={disabled} value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}><option value="CHARACTER">人物</option><option value="WORLD">世界观</option><option value="RULE">写作约束</option></select>

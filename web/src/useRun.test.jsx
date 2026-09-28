@@ -14,7 +14,7 @@ class FakeEventSource extends EventTarget {
     this.dispatchEvent(event)
   }
 }
-afterEach(() => { vi.restoreAllMocks(); FakeEventSource.current = null })
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); FakeEventSource.current = null })
 
 test('replay ignores duplicate events and stale detail snapshots', async () => {
   globalThis.EventSource = FakeEventSource
@@ -39,4 +39,23 @@ test('replay ignores duplicate events and stale detail snapshots', async () => {
   expect(onChange).toHaveBeenCalledTimes(2)
   unmount()
   expect(FakeEventSource.current.closed).toBe(true)
+})
+
+test('polling recovers a terminal task while the event stream is disconnected', async () => {
+  globalThis.EventSource = FakeEventSource
+  const snapshots = [
+    { id: 'run-2', status: 'RUNNING', lastEventSeq: 2 },
+    { id: 'run-2', status: 'SUCCEEDED', lastEventSeq: 3 }
+  ]
+  globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ data: snapshots.shift() }) }))
+  const { result, unmount } = renderHook(() => useRun('run-2'))
+  await waitFor(() => expect(result.current.run?.status).toBe('RUNNING'))
+  vi.useFakeTimers()
+  act(() => FakeEventSource.current.onerror())
+  expect(result.current.connection).toBe('reconnecting')
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+  expect(result.current.run.status).toBe('SUCCEEDED')
+  expect(result.current.connection).toBe('closed')
+  expect(FakeEventSource.current.closed).toBe(true)
+  unmount()
 })

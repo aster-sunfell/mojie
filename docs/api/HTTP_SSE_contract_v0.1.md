@@ -1,0 +1,26 @@
+# HTTP 与 SSE 契约 v0.1
+
+所有路径以 `/api/v1` 为前缀。成功 JSON 使用 `{ "data": ... }`；删除成功返回 204、无正文。失败 JSON 使用 `{ "code": "...", "message": "...", "requestId": "...", "details": {} }`。客户端应按 HTTP 状态和 `code` 处理错误，不解析服务端堆栈。
+
+## 列表分页
+
+`GET /projects`、`GET /projects/{id}/chapters`、`GET /projects/{id}/settings`、`GET /chapters/{id}/revisions` 和 `GET /agent/runs` 的 `data` 为 `{ "items": [...], "nextCursor": string | null }`。`limit` 默认 20、最大 50。传回 `nextCursor` 作为下一次请求的 `cursor`，末页为 `null`；游标绑定当前作者、资源及筛选条件，改条件后从第一页重新请求。无效或篡改游标返回 400 `VALIDATION_ERROR`。游标是已读位置，不是整个列表的时间点快照；翻页期间新增或更改内容可能改变列表。
+
+## 任务事件
+
+`GET /agent/runs/{id}/events?afterSeq=N` 返回 `text/event-stream`。请求头 `Last-Event-ID` 存在时优先于 `afterSeq`。两者均表示已处理的最后序号；服务端只发送当前任务中 `seq > N` 的已提交事件，按序递增。事件可以重放，客户端用 `runId` 和 `seq` 去重。约每 15 秒发送 SSE 注释心跳；终态事件发出后连接结束。
+
+每条事件的 SSE `id` 是十进制 `seq`，`event` 是类型，`data` 是如下 JSON：
+
+```json
+{
+  "schemaVersion": 1,
+  "runId": "run UUID",
+  "seq": 3,
+  "type": "model.started",
+  "occurredAt": "2026-09-28T18:00:00Z",
+  "payload": { "callIndex": 1 }
+}
+```
+
+类型为 `run.queued`、`run.started`、`model.started`、`model.finished`、`tool.started`、`tool.finished`、`run.succeeded`、`run.failed`、`run.cancelled`。模型事件包含 `callIndex`；工具事件包含 `toolExecutionId`、`toolName`，完成时包含 `status` 和 `returnedToModel`；终态事件包含 `status`，失败时可含 `errorCode`，成功发布建议时可含 `proposalId`。事件只提示客户端刷新 `GET /agent/runs/{id}`；详情快照和数据库中的步骤、来源是展示依据。断线后可用最后处理的序号重连，同时定期查询任务详情作为降级路径；旧快照不得回退已显示的序号和终态。

@@ -1,0 +1,331 @@
+openapi: 3.1.0
+info:
+  title: Mojie local author API
+  version: 0.1.0
+  description: Single-author MVP API. SSE payload details are in HTTP_SSE_contract_v0.1.md.
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '503': { $ref: '#/components/responses/Data' }
+  /system/capabilities:
+    get:
+      operationId: capabilities
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /projects:
+    get:
+      operationId: listProjects
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { $ref: '#/components/responses/Page' }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createProject
+      requestBody: { $ref: '#/components/requestBodies/Title' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '400': { $ref: '#/components/responses/Error' }
+  /projects/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getProject
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: renameProject
+      requestBody: { $ref: '#/components/requestBodies/Title' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '400': { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteProject
+      responses:
+        '204': { description: Deleted }
+        '409': { $ref: '#/components/responses/Error' }
+  /projects/{id}/chapters:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: listChapters
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { $ref: '#/components/responses/Page' }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createChapter
+      requestBody: { $ref: '#/components/requestBodies/Title' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+  /chapters/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getChapter
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: renameChapter
+      requestBody: { $ref: '#/components/requestBodies/Title' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteChapter
+      responses:
+        '204': { description: Deleted }
+        '409': { $ref: '#/components/responses/Error' }
+  /chapters/{id}/content:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    put:
+      operationId: saveChapter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveChapter' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+  /chapters/{id}/revisions:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: listRevisions
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { $ref: '#/components/responses/Page' }
+  /chapters/{id}/revisions/{version}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - name: version
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getRevision
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /projects/{id}/settings:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: listSettings
+      parameters:
+        - { name: type, in: query, schema: { type: string, enum: [CHARACTER, WORLD, RULE] } }
+        - { name: keyword, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { $ref: '#/components/responses/Page' }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createSetting
+      requestBody: { $ref: '#/components/requestBodies/Setting' }
+      responses:
+        '201': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+  /settings/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    patch:
+      operationId: updateSetting
+      requestBody: { $ref: '#/components/requestBodies/Setting' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteSetting
+      responses:
+        '204': { description: Deleted }
+        '409': { $ref: '#/components/responses/Error' }
+  /agent/runs:
+    get:
+      operationId: listRuns
+      parameters:
+        - { name: projectId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: chapterId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200': { $ref: '#/components/responses/Page' }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: submitRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubmitRun' }
+      responses:
+        '202': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /agent/runs/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getRun
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /agent/runs/{id}/cancel:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      operationId: cancelRun
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+  /agent/runs/{id}/events:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: streamRunEvents
+      parameters:
+        - { name: afterSeq, in: query, schema: { type: integer, format: int64, minimum: 0 } }
+        - { name: Last-Event-ID, in: header, schema: { type: string, pattern: '^[0-9]+$' } }
+      responses:
+        '200':
+          description: Committed events with seq greater than the supplied cursor.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+  /agent/runs/{id}/trace:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getDevelopmentTrace
+      description: Available only when MOJIE_DEV_TRACE=true.
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /edit-proposals/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getProposal
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /edit-proposals/{id}/accept:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      operationId: acceptProposal
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Data' }
+  /edit-proposals/{id}/reject:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    post:
+      operationId: rejectProposal
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+  requestBodies:
+    Title:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [title]
+            properties: { title: { type: string } }
+    Setting:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [type, title, content]
+            properties:
+              type: { type: string, enum: [CHARACTER, WORLD, RULE] }
+              title: { type: string }
+              content: { type: string }
+  schemas:
+    SaveChapter:
+      type: object
+      required: [content, expectedVersion]
+      properties:
+        content: { type: string }
+        expectedVersion: { type: integer, minimum: 1 }
+    SubmitRun:
+      type: object
+      required: [projectId, targetChapterId, expectedVersion, instruction, clientRequestId]
+      properties:
+        projectId: { type: string, format: uuid }
+        targetChapterId: { type: string, format: uuid }
+        expectedVersion: { type: integer, minimum: 1 }
+        instruction: { type: string }
+        clientRequestId: { type: string, format: uuid }
+    Error:
+      type: object
+      required: [code, message, requestId, details]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string, format: uuid }
+        details: { type: object }
+    Page:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { type: object } }
+        nextCursor: { type: [string, 'null'] }
+  responses:
+    Data:
+      description: Success envelope.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties: { data: { type: object } }
+    Page:
+      description: Cursor page.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/Page' }
+    Error:
+      description: Failure envelope.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
