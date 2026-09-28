@@ -40,7 +40,7 @@ public final class AgentLoop {
         context.executionClock(clock, input.deadline());
         String runId = context.runId();
         List<Message> messages = new ArrayList<>();
-        messages.add(Message.user(input.instruction()));
+        messages.add(Message.user(input.initialUserMessage()));
         List<Long> messageSeqs = new ArrayList<>(List.of(1L));
         int modelCalls = 0, toolCalls = 0, toolText = 0;
         try {

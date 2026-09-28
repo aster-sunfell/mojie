@@ -29,6 +29,8 @@ class AgentLoopTest {
         LoopOutcome.Completed completed = (LoopOutcome.Completed) outcome;
         assertEquals("最终分析", completed.analysis());
         assertEquals("新版😀", completed.candidate().proposedContent());
+        assertTrue(((TextPart) model.requests.getFirst().messages().getFirst().content().getFirst()).text()
+                .contains("目标章节 ID: target"));
         assertEquals(List.of("read_chapter", "propose_edit"), trace.startedTools);
         assertEquals(List.of("r", "p"), model.requests.get(1).messages().get(2).replies().stream().map(ToolReply::callId).toList());
         assertEquals(List.of(1L, 2L, 3L, 4L), trace.modelInputs.get(1));

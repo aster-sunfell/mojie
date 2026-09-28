@@ -39,6 +39,8 @@ class JdbcContentServiceIT {
             JdbcRunAdmission.Receipt receipt = admission.create(new JdbcRunAdmission.Request(owner, project, chapter, 2,
                     "检查设定", UUID.randomUUID().toString()), new JdbcRunAdmission.Config("System", "[]", "model", Map.of("maxOutputTokens", 1000)));
             assertEquals("QUEUED", receipt.status());
+            Map<String,Object> queuedTrace = new JdbcRunQuery(source).trace(owner, receipt.runId());
+            assertTrue(queuedTrace.get("messages").toString().contains(chapter));
             assertEquals("RESOURCE_BUSY", assertThrows(JdbcContentService.ContentException.class,
                     () -> content.updateSetting(owner, setting, "CHARACTER", "林舟", "会游泳")).code());
             assertEquals("RESOURCE_BUSY", assertThrows(JdbcContentService.ContentException.class,

@@ -24,7 +24,7 @@ public final class AnthropicModelGateway implements ModelGateway, AutoCloseable 
     public static AnthropicModelGateway fromEnvironment() {
         String apiKey = System.getenv("ANTHROPIC_API_KEY");
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("ANTHROPIC_API_KEY is missing");
-        return new AnthropicModelGateway(createClient(apiKey, null), true);
+        return new AnthropicModelGateway(createClient(apiKey, System.getenv("MOJIE_ANTHROPIC_BASE_URL")), true);
     }
 
     static AnthropicClient createClient(String apiKey, String baseUrl) {

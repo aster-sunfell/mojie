@@ -2,6 +2,7 @@ package com.mojie.agent.run.infra;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.mojie.agent.loop.LoopInput;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -65,7 +66,7 @@ public final class JdbcRunAdmission {
                 Instant queuedAt = clock.instant();
                 String runId = insertRun(connection, request, prepared.instruction(), prepared.digest(),
                         baseContent, promptHash, schemaHash, config, queuedAt);
-                insertInitialMessage(connection, runId, prepared.instruction());
+                insertInitialMessage(connection, runId, request.targetChapterId(), request.expectedVersion(), prepared.instruction());
                 insertQueuedEvent(connection, runId);
                 occupySlot(connection, request.projectId(), runId);
                 connection.commit();
@@ -180,13 +181,15 @@ public final class JdbcRunAdmission {
             try (ResultSet rows = statement.executeQuery()) { rows.next(); return rows.getString(1); }
         }
     }
-    private void insertInitialMessage(Connection connection, String runId, String instruction) throws SQLException {
+    private void insertInitialMessage(Connection connection, String runId, String chapterId, long baseVersion,
+                                      String instruction) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO tb_agent_message(run_id, message_seq, role, content)
                 VALUES (?::uuid, 1, 'USER', ?::jsonb)
                 """)) {
             statement.setString(1, runId);
-            statement.setString(2, encode(List.of(Map.of("type", "text", "text", instruction))));
+            statement.setString(2, encode(List.of(Map.of("type", "text", "text",
+                    LoopInput.initialUserMessage(chapterId, baseVersion, instruction)))));
             statement.executeUpdate();
         }
     }

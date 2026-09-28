@@ -11,10 +11,12 @@
 
 ## 验证
 
-- Java 21 执行 `mvn -o -f backend/pom.xml verify -q`：18 个单元测试通过；PostgreSQL 18.6 上 5 个集成场景通过，另 2 个仅在显式本地 HTTP 测试开关下运行的适配器场景跳过。每个数据库场景使用独立 schema，迁移后清理。
+- Java 21 执行 `MOJIE_TEST_LOCAL_HTTP=1 mvn -o -f backend/pom.xml verify -q`（同时配置一次性 PostgreSQL 18.6 的测试 JDBC 环境变量）：18 个单元测试、5 个数据库集成场景和 2 个本地 HTTP 适配器场景全部通过，无跳过。每个数据库场景使用独立 schema，迁移后清理。
 - 在一次性 PostgreSQL 18.6 容器中启动可执行 JAR，实际 HTTP 请求通过：健康与能力查询、创建作品与章节、保存正文、旧版本冲突返回 409、读取历史 v1、创建设定、查询空任务列表、无 API key 时提交返回 503。
 - Vite `npm run build` 通过；开发服务器实测 `/`、`/src/App.jsx` 与 `/api/v1/health`、`/api/v1/projects` 代理均返回 200。
 - Vitest `npm test` 通过 1 个恢复测试：重复事件不重复请求，较旧详情快照不覆盖已收到事件的游标，较新终态快照可以推进显示。
+- 使用本地 Anthropic 协议模拟端点（第一轮声明 `read_chapter`，第二轮给出最终分析）启动完整 API：`POST /agent/runs` 返回 202，任务最终 `SUCCEEDED`，记录 2 次模型请求、1 次工具调用，`FULL_CHAPTER` 来源标记为已进入模型请求。SSE 从 `afterSeq=0` 重放 1–9；同时给 `Last-Event-ID: 3` 时重放 4–9，验证头部优先。模拟端点明确关闭每次 HTTP 连接，以免测试服务留下不可复用的空闲连接；SDK 仍保持零自动重试。
+- 联调过程中发现并修复初始消息缺少目标章节 ID：当前持久化的首条用户消息与实际模型输入一致，包含目标 ID、基准版本和先完整读取目标章的要求。
 
 ## 尚待发布验收
 
