@@ -14,6 +14,7 @@
 - Java 21 执行 `mvn -o -f backend/pom.xml verify -q`：18 个单元测试通过；PostgreSQL 18.6 上 5 个集成场景通过，另 2 个仅在显式本地 HTTP 测试开关下运行的适配器场景跳过。每个数据库场景使用独立 schema，迁移后清理。
 - 在一次性 PostgreSQL 18.6 容器中启动可执行 JAR，实际 HTTP 请求通过：健康与能力查询、创建作品与章节、保存正文、旧版本冲突返回 409、读取历史 v1、创建设定、查询空任务列表、无 API key 时提交返回 503。
 - Vite `npm run build` 通过；开发服务器实测 `/`、`/src/App.jsx` 与 `/api/v1/health`、`/api/v1/projects` 代理均返回 200。
+- Vitest `npm test` 通过 1 个恢复测试：重复事件不重复请求，较旧详情快照不覆盖已收到事件的游标，较新终态快照可以推进显示。
 
 ## 尚待发布验收
 

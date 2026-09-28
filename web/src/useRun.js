@@ -12,6 +12,7 @@ export function useRun(runId, onChange) {
   const refresh = useCallback(async () => {
     if (!runId) return null
     const snapshot = await api(`/agent/runs/${runId}`)
+    if (snapshot.lastEventSeq < seq.current) return null
     setRun(previous => previous?.id === snapshot.id && previous.lastEventSeq > snapshot.lastEventSeq ? previous : snapshot)
     seq.current = Math.max(seq.current, snapshot.lastEventSeq)
     onChange?.(snapshot)
@@ -32,7 +33,13 @@ export function useRun(runId, onChange) {
         setRun(snapshot); seq.current = snapshot.lastEventSeq; onChange?.(snapshot)
         if (terminal.has(snapshot.status)) { setConnection('closed'); return }
         source = new EventSource(`/api/v1/agent/runs/${runId}/events?afterSeq=${snapshot.lastEventSeq}`)
-        source.onopen = () => { if (!disposed) { setConnection('connected'); setError('') } }
+        source.onopen = () => {
+          if (!disposed) {
+            window.clearTimeout(retryTimer); retryTimer = null
+            window.clearInterval(fallback); fallback = null
+            setConnection('connected'); setError('')
+          }
+        }
         const handle = event => {
           if (disposed) return
           try {

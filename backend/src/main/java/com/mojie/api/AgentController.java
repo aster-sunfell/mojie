@@ -4,6 +4,7 @@ import com.mojie.agent.run.infra.JdbcRunAdmission;
 import com.mojie.agent.run.infra.JdbcRunQuery;
 import com.mojie.agent.runtime.RunScheduler;
 import com.mojie.proposal.infra.JdbcEditProposalService;
+import jakarta.annotation.PreDestroy;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.*;
@@ -31,6 +32,7 @@ public final class AgentController {
     public AgentController(RunScheduler scheduler, JdbcRunQuery query, JdbcEditProposalService proposals, DataSource dataSource) {
         this.scheduler = scheduler; this.query = query; this.proposals = proposals; this.dataSource = dataSource;
     }
+    @PreDestroy public void closeEventPoller() { events.shutdownNow(); }
     private static Map<String,Object> data(Object value) { return Map.of("data", value); }
     public record Submit(String projectId, String targetChapterId, Integer expectedVersion,
                          String instruction, String clientRequestId) {}
