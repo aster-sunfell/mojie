@@ -255,7 +255,13 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
   chapterRef.current = chapter
   const dirty = chapter && draft !== chapter.content
   const loadChapters = useCallback((after = null) => api(`/projects/${projectId}/chapters?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
-    .then(page => { setChapters(current => after ? [...current, ...page.items] : page.items); setChapterCursor(page.nextCursor) }), [projectId])
+    .then(page => {
+      setChapters(current => after
+        ? [...new Map([...current, ...page.items].map(item => [item.id, item])).values()]
+          .sort((a, b) => a.chapterOrder - b.chapterOrder)
+        : page.items)
+      setChapterCursor(page.nextCursor)
+    }), [projectId])
   const refreshChapter = useCallback(async () => {
     if (!selectedChapterId) return null
     const value = await api(`/chapters/${selectedChapterId}`)
@@ -264,11 +270,12 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
       && draftRef.current !== chapterRef.current.content
     chapterRef.current = value
     setChapter(value)
+    setChapters(items => items.map(item => item.id === value.id
+      ? { ...item, title: value.title, version: value.version } : item))
     if (!hasLocalDraft) { draftRef.current = value.content; setDraft(value.content); setSaveStatus('已保存') }
     else setSaveStatus('未保存')
-    await loadChapters()
     return value
-  }, [selectedChapterId, loadChapters])
+  }, [selectedChapterId])
   useEffect(() => { api(`/projects/${projectId}`).then(setProject).catch(e => setError(readableError(e))); loadChapters().catch(e => setError(readableError(e))) }, [projectId, loadChapters])
   useEffect(() => {
     chapterRef.current = null; draftRef.current = ''
@@ -291,10 +298,11 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
         const value = await api(`/chapters/${chapterId}/content`, 'PUT', { content: submitted, expectedVersion: chapter.version })
         if (selectedRef.current !== chapterId) return false
         chapterRef.current = value; setChapter(value)
+        setChapters(items => items.map(item => item.id === chapterId
+          ? { ...item, title: value.title, version: value.version } : item))
         const unchanged = draftRef.current === submitted
         if (unchanged) { draftRef.current = value.content; setDraft(value.content) }
         setSaveStatus(unchanged ? '已保存' : '未保存')
-        await loadChapters()
         return selectedRef.current === chapterId && draftRef.current === submitted
       } catch (e) {
         if (selectedRef.current === chapterId) {
@@ -307,7 +315,7 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
     saveInFlight.current = pending
     pending.finally(() => { if (saveInFlight.current === pending) saveInFlight.current = null })
     return pending
-  }, [chapter, loadChapters, accepting])
+  }, [chapter, accepting])
   useEffect(() => { const key = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save])
   async function prepareLeave() {
     if (accepting) return
@@ -326,7 +334,11 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
     const title = window.prompt('新章节标题')
     if (!title) return
     if (!(await prepareLeave())) return
-    try { const created = await api(`/projects/${projectId}/chapters`, 'POST', { title }); await loadChapters(); navigate(`/projects/${projectId}/chapters/${created.id}`) }
+    try {
+      const created = await api(`/projects/${projectId}/chapters`, 'POST', { title })
+      setChapters(items => [...items, created].sort((a, b) => a.chapterOrder - b.chapterOrder))
+      navigate(`/projects/${projectId}/chapters/${created.id}`)
+    }
     catch (e) { setError(readableError(e)) }
   }
   useEffect(() => {

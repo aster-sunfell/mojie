@@ -77,13 +77,16 @@ test('save response from a previous chapter cannot replace the selected chapter'
 test('chapter navigation loads the next page without losing the first page', async () => {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
   const later = { ...chapter, id: 'c51', chapterOrder: 51, title: '第五十一章' }
-  globalThis.fetch = vi.fn((url) => {
+  globalThis.fetch = vi.fn((url, options = {}) => {
     if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
     if (url === '/api/v1/projects/p/chapters?limit=50')
       return Promise.resolve(reply({ items: [chapter], nextCursor: 'page-two' }))
     if (url === '/api/v1/projects/p/chapters?limit=50&cursor=page-two')
       return Promise.resolve(reply({ items: [later], nextCursor: null }))
     if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
+    if (url === '/api/v1/chapters/c51' && options.method === 'GET') return Promise.resolve(reply(later))
+    if (url === '/api/v1/chapters/c51/content' && options.method === 'PUT')
+      return Promise.resolve(reply({ ...later, content: '更新后的正文', version: 2 }))
     if (url.startsWith('/api/v1/agent/runs?')) return Promise.resolve(reply({ items: [], nextCursor: null }))
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     throw new Error(`Unexpected request ${url}`)
@@ -93,6 +96,13 @@ test('chapter navigation loads the next page without losing the first page', asy
   await screen.findByRole('button', { name: /第五十一章/ })
   expect(screen.getByRole('button', { name: /第一章/ })).toBeTruthy()
   expect(screen.queryByRole('button', { name: '加载更多章节' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: /第五十一章/ }))
+  await waitFor(() => expect(document.querySelector('.editorHeader h1')?.textContent).toBe('第五十一章'))
+  expect(document.querySelector('.editor').value).toBe('原文')
+  expect(screen.getByRole('button', { name: /第五十一章/ })).toBeTruthy()
+  fireEvent.change(document.querySelector('.editor'), { target: { value: '更新后的正文' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存正文' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: /第五十一章.*v2/ })).toBeTruthy())
 })
 
 test('setting search queries the server beyond the loaded page', async () => {
