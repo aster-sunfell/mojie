@@ -268,6 +268,72 @@ class RunSchedulerIT {
         });
     }
 
+    @Test void concurrentRunsMayReuseProviderAndToolCallIdsWithoutMixingResults() throws Exception {
+        withDatabase(dataSource -> {
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            JdbcContentService content = new JdbcContentService(dataSource);
+            Fixture a = fixture(dataSource, "first-project");
+            Fixture b = fixture(dataSource, "second-project");
+            String firstBody = "甲项目独有的河岸线索";
+            String secondBody = "乙项目独有的山谷线索";
+            content.saveChapter("owner", a.chapter(), firstBody, 1);
+            content.saveChapter("owner", b.chapter(), secondBody, 1);
+            CountDownLatch bothStarted = new CountDownLatch(2);
+            ModelGateway sharedIds = request -> {
+                String instruction = request.messages().getFirst().content().stream()
+                        .filter(TextPart.class::isInstance).map(TextPart.class::cast)
+                        .findFirst().orElseThrow().text();
+                boolean firstRun = instruction.endsWith(a.chapter());
+                String chapterId = firstRun ? a.chapter() : b.chapter();
+                String ownBody = firstRun ? firstBody : secondBody;
+                String otherBody = firstRun ? secondBody : firstBody;
+                if (request.messages().size() == 1) {
+                    bothStarted.countDown();
+                    try {
+                        if (!bothStarted.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Runs did not overlap");
+                    } catch (InterruptedException e) { throw new IllegalStateException(e); }
+                    return new Response("", List.of(tool("shared-tool-call", "read_chapter",
+                            Map.of("chapterId", chapterId))), FinishReason.TOOL_CALLS,
+                            "shared-provider-request", "tool_use", null);
+                }
+                String result = data(request, "shared-tool-call").toString();
+                if (!result.contains(ownBody) || result.contains(otherBody))
+                    throw new IllegalStateException("A tool result crossed run boundaries");
+                return new Response("已按本作品正文完成分析", List.of(), FinishReason.FINAL,
+                        "shared-provider-final", "end_turn", null);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, sharedIds)) {
+                scheduler.start();
+                String runA = scheduler.submit(new JdbcRunAdmission.Request("owner", a.project(), a.chapter(), 2,
+                        "check A " + a.chapter(), UUID.randomUUID().toString())).runId();
+                String runB = scheduler.submit(new JdbcRunAdmission.Request("owner", b.project(), b.chapter(), 2,
+                        "check B " + b.chapter(), UUID.randomUUID().toString())).runId();
+                await(() -> "SUCCEEDED".equals(status(dataSource, runA))
+                        && "SUCCEEDED".equals(status(dataSource, runB)) && scheduler.occupiedCapacity() == 0);
+                JdbcRunQuery query = new JdbcRunQuery(dataSource);
+                for (String runId : List.of(runA, runB)) {
+                    boolean firstRun = runId.equals(runA);
+                    String ownBody = firstRun ? firstBody : secondBody;
+                    String otherBody = firstRun ? secondBody : firstBody;
+                    String chapterId = firstRun ? a.chapter() : b.chapter();
+                    Map<String,Object> trace = query.trace("owner", runId);
+                    List<?> calls = (List<?>) trace.get("modelCalls");
+                    assertEquals(List.of("shared-provider-request", "shared-provider-final"), calls.stream()
+                            .map(item -> ((Map<?,?>) item).get("providerRequestId")).toList());
+                    List<?> steps = (List<?>) trace.get("steps");
+                    assertEquals(1, steps.size());
+                    Map<?,?> step = (Map<?,?>) steps.getFirst();
+                    assertEquals("shared-tool-call", step.get("toolCallId"));
+                    assertTrue(step.get("result").toString().contains(ownBody));
+                    assertFalse(step.get("result").toString().contains(otherBody));
+                    List<?> sources = (List<?>) trace.get("sources");
+                    assertEquals(1, sources.size());
+                    assertEquals(chapterId, ((Map<?,?>) sources.getFirst()).get("chapterId"));
+                }
+            }
+        });
+    }
+
     private static Response responseFor(ModelGateway.Request request) {
         if (request.messages().size() == 1) {
             String chapter = request.messages().getFirst().content().stream()
