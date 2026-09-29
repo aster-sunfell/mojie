@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mojie.agent.model.ModelGateway;
+import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.*;
@@ -161,8 +162,13 @@ public final class AnthropicModelGateway implements ModelGateway, AutoCloseable 
         catch (JsonProcessingException e) { throw new ModelException("INVALID_MODEL_RESPONSE", "Cannot serialize tool result"); }
     }
     private static boolean hasTimeoutCause(Throwable error) {
-        for (Throwable cause = error; cause != null; cause = cause.getCause())
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
             if (cause instanceof SocketTimeoutException || cause instanceof java.net.http.HttpTimeoutException) return true;
+            if (cause instanceof InterruptedIOException && cause.getMessage() != null) {
+                String message = cause.getMessage().toLowerCase(Locale.ROOT);
+                if (message.contains("timeout") || message.contains("timed out")) return true;
+            }
+        }
         return false;
     }
     @Override public void close() { if (ownsClient) client.close(); }

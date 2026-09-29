@@ -8,6 +8,7 @@ import com.mojie.agent.model.ModelGateway.*;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.*;
@@ -73,6 +74,61 @@ class AnthropicModelGatewayIT {
             assertEquals("MODEL_RATE_LIMITED", failure.code());
             assertEquals(1, calls.get());
         } finally { client.close(); server.stop(0); }
+    }
+
+    @Test void authenticationAndPermissionErrorsAreClassifiedWithoutRetry() throws Exception {
+        assumeTrue("1".equals(System.getenv("MOJIE_TEST_LOCAL_HTTP")));
+        for (int status : List.of(401, 403)) {
+            AtomicInteger calls = new AtomicInteger();
+            HttpServer server = server(status,
+                    "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"secret detail\"}}",
+                    calls, new AtomicReference<>());
+            AnthropicClient client = AnthropicModelGateway.createClient("test", endpoint(server));
+            try (AnthropicModelGateway gateway = new AnthropicModelGateway(client)) {
+                ModelGateway.ModelException failure = assertThrows(ModelGateway.ModelException.class,
+                        () -> gateway.call(simpleRequest(5_000)));
+                assertEquals("MODEL_AUTH_ERROR", failure.code());
+                assertFalse(failure.getMessage().contains("secret detail"));
+                assertEquals(1, calls.get());
+            } finally { client.close(); server.stop(0); }
+        }
+    }
+
+    @Test void requestTimeoutIsSeparateFromConnectionFailureAndDoesNotRetry() throws Exception {
+        assumeTrue("1".equals(System.getenv("MOJIE_TEST_LOCAL_HTTP")));
+        AtomicInteger calls = new AtomicInteger();
+        HttpServer slow = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        slow.createContext("/v1/messages", exchange -> {
+            calls.incrementAndGet();
+            exchange.getRequestBody().readAllBytes();
+            try { Thread.sleep(500); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try { exchange.sendResponseHeaders(200, -1); }
+            catch (java.io.IOException ignored) { /* The timed-out client may have closed the socket. */ }
+            exchange.close();
+        });
+        slow.start();
+        AnthropicClient timeoutClient = AnthropicModelGateway.createClient("test", endpoint(slow));
+        try (AnthropicModelGateway gateway = new AnthropicModelGateway(timeoutClient)) {
+            ModelGateway.ModelException failure = assertThrows(ModelGateway.ModelException.class,
+                    () -> gateway.call(simpleRequest(100)));
+            assertEquals("MODEL_TIMEOUT", failure.code());
+            assertEquals(1, calls.get());
+        } finally { timeoutClient.close(); slow.stop(0); }
+
+        int closedPort;
+        try (ServerSocket unused = new ServerSocket(0)) { closedPort = unused.getLocalPort(); }
+        AnthropicClient unavailable = AnthropicModelGateway.createClient("test", "http://127.0.0.1:" + closedPort);
+        try (AnthropicModelGateway gateway = new AnthropicModelGateway(unavailable)) {
+            ModelGateway.ModelException failure = assertThrows(ModelGateway.ModelException.class,
+                    () -> gateway.call(simpleRequest(1_000)));
+            assertEquals("MODEL_NETWORK_ERROR", failure.code());
+        } finally { unavailable.close(); }
+    }
+
+    private static Request simpleRequest(long timeoutMillis) {
+        return new Request("system", List.of(ModelGateway.Message.user("check")), List.of(),
+                "claude-test", 100, timeoutMillis);
     }
 
     private static HttpServer server(int status, String response, AtomicInteger calls, AtomicReference<String> body) throws Exception {
