@@ -11,5 +11,6 @@
 - `RunSchedulerIT.fullConsistencyReviewPagesEvidenceAndPublishesOnlyAProposal` 在 PostgreSQL 18.6 上用模拟模型走完七工具：列章节、读取目标章、按类型列设定并翻页、搜索设定并翻页、批读设定、搜索前文并翻页、读取前文、提出候选稿。任务以 5 次模型调用、11 次工具调用成功；11 条步骤顺序正确，来源均确认进入模型输入，建议为 PENDING，正式正文保持版本 2。这覆盖确定性的 AC-04、AC-40 路径；真实模型质量仍待人工核查。
 - `check-text-roundtrip.mjs` 通过实际 HTTP 保存首尾空行、连续空行、CRLF/CR、中文与表情。当前正文和历史版本逐字等于归一化预期；重复保存保持版本 2、历史 2 条。前端切章三种选择及保存冲突有 jsdom 回归；采纳成功后若正文或建议详情刷新失败，已确认的 APPLIED 状态保留，页面只提供读取重试，不再次发起采纳。
 - 章节搜索改为只按归一化后的 LF 分行；U+2028 等未归一化字符仍属于原行。`AgentLoopTest.chapterSearchKeepsNonLfCharactersAndReplaysLiteralPages` 验证表情后的码点位置、重复词非重叠命中、特殊符号字面匹配、合法游标重放与改词拒绝。Java 全套 `mvn verify -q` 在 PostgreSQL 18.6 上通过。
+- 搜索扫描现在读取 run 的取消信号，在逐章、逐行及密集命中循环中检查。`AgentLoopTest.cancellationDuringChapterScanStopsWithoutReturningPartialEvidence` 在历史正文读取时触发取消，验证任务停止、没有部分工具结果/来源回填、没有下一轮模型请求；Java 21 的完整 `mvn -o verify -q` 再次通过。实际 PostgreSQL 大规模扫描的取消延迟仍待量测。
 
 尚未满足发布门槛：真实模型固定五输入、接近 6000 码点建议稿和上下文边界评估；真实浏览器断线/重连验收；M0 上游 Agent 读取/编辑/取消/刷新实测（固定源码、普通搜索与缺模型边界已另行记录）；AC-01–41 的逐项签收。因此本记录不是 MVP 发布通过声明。

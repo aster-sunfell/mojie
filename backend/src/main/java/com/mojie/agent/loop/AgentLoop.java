@@ -37,7 +37,7 @@ public final class AgentLoop {
 
     public LoopOutcome run(LoopInput input) {
         ToolContext context = input.context();
-        context.executionClock(clock, input.deadline());
+        context.executionClock(clock, input.deadline(), cancelled);
         String runId = context.runId();
         List<Message> messages = new ArrayList<>();
         messages.add(Message.user(input.initialUserMessage()));
@@ -138,6 +138,8 @@ public final class AgentLoop {
                 messages.add(Message.tools(replies));
                 messageSeqs.addAll(replySeqs);
             }
+        } catch (java.util.concurrent.CancellationException e) {
+            return new LoopOutcome.Cancelled();
         } catch (RuntimeException e) {
             return new LoopOutcome.Failed("PERSISTENCE_ERROR", "A run record could not be committed");
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {

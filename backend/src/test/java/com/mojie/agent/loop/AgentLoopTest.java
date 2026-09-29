@@ -240,6 +240,33 @@ class AgentLoopTest {
                 JSON.valueToTree(Map.of("keyword", "游泳\n")), context));
     }
 
+    @Test void cancellationDuringChapterScanStopsWithoutReturningPartialEvidence() {
+        AtomicBoolean stopped = new AtomicBoolean();
+        FakeContent base = new FakeContent("林舟不会游泳。\n林舟再次说不会游泳。");
+        ContentRepository repository = new ContentRepository() {
+            public List<ToolContext.Chapter> chapters(String projectId) { return base.chapters(projectId); }
+            public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
+                ToolContext.Chapter chapter = base.chapterRevision(projectId, id, version);
+                stopped.set(true);
+                return chapter;
+            }
+            public ChapterView captureChapterView(String runId, String projectId, String targetId, long baseVersion,
+                                                  Map<String, ToolContext.Chapter> alreadyRead) {
+                return base.captureChapterView(runId, projectId, targetId, baseVersion, alreadyRead);
+            }
+            public List<Setting> settings(String projectId) { return base.settings(projectId); }
+        };
+        Script model = new Script(List.of(response("", List.of(call("search", "search_chapters",
+                "{\"keyword\":\"游泳\"}")), FinishReason.TOOL_CALLS)));
+        RecordingTrace scanTrace = new RecordingTrace();
+        LoopOutcome outcome = new AgentLoop(model, ContentTools.all(repository, KEY), scanTrace,
+                LoopLimits.defaults(), Clock.systemUTC(), stopped::get).run(input());
+        assertInstanceOf(LoopOutcome.Cancelled.class, outcome);
+        assertEquals(List.of("search_chapters"), scanTrace.startedTools);
+        assertTrue(scanTrace.wireResults.isEmpty());
+        assertEquals(1, model.requests.size());
+    }
+
     @Test void readSettingsRejectsMixedScopeAsOneResult() {
         AgentTool tool = ContentTools.all(content, KEY).stream().filter(t -> t.spec().name().equals("read_settings")).findFirst().orElseThrow();
         ToolContext ctx = input().context();

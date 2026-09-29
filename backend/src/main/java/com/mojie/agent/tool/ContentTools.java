@@ -145,6 +145,7 @@ public final class ContentTools {
                     line++;
                     int from = 0, at;
                     while ((at = value.indexOf(keyword, from)) >= 0) {
+                        searchRemaining(ctx, searchEnd);
                         int cp = value.codePointCount(0, at);
                         Snippet excerpt = snippet(value, at, keyword.length());
                         Map<String, Object> hit = new LinkedHashMap<>();
@@ -250,6 +251,7 @@ public final class ContentTools {
     }
 
     private static long searchRemaining(ToolContext ctx, long searchEnd) {
+        if (ctx.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
         long own = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(searchEnd - System.nanoTime());
         long remaining = Math.min(own, ctx.remainingMillis());
         if (remaining <= 0) throw new ContentRepository.SearchTimeoutException(null);
