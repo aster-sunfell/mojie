@@ -36,8 +36,10 @@ public final class RunScheduler implements AutoCloseable {
             new ArrayBlockingQueue<>(8), new ThreadPoolExecutor.AbortPolicy());
     private final ScheduledExecutorService sweeper = Executors.newSingleThreadScheduledExecutor();
     private final ConcurrentMap<String, RunHandle> handles = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, PendingTerminal> pendingTerminals = new ConcurrentHashMap<>();
     private final AtomicBoolean ready = new AtomicBoolean();
     private final AtomicReference<RuntimeException> lastSweepFailure = new AtomicReference<>();
+    private record PendingTerminal(String projectId, String runId) {}
 
     public RunScheduler(DataSource dataSource, ModelGateway model, Clock clock, String systemPrompt,
                         String modelId, int maxOutputTokens, byte[] cursorKey) {
@@ -126,7 +128,7 @@ public final class RunScheduler implements AutoCloseable {
     public int occupiedCapacity() { return 10 - permits.availablePermits(); }
     public int runningThreads() { return workers.getActiveCount(); }
     public UUID processInstanceId() { return processId; }
-    public boolean healthy() { return ready.get() && lastSweepFailure.get() == null; }
+    public boolean healthy() { return ready.get() && lastSweepFailure.get() == null && pendingTerminals.isEmpty(); }
 
     private void execute(RunHandle handle) {
         if (!handle.phase.compareAndSet(Phase.REGISTERED, Phase.STARTED)) return;
@@ -145,10 +147,12 @@ public final class RunScheduler implements AutoCloseable {
                     run.modelId(), run.maxOutputTokens(), run.deadline()));
             terminal.finish(handle.projectId, handle.runId, outcome);
         } catch (RuntimeException e) {
-            // A failed transaction may have committed. The sweep/restart recovery path re-reads state before marking failure.
+            // A failed commit may have succeeded. Retrying finish first reads the committed terminal state.
             try { terminal.finish(handle.projectId, handle.runId,
                     new LoopOutcome.Failed("PERSISTENCE_ERROR", "Run worker failed")); }
-            catch (RuntimeException ignored) { /* Database recovery or restart cleanup will settle it. */ }
+            catch (RuntimeException ignored) {
+                pendingTerminals.put(handle.runId, new PendingTerminal(handle.projectId, handle.runId));
+            }
         } finally {
             handle.phase.set(Phase.EXITED);
             handles.remove(handle.runId, handle);
@@ -169,8 +173,22 @@ public final class RunScheduler implements AutoCloseable {
                     handle.releaseOnce();
                 } else handle.task.cancel(true);
             }
+            retryPendingTerminals();
             lastSweepFailure.set(null);
         } catch (RuntimeException failure) { lastSweepFailure.set(failure); }
+    }
+    private void retryPendingTerminals() {
+        RuntimeException firstFailure = null;
+        for (PendingTerminal pending : pendingTerminals.values()) {
+            try {
+                terminal.finish(pending.projectId(), pending.runId(),
+                        new LoopOutcome.Failed("PERSISTENCE_ERROR", "Run worker failed"));
+                pendingTerminals.remove(pending.runId(), pending);
+            } catch (RuntimeException failure) {
+                if (firstFailure == null) firstFailure = failure;
+            }
+        }
+        if (firstFailure != null) throw firstFailure;
     }
     private void ensureReady() {
         if (!healthy()) throw new JdbcRunAdmission.AdmissionException("SERVICE_UNAVAILABLE", "Agent runner is unavailable");

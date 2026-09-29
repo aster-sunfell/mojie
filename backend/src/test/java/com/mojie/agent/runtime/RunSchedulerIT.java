@@ -12,12 +12,17 @@ import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import java.sql.*;
 import java.time.Clock;
+import java.io.PrintWriter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
+import javax.sql.DataSource;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -140,6 +145,44 @@ class RunSchedulerIT {
                 await(() -> "SUCCEEDED".equals(status(dataSource, receipt.runId())) && scheduler.occupiedCapacity() == 0);
                 assertEquals(2, count(dataSource, "SELECT model_call_count FROM tb_agent_run WHERE id='" + receipt.runId() + "'"));
             }
+        });
+    }
+
+    @Test void databaseRecoverySettlesAnExitedWorkerWithoutReplayingTheModel() throws Exception {
+        withDatabase(source -> {
+            AtomicBoolean unavailable = new AtomicBoolean();
+            DataSource controlled = failConnectionsWhen(source, unavailable);
+            CountDownLatch modelEntered = new CountDownLatch(1), modelRelease = new CountDownLatch(1);
+            AtomicInteger modelCalls = new AtomicInteger();
+            ModelGateway blocked = request -> {
+                modelCalls.incrementAndGet();
+                modelEntered.countDown();
+                try { assertTrue(modelRelease.await(5, TimeUnit.SECONDS)); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new RuntimeException(e); }
+                return responseFor(request);
+            };
+            try (RunScheduler scheduler = new RunScheduler(controlled, blocked, Clock.systemUTC(), "system", "scripted",
+                    100, "0123456789abcdef0123456789abcdef".getBytes())) {
+                scheduler.start();
+                Fixture fixture = fixture(source, "recovery");
+                String runId = scheduler.submit(fixture.request("recover")).runId();
+                assertTrue(modelEntered.await(5, TimeUnit.SECONDS));
+                unavailable.set(true);
+                modelRelease.countDown();
+                await(() -> scheduler.occupiedCapacity() == 0);
+                assertEquals("RUNNING", status(source, runId));
+                assertFalse(scheduler.healthy());
+
+                unavailable.set(false);
+                await(() -> "FAILED".equals(status(source, runId)) && scheduler.healthy());
+                assertEquals("PERSISTENCE_ERROR", errorCode(source, runId));
+                assertEquals(1, modelCalls.get());
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_edit_proposal WHERE run_id='" + runId + "'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_project WHERE id='" + fixture.project()
+                        + "' AND active_run_id IS NOT NULL"));
+                assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_event WHERE run_id='" + runId
+                        + "' AND type='run.failed'"));
+            } finally { modelRelease.countDown(); unavailable.set(false); }
         });
     }
 
@@ -700,6 +743,24 @@ class RunSchedulerIT {
     private static RunScheduler scheduler(PGSimpleDataSource source, ModelGateway model) {
         return new RunScheduler(source, model, Clock.systemUTC(), "system", "scripted", 100,
                 "0123456789abcdef0123456789abcdef".getBytes());
+    }
+    private static DataSource failConnectionsWhen(PGSimpleDataSource source, AtomicBoolean unavailable) {
+        return new DataSource() {
+            private void check() throws SQLException {
+                if (unavailable.get()) throw new SQLException("Simulated database outage");
+            }
+            public Connection getConnection() throws SQLException { check(); return source.getConnection(); }
+            public Connection getConnection(String user, String password) throws SQLException {
+                check(); return source.getConnection(user, password);
+            }
+            public PrintWriter getLogWriter() throws SQLException { return source.getLogWriter(); }
+            public void setLogWriter(PrintWriter writer) throws SQLException { source.setLogWriter(writer); }
+            public void setLoginTimeout(int seconds) throws SQLException { source.setLoginTimeout(seconds); }
+            public int getLoginTimeout() throws SQLException { return source.getLoginTimeout(); }
+            public Logger getParentLogger() { return source.getParentLogger(); }
+            public <T> T unwrap(Class<T> type) throws SQLException { return source.unwrap(type); }
+            public boolean isWrapperFor(Class<?> type) throws SQLException { return source.isWrapperFor(type); }
+        };
     }
     private record Fixture(String project, String chapter) {
         JdbcRunAdmission.Request request(String label) {
