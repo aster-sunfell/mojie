@@ -101,10 +101,10 @@ public final class RunScheduler implements AutoCloseable {
 
     public JdbcRunLifecycle.CancelResult cancel(String projectId, String runId) {
         ensureReady();
-        JdbcRunLifecycle.CancelResult result = lifecycle.requestCancel(projectId, runId);
         RunHandle handle = handles.get(runId);
+        if (handle != null && handle.projectId.equals(projectId)) handle.signalCancel();
+        JdbcRunLifecycle.CancelResult result = lifecycle.requestCancel(projectId, runId);
         if (handle == null || !handle.projectId.equals(projectId)) return result;
-        handle.cancel.set(true);
         if ("CANCELLED".equals(result.status()) && handle.phase.compareAndSet(Phase.REGISTERED, Phase.CANCELLED_BEFORE_START)) {
             handle.task.cancel(false);
             workers.remove(handle.task);
@@ -132,6 +132,7 @@ public final class RunScheduler implements AutoCloseable {
             JdbcRunReader.RunData run = reader.load(handle.runId);
             ToolContext context = new ToolContext(run.runId(), run.projectId(), run.targetChapterId(),
                     run.baseVersion(), run.baseContent());
+            handle.context = context;
             AgentLoop loop = new AgentLoop(model, tools, trace, LoopLimits.defaults(), clock, handle.cancel::get);
             LoopOutcome outcome = loop.run(new LoopInput(context, run.instruction(), run.systemPrompt(),
                     run.modelId(), run.maxOutputTokens(), run.deadline()));
@@ -153,7 +154,7 @@ public final class RunScheduler implements AutoCloseable {
             for (String runId : lifecycle.sweepTimeouts()) {
                 RunHandle handle = handles.get(runId);
                 if (handle == null) continue;
-                handle.cancel.set(true);
+                handle.signalCancel();
                 if (handle.phase.compareAndSet(Phase.REGISTERED, Phase.CANCELLED_BEFORE_START)) {
                     handle.task.cancel(false);
                     workers.remove(handle.task);
@@ -170,7 +171,7 @@ public final class RunScheduler implements AutoCloseable {
 
     @Override public void close() {
         ready.set(false);
-        for (RunHandle handle : handles.values()) handle.cancel.set(true);
+        for (RunHandle handle : handles.values()) handle.signalCancel();
         sweeper.shutdownNow();
         workers.shutdownNow();
     }
@@ -179,12 +180,18 @@ public final class RunScheduler implements AutoCloseable {
         final String runId, projectId;
         final UUID executionId = UUID.randomUUID();
         final AtomicBoolean cancel = new AtomicBoolean();
+        volatile ToolContext context;
         final AtomicBoolean released = new AtomicBoolean();
         final AtomicReference<Phase> phase = new AtomicReference<>(Phase.REGISTERED);
         final FutureTask<Void> task;
         RunHandle(String runId, String projectId) {
             this.runId = runId; this.projectId = projectId;
             this.task = new FutureTask<>(() -> { execute(this); return null; });
+        }
+        void signalCancel() {
+            cancel.set(true);
+            ToolContext active = context;
+            if (active != null) active.cancelActiveSearch();
         }
         void releaseOnce() { if (released.compareAndSet(false, true)) permits.release(); }
     }

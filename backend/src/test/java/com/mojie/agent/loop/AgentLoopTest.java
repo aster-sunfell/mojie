@@ -332,6 +332,40 @@ class AgentLoopTest {
         assertEquals(List.of(), ((Map<?,?>) result.data()).get("matches"));
     }
 
+    @Test void timedOutLaterSearchBatchDiscardsEarlierMatches() {
+        ContentRepository repository = new ContentRepository() {
+            public List<ChapterMetadata> chapters(String projectId) {
+                List<ChapterMetadata> result = new ArrayList<>();
+                for (int i = 1; i <= 33; i++) result.add(new ChapterMetadata("c" + i, "章节" + i, i, 1));
+                result.add(new ChapterMetadata("target", "目标", 34, 1));
+                return result;
+            }
+            public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
+                throw new AssertionError("Search should use batch reads");
+            }
+            public List<ToolContext.Chapter> chapterRevisions(String projectId, List<ChapterVersion> chapters, long timeoutMillis) {
+                if (chapters.getFirst().id().equals("c33")) throw new SearchTimeoutException(null);
+                return chapters.stream().map(chapter -> new ToolContext.Chapter(chapter.id(), chapter.id(), 1,
+                        chapter.version(), chapter.id().equals("c1") ? "矛盾" : "无关正文")).toList();
+            }
+            public ChapterView captureChapterView(String runId, String projectId, String targetId, long baseVersion,
+                                                  Map<String, ToolContext.Chapter> alreadyRead) {
+                Map<String, Long> versions = new HashMap<>();
+                for (ChapterMetadata chapter : chapters(projectId)) versions.put(chapter.id(), chapter.version());
+                return new ChapterView("view-" + runId, versions);
+            }
+            public List<Setting> settings(String projectId) { return List.of(); }
+        };
+        AgentTool search = ContentTools.all(repository, KEY).stream()
+                .filter(tool -> tool.spec().name().equals("search_chapters")).findFirst().orElseThrow();
+        AgentTool.ToolResult result = search.execute(JSON.valueToTree(Map.of("keyword", "矛盾")), input().context());
+        assertFalse(result.success());
+        assertEquals("SEARCH_TIMEOUT", result.error().code());
+        assertFalse(result.error().retryableByModel());
+        assertNull(result.data());
+        assertTrue(result.evidence().isEmpty());
+    }
+
     @Test void cancellationDuringChapterScanStopsWithoutReturningPartialEvidence() {
         AtomicBoolean stopped = new AtomicBoolean();
         FakeContent base = new FakeContent("林舟不会游泳。\n林舟再次说不会游泳。");

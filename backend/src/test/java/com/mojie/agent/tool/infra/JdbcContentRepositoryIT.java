@@ -95,6 +95,44 @@ class JdbcContentRepositoryIT {
                     .map(ToolContext.Chapter::content).toList());
             assertTrue(repository.chapterRevisions(UUID.randomUUID().toString(), List.of(
                     new ContentRepository.ChapterVersion(prior, 1)), 2_000).isEmpty());
+            try (Connection blocker = dataSource.getConnection(); Statement lock = blocker.createStatement()) {
+                blocker.setAutoCommit(false);
+                lock.execute("LOCK TABLE tb_chapter_revision IN ACCESS EXCLUSIVE MODE");
+                assertThrows(ContentRepository.SearchTimeoutException.class,
+                        () -> repository.chapterRevisions(project, List.of(
+                                new ContentRepository.ChapterVersion(prior, 1)), 100));
+                blocker.rollback();
+            }
+            assertEquals("old prior", repository.chapterRevisions(project, List.of(
+                    new ContentRepository.ChapterVersion(prior, 1)), 2_000).getFirst().content());
+            CountDownLatch interruptedReadFinished = new CountDownLatch(1);
+            AtomicBoolean cancelRequested = new AtomicBoolean();
+            ToolContext queryContext = new ToolContext(UUID.randomUUID().toString(), project, target, 1, "old target");
+            queryContext.executionClock(Clock.systemUTC(), Instant.now().plusSeconds(10), cancelRequested::get);
+            java.util.concurrent.atomic.AtomicReference<RuntimeException> interruptedReadError =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            try (Connection blocker = dataSource.getConnection(); Statement lock = blocker.createStatement()) {
+                blocker.setAutoCommit(false);
+                lock.execute("LOCK TABLE tb_chapter_revision IN ACCESS EXCLUSIVE MODE");
+                Thread reader = new Thread(() -> {
+                    try { repository.chapterRevisions(project, List.of(
+                            new ContentRepository.ChapterVersion(prior, 1)), 5_000, queryContext); }
+                    catch (RuntimeException failure) { interruptedReadError.set(failure); }
+                    finally { interruptedReadFinished.countDown(); }
+                }, "search-cancellation-check");
+                reader.start();
+                Thread.sleep(200);
+                assertEquals(1, interruptedReadFinished.getCount());
+                cancelRequested.set(true);
+                queryContext.cancelActiveSearch();
+                reader.interrupt();
+                boolean stoppedQuickly = interruptedReadFinished.await(2, TimeUnit.SECONDS);
+                blocker.rollback();
+                reader.join(6_000);
+                assertTrue(stoppedQuickly, "An interrupted database read should stop within two seconds");
+                assertFalse(reader.isAlive());
+                assertNotNull(interruptedReadError.get());
+            }
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
                 sql.execute("UPDATE tb_chapter SET version=2, content='new prior' WHERE id='" + prior + "'");
                 sql.execute("INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES " +

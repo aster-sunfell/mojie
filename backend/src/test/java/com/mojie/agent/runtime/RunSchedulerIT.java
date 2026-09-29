@@ -528,6 +528,100 @@ class RunSchedulerIT {
         });
     }
 
+    @Test void cancellingAQueryBlockedInPostgresEndsTheRunWithoutPartialEvidence() throws Exception {
+        withDatabase(dataSource -> {
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            Fixture fixture = fixture(dataSource, "blocked-search-cancel");
+            CountDownLatch modelEntered = new CountDownLatch(1);
+            CountDownLatch releaseModel = new CountDownLatch(1);
+            ModelGateway model = request -> {
+                modelEntered.countDown();
+                try { assertTrue(releaseModel.await(10, TimeUnit.SECONDS)); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+                return calls("blocked-search", tool("search", "search_settings", Map.of("keyword", "missing")));
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, model);
+                 Connection blocker = dataSource.getConnection(); Statement lock = blocker.createStatement()) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("cancel blocked search")).runId();
+                assertTrue(modelEntered.await(5, TimeUnit.SECONDS));
+                blocker.setAutoCommit(false);
+                lock.execute("LOCK TABLE tb_setting IN ACCESS EXCLUSIVE MODE");
+                releaseModel.countDown();
+                await(() -> {
+                    try { return count(dataSource, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId +
+                            "' AND status='STARTED'") == 1; }
+                    catch (SQLException e) { throw new IllegalStateException(e); }
+                });
+                await(() -> {
+                    try { return count(dataSource, "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' " +
+                            "AND query LIKE '%SELECT s.id, s.type, s.title, s.content%'") > 0; }
+                    catch (SQLException e) { throw new IllegalStateException(e); }
+                });
+                long cancelledAt = System.nanoTime();
+                assertTrue(Set.of("RUNNING", "CANCELLED").contains(scheduler.cancel(fixture.project(), runId).status()));
+                boolean stoppedQuickly = false;
+                while (System.nanoTime() - cancelledAt < TimeUnit.SECONDS.toNanos(2)) {
+                    if ("CANCELLED".equals(status(dataSource, runId)) && scheduler.occupiedCapacity() == 0) {
+                        stoppedQuickly = true; break;
+                    }
+                    Thread.sleep(20);
+                }
+                blocker.rollback();
+                assertTrue(stoppedQuickly, "A cancelled database search should release its worker within two seconds");
+                assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_agent_context_item WHERE run_id='" + runId + "'"));
+                assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='" + runId + "'"));
+                assertEquals(1, count(dataSource, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId +
+                        "' AND status='ABORTED'"));
+            } finally { releaseModel.countDown(); }
+        });
+    }
+
+    @Test void cancellingBlockedViewTransactionDoesNotWaitForTheDatabaseLock() throws Exception {
+        withDatabase(dataSource -> {
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            Fixture fixture = fixture(dataSource, "blocked-view-cancel");
+            CountDownLatch modelEntered = new CountDownLatch(1);
+            CountDownLatch releaseModel = new CountDownLatch(1);
+            ModelGateway model = request -> {
+                modelEntered.countDown();
+                try { assertTrue(releaseModel.await(10, TimeUnit.SECONDS)); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IllegalStateException(e); }
+                return calls("blocked-view", tool("search", "search_chapters",
+                        Map.of("keyword", "body", "scope", "ALL_CHAPTERS")));
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, model);
+                 Connection blocker = dataSource.getConnection(); Statement lock = blocker.createStatement()) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("cancel blocked view")).runId();
+                assertTrue(modelEntered.await(5, TimeUnit.SECONDS));
+                blocker.setAutoCommit(false);
+                lock.execute("LOCK TABLE tb_agent_run_chapter_view IN ACCESS EXCLUSIVE MODE");
+                releaseModel.countDown();
+                await(() -> {
+                    try { return count(dataSource, "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' " +
+                            "AND query LIKE '%SELECT chapter_id, version, view_id FROM tb_agent_run_chapter_view%'") > 0; }
+                    catch (SQLException e) { throw new IllegalStateException(e); }
+                });
+                long cancelledAt = System.nanoTime();
+                assertTrue(Set.of("RUNNING", "CANCELLED").contains(scheduler.cancel(fixture.project(), runId).status()));
+                boolean stoppedQuickly = false;
+                while (System.nanoTime() - cancelledAt < TimeUnit.SECONDS.toNanos(2)) {
+                    if ("CANCELLED".equals(status(dataSource, runId)) && scheduler.occupiedCapacity() == 0) {
+                        stoppedQuickly = true; break;
+                    }
+                    Thread.sleep(20);
+                }
+                blocker.rollback();
+                assertTrue(stoppedQuickly, "Cancellation must interrupt a blocked view write before waiting for its run lock");
+                assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='" + runId + "'"));
+                assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_agent_context_item WHERE run_id='" + runId + "'"));
+                assertEquals(1, count(dataSource, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId +
+                        "' AND status='ABORTED'"));
+            } finally { releaseModel.countDown(); }
+        });
+    }
+
     @Test void failedOrCancelledCandidateCannotBeAccepted() throws Exception {
         withDatabase(dataSource -> {
             CountDownLatch secondCallEntered = new CountDownLatch(1);

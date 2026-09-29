@@ -4,6 +4,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 /** Mutable state is owned by exactly one run; shared tool instances remain stateless. */
@@ -18,6 +20,7 @@ public final class ToolContext {
     private Instant deadline = Instant.MAX;
     private Clock clock = Clock.systemUTC();
     private BooleanSupplier cancelled = () -> false;
+    private final AtomicReference<Runnable> activeSearchCancellation = new AtomicReference<>();
 
     public ToolContext(String runId, String projectId, String targetChapterId, long baseVersion, String baseContent) {
         this.runId = runId; this.projectId = projectId; this.targetChapterId = targetChapterId;
@@ -37,6 +40,18 @@ public final class ToolContext {
         this.clock = value; this.deadline = deadline; this.cancelled = cancelled;
     }
     public boolean cancelled() { return cancelled.getAsBoolean(); }
+    public interface CancellationRegistration extends AutoCloseable { @Override void close(); }
+    public CancellationRegistration registerSearchCancellation(Runnable action) {
+        Objects.requireNonNull(action);
+        if (!activeSearchCancellation.compareAndSet(null, action))
+            throw new IllegalStateException("A search query is already registered");
+        if (cancelled()) action.run();
+        return () -> activeSearchCancellation.compareAndSet(action, null);
+    }
+    public void cancelActiveSearch() {
+        Runnable action = activeSearchCancellation.get();
+        if (action != null) action.run();
+    }
     public long remainingMillis() {
         if (Instant.MAX.equals(deadline)) return Long.MAX_VALUE;
         return java.time.Duration.between(clock.instant(), deadline).toMillis();

@@ -118,12 +118,12 @@ public final class ContentTools {
             String scope = optional(args, "scope", "BEFORE_TARGET");
             if (!scope.equals("BEFORE_TARGET") && !scope.equals("ALL_CHAPTERS")) throw new IllegalArgumentException("Invalid scope");
             int limit = number(args, "limit", 10, 1, 20);
-            List<ContentRepository.ChapterMetadata> chapters = repository.chapters(ctx.projectId(), searchRemaining(ctx, searchEnd)).stream()
+            List<ContentRepository.ChapterMetadata> chapters = repository.chapters(ctx.projectId(), searchRemaining(ctx, searchEnd), ctx).stream()
                     .sorted(Comparator.comparingInt(ContentRepository.ChapterMetadata::order).thenComparing(ContentRepository.ChapterMetadata::id)).toList();
             if (chapters.size() > 1000) return ToolResult.error("SEARCH_SCOPE_TOO_LARGE", "Search view exceeds 1000 chapters", false);
             if (ctx.chapterView() == null) {
                 ContentRepository.ChapterView view = repository.captureChapterView(ctx.runId(), ctx.projectId(),
-                        ctx.targetChapterId(), ctx.baseVersion(), ctx.readChapters(), searchRemaining(ctx, searchEnd));
+                        ctx.targetChapterId(), ctx.baseVersion(), ctx.readChapters(), searchRemaining(ctx, searchEnd), ctx);
                 ctx.setChapterView(view.versions(), view.viewId());
             }
             String query = "search_chapters:" + ctx.chapterViewId() + ":" + keyword + ":" + scope;
@@ -154,7 +154,7 @@ public final class ContentTools {
                         .toList();
                 Map<String, ToolContext.Chapter> loaded = new HashMap<>();
                 for (ToolContext.Chapter chapter : repository.chapterRevisions(ctx.projectId(), versions,
-                        searchRemaining(ctx, searchEnd))) loaded.put(chapter.id(), chapter);
+                        searchRemaining(ctx, searchEnd), ctx)) loaded.put(chapter.id(), chapter);
                 for (ContentRepository.ChapterMetadata meta : batch) {
                     searchRemaining(ctx, searchEnd);
                     Long version = ctx.chapterView().get(meta.id());
@@ -194,6 +194,7 @@ public final class ContentTools {
             if (jsonSize(data) > 12_000) return ToolResult.error("RESULT_TOO_LARGE", "Search page exceeds 12000 code points", true);
             return ToolResult.ok(data, evidence);
             } catch (ContentRepository.SearchTimeoutException e) {
+                if (ctx.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
                 return ToolResult.error("SEARCH_TIMEOUT", "Search exceeded its deadline", false);
             }
         };
@@ -253,7 +254,7 @@ public final class ContentTools {
             List<Evidence> evidence = new ArrayList<>();
             String lastReturned = null;
             boolean hasMore = false;
-            for (ContentRepository.Setting s : repository.settings(ctx.projectId(), searchRemaining(ctx, searchEnd)).stream().sorted(Comparator.comparing(ContentRepository.Setting::id)).toList()) {
+            for (ContentRepository.Setting s : repository.settings(ctx.projectId(), searchRemaining(ctx, searchEnd), ctx).stream().sorted(Comparator.comparing(ContentRepository.Setting::id)).toList()) {
                 searchRemaining(ctx, searchEnd);
                 if (afterId != null && s.id().compareTo(afterId) <= 0) continue;
                 if (!type.isEmpty() && !s.type().equals(type)) continue;
@@ -276,6 +277,7 @@ public final class ContentTools {
             if (jsonSize(data) > 12_000) return ToolResult.error("RESULT_TOO_LARGE", "Search page exceeds 12000 code points", true);
             return ToolResult.ok(data, evidence);
             } catch (ContentRepository.SearchTimeoutException e) {
+                if (ctx.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
                 return ToolResult.error("SEARCH_TIMEOUT", "Search exceeded its deadline", false);
             }
         };

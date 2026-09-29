@@ -20,11 +20,15 @@ public final class JdbcContentRepository implements ContentRepository {
                  ORDER BY c.chapter_order, c.id
                 """;
         try (Connection connection = dataSource.getConnection()) {
-            return loadChapterMetadata(connection, sql, projectId);
+            return loadChapterMetadata(connection, sql, projectId, null);
         } catch (SQLException e) { throw failure(e); }
     }
 
     @Override public List<ChapterMetadata> chapters(String projectId, long timeoutMillis) {
+        return chapters(projectId, timeoutMillis, null);
+    }
+
+    @Override public List<ChapterMetadata> chapters(String projectId, long timeoutMillis, ToolContext context) {
         try (Connection connection = dataSource.getConnection()) {
             searchTimeout(connection, timeoutMillis);
             List<ChapterMetadata> result = loadChapterMetadata(connection, """
@@ -32,7 +36,7 @@ public final class JdbcContentRepository implements ContentRepository {
                       FROM tb_chapter c JOIN tb_project p ON p.id = c.project_id
                      WHERE c.project_id = ?::uuid AND c.deleted_at IS NULL AND p.deleted_at IS NULL
                      ORDER BY c.chapter_order, c.id
-                    """, projectId);
+                    """, projectId, context);
             connection.commit(); return result;
         } catch (SQLException e) { throw searchFailure(e); }
     }
@@ -74,6 +78,11 @@ public final class JdbcContentRepository implements ContentRepository {
     }
 
     @Override public List<ToolContext.Chapter> chapterRevisions(String projectId, List<ChapterVersion> chapters, long timeoutMillis) {
+        return chapterRevisions(projectId, chapters, timeoutMillis, null);
+    }
+
+    @Override public List<ToolContext.Chapter> chapterRevisions(String projectId, List<ChapterVersion> chapters,
+                                                                long timeoutMillis, ToolContext context) {
         if (chapters.isEmpty()) return List.of();
         String placeholders = String.join(",", Collections.nCopies(chapters.size(), "(?::uuid, ?::bigint)"));
         String sql = """
@@ -95,8 +104,11 @@ public final class JdbcContentRepository implements ContentRepository {
                     statement.setLong(parameter++, chapter.version());
                 }
                 statement.setString(parameter, projectId);
-                try (ResultSet rows = statement.executeQuery()) {
-                    while (rows.next()) result.add(chapter(rows));
+                try (ToolContext.CancellationRegistration registration = cancelOnRequest(context, statement)) {
+                    if (context != null && context.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
+                    try (ResultSet rows = statement.executeQuery()) {
+                        while (rows.next()) result.add(chapter(rows));
+                    }
                 }
             }
             connection.commit(); return result;
@@ -111,6 +123,12 @@ public final class JdbcContentRepository implements ContentRepository {
     @Override public ChapterView captureChapterView(String runId, String projectId, String targetId,
                                                     long baseVersion, Map<String, ToolContext.Chapter> alreadyRead,
                                                     long timeoutMillis) {
+        return captureChapterView(runId, projectId, targetId, baseVersion, alreadyRead, timeoutMillis, null);
+    }
+
+    @Override public ChapterView captureChapterView(String runId, String projectId, String targetId,
+                                                    long baseVersion, Map<String, ToolContext.Chapter> alreadyRead,
+                                                    long timeoutMillis, ToolContext context) {
         // The version list is read in one short repeatable-read transaction. No database write occurs there.
         List<ViewRow> snapshot;
         try (Connection connection = dataSource.getConnection()) {
@@ -123,7 +141,7 @@ public final class JdbcContentRepository implements ContentRepository {
                       FROM tb_chapter c JOIN tb_project p ON p.id = c.project_id
                      WHERE c.project_id = ?::uuid AND c.deleted_at IS NULL AND p.deleted_at IS NULL
                      ORDER BY c.chapter_order, c.id
-                    """, projectId);
+                    """, projectId, context);
             connection.commit();
         } catch (SQLException e) { throw searchFailure(e); }
 
@@ -143,12 +161,15 @@ public final class JdbcContentRepository implements ContentRepository {
                 String statusSql = "SELECT status FROM tb_agent_run WHERE id = ?::uuid AND project_id = ?::uuid FOR UPDATE";
                 try (PreparedStatement statement = connection.prepareStatement(statusSql)) {
                     statement.setString(1, runId); statement.setString(2, projectId);
-                    try (ResultSet rows = statement.executeQuery()) {
-                        if (!rows.next() || !"RUNNING".equals(rows.getString(1)))
-                            throw new IllegalStateException("Run is no longer active");
+                    try (ToolContext.CancellationRegistration registration = cancelOnRequest(context, statement)) {
+                        if (context != null && context.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
+                        try (ResultSet rows = statement.executeQuery()) {
+                            if (!rows.next() || !"RUNNING".equals(rows.getString(1)))
+                                throw new IllegalStateException("Run is no longer active");
+                        }
                     }
                 }
-                ChapterView existing = readView(connection, runId);
+                ChapterView existing = readView(connection, runId, context);
                 if (existing != null) { connection.commit(); return existing; }
                 UUID viewId = UUID.randomUUID();
                 String insertSql = """
@@ -164,7 +185,10 @@ public final class JdbcContentRepository implements ContentRepository {
                         statement.setObject(5, viewId);
                         statement.addBatch();
                     }
-                    statement.executeBatch();
+                    try (ToolContext.CancellationRegistration registration = cancelOnRequest(context, statement)) {
+                        if (context != null && context.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
+                        statement.executeBatch();
+                    }
                 }
                 connection.commit();
                 return new ChapterView(viewId.toString(), proposed);
@@ -194,6 +218,10 @@ public final class JdbcContentRepository implements ContentRepository {
     }
 
     @Override public List<Setting> settings(String projectId, long timeoutMillis) {
+        return settings(projectId, timeoutMillis, null);
+    }
+
+    @Override public List<Setting> settings(String projectId, long timeoutMillis, ToolContext context) {
         try (Connection connection = dataSource.getConnection()) {
             searchTimeout(connection, timeoutMillis);
             List<Setting> result = new ArrayList<>();
@@ -204,8 +232,11 @@ public final class JdbcContentRepository implements ContentRepository {
                      ORDER BY s.id
                     """)) {
                 statement.setString(1, projectId);
-                try (ResultSet rows = statement.executeQuery()) {
-                    while (rows.next()) result.add(new Setting(rows.getString(1), rows.getString(2), rows.getString(3), rows.getString(4)));
+                try (ToolContext.CancellationRegistration registration = cancelOnRequest(context, statement)) {
+                    if (context != null && context.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
+                    try (ResultSet rows = statement.executeQuery()) {
+                        while (rows.next()) result.add(new Setting(rows.getString(1), rows.getString(2), rows.getString(3), rows.getString(4)));
+                    }
                 }
             }
             connection.commit(); return result;
@@ -215,6 +246,13 @@ public final class JdbcContentRepository implements ContentRepository {
     private static void searchTimeout(Connection connection, long timeoutMillis) throws SQLException {
         connection.setAutoCommit(false);
         setLocalTimeout(connection, timeoutMillis);
+    }
+    private static ToolContext.CancellationRegistration cancelOnRequest(ToolContext context, Statement statement) {
+        if (context == null) return () -> {};
+        return context.registerSearchCancellation(() -> {
+            try { statement.cancel(); }
+            catch (SQLException ignored) { /* Query may have already finished or the connection may be closed. */ }
+        });
     }
     private static void setLocalTimeout(Connection connection, long timeoutMillis) throws SQLException {
         long bounded = Math.max(1, Math.min(timeoutMillis, 5_000));
@@ -226,41 +264,52 @@ public final class JdbcContentRepository implements ContentRepository {
         return "57014".equals(error.getSQLState()) ? new ContentRepository.SearchTimeoutException(error) : failure(error);
     }
 
-    private static ChapterView readView(Connection connection, String runId) throws SQLException {
+    private static ChapterView readView(Connection connection, String runId, ToolContext context) throws SQLException {
         Map<String, Long> view = new LinkedHashMap<>();
         String viewId = null;
         try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT chapter_id, version, view_id FROM tb_agent_run_chapter_view WHERE run_id = ?::uuid ORDER BY chapter_order, chapter_id")) {
             statement.setString(1, runId);
-            try (ResultSet rows = statement.executeQuery()) {
-                while (rows.next()) {
-                    view.put(rows.getString(1), rows.getLong(2));
-                    if (viewId == null) viewId = rows.getString(3);
-                    else if (!viewId.equals(rows.getString(3))) throw new SQLException("Inconsistent chapter view ID");
+            try (ToolContext.CancellationRegistration registration = cancelOnRequest(context, statement)) {
+                if (context != null && context.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        view.put(rows.getString(1), rows.getLong(2));
+                        if (viewId == null) viewId = rows.getString(3);
+                        else if (!viewId.equals(rows.getString(3))) throw new SQLException("Inconsistent chapter view ID");
+                    }
                 }
             }
         }
         return view.isEmpty() ? null : new ChapterView(viewId, view);
     }
 
-    private static List<ChapterMetadata> loadChapterMetadata(Connection connection, String sql, String projectId) throws SQLException {
+    private static List<ChapterMetadata> loadChapterMetadata(Connection connection, String sql, String projectId,
+                                                             ToolContext context) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, projectId);
-            try (ResultSet rows = statement.executeQuery()) {
-                List<ChapterMetadata> result = new ArrayList<>();
-                while (rows.next()) result.add(new ChapterMetadata(rows.getString(1), rows.getString(2), rows.getInt(3), rows.getLong(4)));
-                return result;
+            try (ToolContext.CancellationRegistration registration = cancelOnRequest(context, statement)) {
+                if (context != null && context.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
+                try (ResultSet rows = statement.executeQuery()) {
+                    List<ChapterMetadata> result = new ArrayList<>();
+                    while (rows.next()) result.add(new ChapterMetadata(rows.getString(1), rows.getString(2), rows.getInt(3), rows.getLong(4)));
+                    return result;
+                }
             }
         }
     }
     private record ViewRow(String id, int order, long version) {}
-    private static List<ViewRow> loadViewRows(Connection connection, String sql, String projectId) throws SQLException {
+    private static List<ViewRow> loadViewRows(Connection connection, String sql, String projectId,
+                                              ToolContext context) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, projectId);
-            try (ResultSet rows = statement.executeQuery()) {
-                List<ViewRow> result = new ArrayList<>();
-                while (rows.next()) result.add(new ViewRow(rows.getString(1), rows.getInt(2), rows.getLong(3)));
-                return result;
+            try (ToolContext.CancellationRegistration registration = cancelOnRequest(context, statement)) {
+                if (context != null && context.cancelled()) throw new java.util.concurrent.CancellationException("Search cancelled");
+                try (ResultSet rows = statement.executeQuery()) {
+                    List<ViewRow> result = new ArrayList<>();
+                    while (rows.next()) result.add(new ViewRow(rows.getString(1), rows.getInt(2), rows.getLong(3)));
+                    return result;
+                }
             }
         }
     }
