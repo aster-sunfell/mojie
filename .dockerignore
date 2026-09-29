@@ -1,0 +1,11 @@
+.git/
+.agents/
+.codex/
+.aws/
+reference/
+docs/
+scripts/
+backend/
+web/node_modules/
+web/dist/
+deploy/.env*

@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    restart: always
+    environment:
+      POSTGRES_DB: mojie
+      POSTGRES_USER: mojie
+      POSTGRES_PASSWORD: "${MOJIE_DB_PASSWORD:?Set MOJIE_DB_PASSWORD in deploy/.env.prod}"
+    volumes:
+      - mojie_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mojie -d mojie"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MOJIE_DB_URL: jdbc:postgresql://postgres:5432/mojie
+      MOJIE_DB_USER: mojie
+      MOJIE_DB_PASSWORD: "${MOJIE_DB_PASSWORD:?Set MOJIE_DB_PASSWORD in deploy/.env.prod}"
+      MOJIE_BIND_HOST: 0.0.0.0
+      MOJIE_CURSOR_KEY: "${MOJIE_CURSOR_KEY:?Set MOJIE_CURSOR_KEY in deploy/.env.prod}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      MOJIE_OWNER_ID: "${MOJIE_OWNER_ID:-local-author}"
+      MOJIE_MODEL_ID: "${MOJIE_MODEL_ID:-claude-sonnet-4-5}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/api/v1/health | grep -Eq '\"status\"[[:space:]]*:[[:space:]]*\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  nginx:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${MOJIE_HTTP_BIND:-127.0.0.1}:${MOJIE_HTTP_PORT:-8088}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  mojie_pgdata:

@@ -2,3 +2,5 @@
 /backend/target/
 /web/node_modules/
 /web/dist/
+/deploy/.env
+/deploy/.env.prod

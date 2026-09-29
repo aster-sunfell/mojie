@@ -63,7 +63,7 @@ mojie/
 │   └── error-codes.yaml         # 统一错误码表，前后端各自生成常量
 ├── deploy/
 │   ├── compose.yaml             # postgres:18@sha256:… + 可选 app
-│   └── nginx.conf               # 同源反代；/api/v1/agent/runs/*/events 关闭缓冲
+│   └── nginx.prod.conf          # 同源反代；/api/v1/agent/runs/*/events 关闭缓冲
 ├── docs/                        # prd / adr / design / reference / verification
 ├── reference/                   # 上游 OpenFic 副本（.gitignore 已排除）
 └── README.md

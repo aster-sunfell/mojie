@@ -1,0 +1,70 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "启动 Postgres + Nginx",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "-f", "deploy/compose.yaml", "-p", "deploy", "up", "-d", "postgres", "nginx"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "检查 Postgres + Nginx状态",
+      "type": "shell",
+      "command": "bash",
+      "args": ["scripts/postgres-nginx-status.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "停止 Postgres + Nginx",
+      "type": "shell",
+      "command": "docker",
+      "args": ["compose", "-f", "deploy/compose.yaml", "-p", "deploy", "stop", "nginx", "postgres"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "启动前端",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev"],
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "mojie-frontend",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "> mojie-web@.* dev",
+          "endsPattern": "Local:.*127\\.0\\.0\\.1:5173"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "runOptions": { "instanceLimit": 1 }
+    },
+    {
+      "label": "启动后端",
+      "type": "shell",
+      "command": "sh",
+      "args": ["scripts/start-local-backend.sh"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "mojie-backend",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Scanning for projects",
+          "endsPattern": "Started MojieApplication in .* seconds"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "runOptions": { "instanceLimit": 1 }
+    }
+  ]
+}

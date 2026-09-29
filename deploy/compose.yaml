@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    restart: "no"
     environment:
       POSTGRES_DB: mojie
       POSTGRES_USER: mojie
@@ -14,6 +15,13 @@ services:
       interval: 2s
       timeout: 2s
       retries: 20
+
+  nginx:
+    image: nginx:1.28-alpine
+    restart: "no"
+    network_mode: host
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
 volumes:
   mojie_pgdata:
