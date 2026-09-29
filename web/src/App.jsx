@@ -192,14 +192,27 @@ function AgentPanel({ projectId, chapter, dirty, refreshChapter, onAcceptanceBus
   const [error, setError] = useState('')
   const [source, setSource] = useState(null)
   const pending = React.useRef(null)
+  const runsRequest = useRef(0)
   const loadRuns = useCallback(async (after = null) => {
     if (!projectId || !chapter?.id) return
-    const page = await api(`/agent/runs?projectId=${projectId}&chapterId=${chapter.id}&limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
-    setRuns(current => after ? [...current, ...page.items] : page.items)
-    setRunCursor(page.nextCursor)
-    if (!after) setRunId(current => current || page.items[0]?.id || null)
+    const request = ++runsRequest.current
+    try {
+      const page = await api(`/agent/runs?projectId=${projectId}&chapterId=${chapter.id}&limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+      if (request !== runsRequest.current) return
+      setRuns(current => after ? [...current, ...page.items] : page.items)
+      setRunCursor(page.nextCursor)
+      if (!after) setRunId(current => current || page.items[0]?.id || null)
+      setError('')
+    } catch (e) {
+      if (request === runsRequest.current) setError(readableError(e))
+    }
   }, [projectId, chapter?.id])
-  useEffect(() => { setRunId(null); pending.current = null; loadRuns().catch(e => setError(readableError(e))) }, [loadRuns])
+  useEffect(() => {
+    setRuns([]); setRunCursor(null); setRunId(null); setSource(null)
+    pending.current = null
+    loadRuns()
+    return () => { runsRequest.current++ }
+  }, [loadRuns])
   useEffect(() => { api('/system/capabilities').then(setCapabilities).catch(() => {}) }, [])
   const onRunChange = useCallback(snapshot => {
     setRuns(items => items.map(item => item.id === snapshot.id ? { ...item, ...snapshot } : item))
@@ -240,9 +253,9 @@ function AgentPanel({ projectId, chapter, dirty, refreshChapter, onAcceptanceBus
         {!capabilities?.agentConfigured && <p className="hint">模型尚未配置；章节和设定仍可编辑。</p>}{dirty && <p className="hint">当前正文未保存，保存后才能提交任务。</p>}
       </> : <p className="muted">先选择一个章节。</p>}
       {error && <p className="error">{error}</p>}
-      <div className="sectionTitle"><h3>任务记录</h3><button className="link" onClick={() => loadRuns().catch(e => setError(readableError(e)))}>刷新</button></div>
+      <div className="sectionTitle"><h3>任务记录</h3><button className="link" onClick={() => loadRuns()}>刷新</button></div>
       <div className="runList">{runs.map(item => <button key={item.id} onClick={() => setRunId(item.id)} className={runId === item.id ? 'selected' : ''}><span>{statusName(item.status)}</span><small>{new Date(item.queuedAt).toLocaleString()}</small></button>)}{runs.length === 0 && <p className="muted">当前章节暂无任务</p>}</div>
-      {runCursor && <button className="secondary" onClick={() => loadRuns(runCursor).catch(e => setError(readableError(e)))}>加载更多任务</button>}
+      {runCursor && <button className="secondary" onClick={() => loadRuns(runCursor)}>加载更多任务</button>}
       {runError && <p className="error">{runError}</p>}
       {run && <div className="runDetail"><div className="sectionTitle"><h3>{statusName(run.status)}</h3>{active(run.status) && <button className="secondary" onClick={cancel} disabled={run.cancelRequested}>{run.cancelRequested ? '正在停止' : '停止'}</button>}</div>
         <p className="muted">基准版本 {run.baseVersion} · 模型 {run.modelCallCount}/8 · 工具 {run.toolCallCount}/12</p>
@@ -380,7 +393,7 @@ function Workspace({ projectId, selectedChapterId, navigate }) {
       <textarea className="editor" value={draft} disabled={accepting} onChange={e => { draftRef.current = e.target.value; setDraft(e.target.value); setSaveStatus('未保存') }} placeholder="从这里开始写作…" />
       {showHistory && <History chapterId={chapter.id} close={() => setShowHistory(false)} />}
     </> : <div className="emptyEditor">从左侧选择章节，或新建第一章。</div>}</main>
-    <AgentPanel projectId={projectId} chapter={chapter} dirty={dirty} refreshChapter={refreshChapter} onAcceptanceBusy={setAccepting} />
+    <AgentPanel key={`${projectId}:${chapter?.id || ''}`} projectId={projectId} chapter={chapter} dirty={dirty} refreshChapter={refreshChapter} onAcceptanceBusy={setAccepting} />
   </div>
 }
 

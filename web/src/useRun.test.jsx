@@ -59,3 +59,34 @@ test('polling recovers a terminal task while the event stream is disconnected', 
   expect(FakeEventSource.current.closed).toBe(true)
   unmount()
 })
+
+test('late detail refresh for a previously selected task cannot replace the current task', async () => {
+  let finishOldRefresh
+  const oldRefresh = new Promise(resolve => { finishOldRefresh = resolve })
+  let firstOldRead = true
+  globalThis.fetch = vi.fn(url => {
+    if (url === '/api/v1/agent/runs/run-1') {
+      if (firstOldRead) {
+        firstOldRead = false
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { id: 'run-1', status: 'SUCCEEDED', lastEventSeq: 1 } }) })
+      }
+      return oldRefresh
+    }
+    if (url === '/api/v1/agent/runs/run-2')
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { id: 'run-2', status: 'SUCCEEDED', lastEventSeq: 1 } }) })
+    throw new Error(`Unexpected request ${url}`)
+  })
+  const onChange = vi.fn()
+  const { result, rerender } = renderHook(({ id }) => useRun(id, onChange), { initialProps: { id: 'run-1' } })
+  await waitFor(() => expect(result.current.run?.id).toBe('run-1'))
+  let pending
+  act(() => { pending = result.current.refresh() })
+  rerender({ id: 'run-2' })
+  await waitFor(() => expect(result.current.run?.id).toBe('run-2'))
+  await act(async () => {
+    finishOldRefresh({ ok: true, status: 200, json: async () => ({ data: { id: 'run-1', status: 'FAILED', lastEventSeq: 2 } }) })
+    await pending
+  })
+  expect(result.current.run.id).toBe('run-2')
+  expect(onChange.mock.calls.map(([snapshot]) => snapshot.id)).toEqual(['run-1', 'run-2'])
+})

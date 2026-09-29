@@ -9,9 +9,17 @@ export function useRun(runId, onChange) {
   const [connection, setConnection] = useState('idle')
   const [error, setError] = useState('')
   const seq = useRef(0)
+  const selectedRunId = useRef(runId)
+  const mounted = useRef(true)
+  selectedRunId.current = runId
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
   const refresh = useCallback(async () => {
     if (!runId) return null
     const snapshot = await api(`/agent/runs/${runId}`)
+    if (!mounted.current || selectedRunId.current !== runId) return null
     if (snapshot.lastEventSeq < seq.current) return null
     setRun(previous => previous?.id === snapshot.id && previous.lastEventSeq > snapshot.lastEventSeq ? previous : snapshot)
     seq.current = Math.max(seq.current, snapshot.lastEventSeq)
