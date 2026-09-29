@@ -11,6 +11,10 @@ public interface ContentRepository {
     default ToolContext.Chapter chapterRevision(String projectId, String chapterId, long version, long timeoutMillis) {
         return chapterRevision(projectId, chapterId, version);
     }
+    default List<ToolContext.Chapter> chapterRevisions(String projectId, List<ChapterVersion> chapters, long timeoutMillis) {
+        return chapters.stream().map(chapter -> chapterRevision(projectId, chapter.id(), chapter.version(), timeoutMillis))
+                .filter(java.util.Objects::nonNull).toList();
+    }
     /** Captured in one consistent read, then durably saved by the repository before returning. */
     ChapterView captureChapterView(String runId, String projectId, String targetId, long baseVersion,
                                    Map<String, ToolContext.Chapter> alreadyRead);
@@ -26,4 +30,5 @@ public interface ContentRepository {
     }
     record Setting(String id, String type, String title, String content) {}
     record ChapterMetadata(String id, String title, int order, long version) {}
+    record ChapterVersion(String id, long version) {}
 }

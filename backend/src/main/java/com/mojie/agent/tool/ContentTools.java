@@ -139,37 +139,51 @@ public final class ContentTools {
             List<Evidence> evidence = new ArrayList<>();
             SearchPosition lastReturned = null;
             boolean hasMore = false;
+            List<ContentRepository.ChapterMetadata> eligible = chapters.stream()
+                    .filter(meta -> !scope.equals("BEFORE_TARGET") || meta.order() < targetOrder)
+                    .filter(meta -> afterChapter == null || chapterOrder.compare(meta, afterChapter) >= 0)
+                    .filter(meta -> ctx.chapterView().containsKey(meta.id()))
+                    .toList();
             scan:
-            for (ContentRepository.ChapterMetadata meta : chapters) {
+            for (int start = 0; start < eligible.size(); start += 32) {
                 searchRemaining(ctx, searchEnd);
-                if (scope.equals("BEFORE_TARGET") && meta.order() >= targetOrder) continue;
-                if (afterChapter != null && chapterOrder.compare(meta, afterChapter) < 0) continue;
-                Long version = ctx.chapterView().get(meta.id());
-                if (version == null) continue;
-                String content = meta.id().equals(ctx.targetChapterId()) ? ctx.baseContent()
-                        : repository.chapterRevision(ctx.projectId(), meta.id(), version, searchRemaining(ctx, searchEnd)).content();
-                int line = 0;
-                for (String value : content.split("\n", -1)) {
+                List<ContentRepository.ChapterMetadata> batch = eligible.subList(start, Math.min(start + 32, eligible.size()));
+                List<ContentRepository.ChapterVersion> versions = batch.stream()
+                        .filter(meta -> !meta.id().equals(ctx.targetChapterId()))
+                        .map(meta -> new ContentRepository.ChapterVersion(meta.id(), ctx.chapterView().get(meta.id())))
+                        .toList();
+                Map<String, ToolContext.Chapter> loaded = new HashMap<>();
+                for (ToolContext.Chapter chapter : repository.chapterRevisions(ctx.projectId(), versions,
+                        searchRemaining(ctx, searchEnd))) loaded.put(chapter.id(), chapter);
+                for (ContentRepository.ChapterMetadata meta : batch) {
                     searchRemaining(ctx, searchEnd);
-                    line++;
-                    if (afterChapter != null && meta.id().equals(after.chapterId()) && line < after.lineNumber()) continue;
-                    int from = 0, at;
-                    while ((at = value.indexOf(keyword, from)) >= 0) {
+                    Long version = ctx.chapterView().get(meta.id());
+                    String content = meta.id().equals(ctx.targetChapterId()) ? ctx.baseContent()
+                            : Optional.ofNullable(loaded.get(meta.id())).orElseThrow(() ->
+                                    new IllegalStateException("Search chapter revision is unavailable")).content();
+                    int line = 0;
+                    for (String value : content.split("\n", -1)) {
                         searchRemaining(ctx, searchEnd);
-                        from = at + keyword.length();
-                        int cp = value.codePointCount(0, at);
-                        if (afterChapter != null && meta.id().equals(after.chapterId())
-                                && line == after.lineNumber() && cp <= after.matchStart()) continue;
-                        if (hits.size() == limit) { hasMore = true; break scan; }
-                        Snippet excerpt = snippet(value, at, keyword.length());
-                        Map<String, Object> hit = new LinkedHashMap<>();
-                        hit.put("chapterId", meta.id()); hit.put("chapterOrder", meta.order()); hit.put("title", meta.title());
-                        hit.put("version", version); hit.put("lineNumber", line); hit.put("matchStart", cp);
-                        hit.put("matchEnd", cp + keyword.codePointCount(0, keyword.length())); hit.put("snippetStart", excerpt.start());
-                        hit.put("snippet", excerpt.text()); hit.put("snippetTruncated", excerpt.truncated());
-                        hits.add(hit);
-                        evidence.add(new Evidence("SEARCH_SNIPPET", "CHAPTER", meta.id(), Long.toString(version), line, cp));
-                        lastReturned = new SearchPosition(meta.id(), line, cp);
+                        line++;
+                        if (afterChapter != null && meta.id().equals(after.chapterId()) && line < after.lineNumber()) continue;
+                        int from = 0, at;
+                        while ((at = value.indexOf(keyword, from)) >= 0) {
+                            searchRemaining(ctx, searchEnd);
+                            from = at + keyword.length();
+                            int cp = value.codePointCount(0, at);
+                            if (afterChapter != null && meta.id().equals(after.chapterId())
+                                    && line == after.lineNumber() && cp <= after.matchStart()) continue;
+                            if (hits.size() == limit) { hasMore = true; break scan; }
+                            Snippet excerpt = snippet(value, at, keyword.length());
+                            Map<String, Object> hit = new LinkedHashMap<>();
+                            hit.put("chapterId", meta.id()); hit.put("chapterOrder", meta.order()); hit.put("title", meta.title());
+                            hit.put("version", version); hit.put("lineNumber", line); hit.put("matchStart", cp);
+                            hit.put("matchEnd", cp + keyword.codePointCount(0, keyword.length())); hit.put("snippetStart", excerpt.start());
+                            hit.put("snippet", excerpt.text()); hit.put("snippetTruncated", excerpt.truncated());
+                            hits.add(hit);
+                            evidence.add(new Evidence("SEARCH_SNIPPET", "CHAPTER", meta.id(), Long.toString(version), line, cp));
+                            lastReturned = new SearchPosition(meta.id(), line, cp);
+                        }
                     }
                 }
             }

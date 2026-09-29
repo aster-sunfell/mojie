@@ -73,6 +73,36 @@ public final class JdbcContentRepository implements ContentRepository {
         } catch (SQLException e) { throw searchFailure(e); }
     }
 
+    @Override public List<ToolContext.Chapter> chapterRevisions(String projectId, List<ChapterVersion> chapters, long timeoutMillis) {
+        if (chapters.isEmpty()) return List.of();
+        String placeholders = String.join(",", Collections.nCopies(chapters.size(), "(?::uuid, ?::bigint)"));
+        String sql = """
+                SELECT c.id, c.title, c.chapter_order, r.version, r.content
+                  FROM (VALUES %s) requested(id, version)
+                  JOIN tb_chapter c ON c.id = requested.id
+                  JOIN tb_project p ON p.id = c.project_id
+                  JOIN tb_chapter_revision r ON r.chapter_id = c.id AND r.version = requested.version
+                 WHERE c.project_id = ?::uuid AND c.deleted_at IS NULL AND p.deleted_at IS NULL
+                 ORDER BY c.chapter_order, c.id
+                """.formatted(placeholders);
+        try (Connection connection = dataSource.getConnection()) {
+            searchTimeout(connection, timeoutMillis);
+            List<ToolContext.Chapter> result = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                int parameter = 1;
+                for (ChapterVersion chapter : chapters) {
+                    statement.setString(parameter++, chapter.id());
+                    statement.setLong(parameter++, chapter.version());
+                }
+                statement.setString(parameter, projectId);
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) result.add(chapter(rows));
+                }
+            }
+            connection.commit(); return result;
+        } catch (SQLException e) { throw searchFailure(e); }
+    }
+
     @Override public ChapterView captureChapterView(String runId, String projectId, String targetId,
                                                     long baseVersion, Map<String, ToolContext.Chapter> alreadyRead) {
         return captureChapterView(runId, projectId, targetId, baseVersion, alreadyRead, 5_000);

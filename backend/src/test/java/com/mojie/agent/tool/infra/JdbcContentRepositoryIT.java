@@ -89,6 +89,12 @@ class JdbcContentRepositoryIT {
                     .map(ContentRepository.ChapterMetadata::id).toList());
             ToolContext.Chapter firstRead = repository.chapterRevision(project, prior, 1);
             assertEquals("old prior", firstRead.content());
+            assertEquals(List.of("old prior", "old target"), repository.chapterRevisions(project, List.of(
+                    new ContentRepository.ChapterVersion(prior, 1),
+                    new ContentRepository.ChapterVersion(target, 1)), 2_000).stream()
+                    .map(ToolContext.Chapter::content).toList());
+            assertTrue(repository.chapterRevisions(UUID.randomUUID().toString(), List.of(
+                    new ContentRepository.ChapterVersion(prior, 1)), 2_000).isEmpty());
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
                 sql.execute("UPDATE tb_chapter SET version=2, content='new prior' WHERE id='" + prior + "'");
                 sql.execute("INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES " +
