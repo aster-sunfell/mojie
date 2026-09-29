@@ -29,4 +29,4 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 参考 OpenFic `v0.11.1`，固定提交 `fd62cb4942f8f6a080a8421de1ea121ef9fee7fb`。本地参考副本位于 `reference/OpenFic/`，由 `.gitignore` 排除，保留上游名称与内容；获取和核验方法见 PRD 第 0 节。
 
-实施路线是基于固定上游源码裁剪重实现：Java 后端独立运行，React 前端选择性迁移。上游参考代码不代表本项目功能已经完成。
+实施路线是基于固定上游源码裁剪重实现：Java 后端独立运行，React 前端选择性迁移。上游参考代码不代表本项目功能已经完成。参考环境、源码映射与复用范围分别记录在 [基线](docs/reference/openfic-baseline.json)、[工程映射](docs/reference/engineering-map.md)、[复用清单](docs/reference/reuse-manifest.md)；实际观察与未验证边界见 [M0 记录](docs/verification/openfic-m0-2026-09-29.md)。

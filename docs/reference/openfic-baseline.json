@@ -1,0 +1,56 @@
+{
+  "repository": "https://github.com/syrizelink/OpenFic",
+  "tag": "v0.11.1",
+  "commit": "fd62cb4942f8f6a080a8421de1ea121ef9fee7fb",
+  "verifiedOn": "2026-09-29",
+  "verification": {
+    "commands": [
+      "git -C reference/OpenFic rev-parse HEAD",
+      "git -C reference/OpenFic describe --tags --exact-match HEAD",
+      "git -C reference/OpenFic status --short"
+    ],
+    "result": "HEAD matches commit and v0.11.1; working tree clean"
+  },
+  "referenceRuntime": {
+    "image": "openfic-reference:fd62cb4",
+    "imageId": "sha256:c40d8b2378fb4e28a2f337deeaec2e1ffb3d0c5a2bb99bda8435629474153156",
+    "platform": "linux/amd64",
+    "container": "openfic-reference-fd62cb4",
+    "urlDuringTest": "http://127.0.0.1:18000",
+    "storage": "dedicated Docker volume openfic-reference-fd62cb4 mounted at /data",
+    "database": "SQLite inside the reference volume; isolated from Mojie PostgreSQL",
+    "startup": "OpenFic v0.11.1 started, SQLite migrations and background services started; GET / returned HTTP 200",
+    "modelConfiguration": {
+      "llm": "none configured; GET /api/v1/models returned only built-in embedding and rerank entries",
+      "defaultModel": "",
+      "defaultEmbeddingModel": "",
+      "indexMode": "off"
+    }
+  },
+  "observations": [
+    {
+      "request": "GET /api/v1/projects/tzTk8Z1kx5j3P1ZIO44Rj/chapters/search?q=游泳",
+      "result": "One result: chapter c_4S_597fd9Zn4o0YvGd2, line 1, 林舟不会游泳，拒绝下水。"
+    },
+    {
+      "request": "GET /api/v1/projects/tzTk8Z1kx5j3P1ZIO44Rj/chapters/search?q=swim",
+      "result": "One result: chapter UbCPE58w3iony2afSajZl, line 2, 他声称已经学会 Swim。"
+    },
+    {
+      "request": "GET /api/v1/projects/tzTk8Z1kx5j3P1ZIO44Rj/chapters/search?q=Swim",
+      "result": "Same one result as lowercase query; ordinary UI search is case insensitive"
+    },
+    {
+      "request": "GET /api/v1/agent/tools",
+      "result": "Registered Agent tool metadata included search_chapters, read_chapter and edit_chapter"
+    },
+    {
+      "request": "POST /api/v1/agent/sessions with model_id=no-configured-model",
+      "result": "HTTP 404, 模型不存在：no-configured-model; no Agent run was created"
+    }
+  ],
+  "notObserved": [
+    "Agent context reading, edit approval, cancellation, live events and page refresh: no LLM model was configured",
+    "Agent search_chapters runtime error without default_embedding_model: source code inspection only"
+  ]
+}
