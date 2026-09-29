@@ -359,6 +359,35 @@ class AgentLoopTest {
         assertEquals("RESOURCE_NOT_FOUND", result.error().code());
     }
 
+    @Test void settingSearchPagesByLastIdWithDifferentNextLimit() {
+        FakeContent repository = new FakeContent("前文", List.of(
+                new ContentRepository.Setting("s1", "CHARACTER", "游泳", "标题命中"),
+                new ContentRepository.Setting("s2", "CHARACTER", "人物", "会游泳"),
+                new ContentRepository.Setting("s3", "WORLD", "游泳池", "地点")));
+        AgentTool search = ContentTools.all(repository, KEY).stream()
+                .filter(tool -> tool.spec().name().equals("search_settings")).findFirst().orElseThrow();
+        ToolContext context = input().context();
+        AgentTool.ToolResult first = search.execute(JSON.valueToTree(Map.of("keyword", "游泳", "limit", 1)), context);
+        assertTrue(first.success());
+        Map<?,?> firstData = (Map<?,?>) first.data();
+        assertEquals("s1", ((Map<?,?>) ((List<?>) firstData.get("items")).getFirst()).get("settingId"));
+        assertEquals("TITLE", ((Map<?,?>) ((List<?>) firstData.get("items")).getFirst()).get("matchField"));
+        assertEquals(1, first.evidence().size());
+        assertEquals(true, firstData.get("hasMore"));
+        String cursor = (String) firstData.get("nextCursor");
+        assertTrue(new String(Base64.getUrlDecoder().decode(cursor.split("\\.")[0])).contains("\nsetting:"));
+
+        JsonNode nextArgs = JSON.valueToTree(Map.of("keyword", "游泳", "limit", 2, "cursor", cursor));
+        Map<?,?> second = (Map<?,?>) search.execute(nextArgs, context).data();
+        assertEquals(List.of("s2", "s3"), ((List<?>) second.get("items")).stream()
+                .map(item -> ((Map<?,?>) item).get("settingId")).toList());
+        assertEquals(false, second.get("hasMore"));
+        assertNull(second.get("nextCursor"));
+        assertEquals(second, search.execute(nextArgs, context).data());
+        assertThrows(IllegalArgumentException.class, () -> search.execute(
+                JSON.valueToTree(Map.of("keyword", "人物", "cursor", cursor)), context));
+    }
+
     private AgentLoop loop(Script model, LoopLimits limits) {
         return new AgentLoop(model, ContentTools.all(content, KEY), trace, limits, Clock.systemUTC(), cancelled::get);
     }
@@ -399,8 +428,13 @@ class AgentLoopTest {
     }
     static final class FakeContent implements ContentRepository {
         private final String priorContent;
+        private final List<Setting> settingRows;
         FakeContent() { this("林舟不会游泳，也不想游泳"); }
-        FakeContent(String priorContent) { this.priorContent = priorContent; }
+        FakeContent(String priorContent) { this(priorContent, List.of(new Setting("s1", "CHARACTER", "林舟", "怕水"))); }
+        FakeContent(String priorContent, List<Setting> settingRows) {
+            this.priorContent = priorContent;
+            this.settingRows = settingRows;
+        }
         public List<ToolContext.Chapter> chapters(String projectId) {
             return List.of(new ToolContext.Chapter("prior", "前文", 1, 1, priorContent),
                     new ToolContext.Chapter("target", "目标", 2, 2, "当前版本"));
@@ -412,6 +446,6 @@ class AgentLoopTest {
                                               Map<String, ToolContext.Chapter> alreadyRead) {
             return new ChapterView("view-" + runId, Map.of("prior", 1L, "target", baseVersion));
         }
-        public List<Setting> settings(String projectId) { return List.of(new Setting("s1", "CHARACTER", "林舟", "怕水")); }
+        public List<Setting> settings(String projectId) { return settingRows; }
     }
 }
