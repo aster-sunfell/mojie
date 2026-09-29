@@ -267,6 +267,32 @@ class AgentLoopTest {
         assertEquals(1, model.requests.size());
     }
 
+    @Test void longLineSnippetKeepsOriginalCodePointPositionAndFullRead() {
+        String longLine = "😀" + "甲".repeat(5997) + "游泳";
+        FakeContent repository = new FakeContent(longLine);
+        List<AgentTool> tools = ContentTools.all(repository, KEY);
+        ToolContext context = input().context();
+        AgentTool search = tools.stream().filter(tool -> tool.spec().name().equals("search_chapters"))
+                .findFirst().orElseThrow();
+        AgentTool.ToolResult found = search.execute(JSON.valueToTree(Map.of("keyword", "游泳")), context);
+        assertTrue(found.success());
+        Map<?,?> match = (Map<?,?>) ((List<?>) ((Map<?,?>) found.data()).get("matches")).getFirst();
+        assertEquals(5998, match.get("matchStart"));
+        assertEquals(6000, match.get("matchEnd"));
+        assertEquals(5680, match.get("snippetStart"));
+        String snippet = (String) match.get("snippet");
+        assertEquals(320, snippet.codePointCount(0, snippet.length()));
+        assertTrue(snippet.endsWith("游泳"));
+        assertEquals(true, match.get("snippetTruncated"));
+
+        AgentTool read = tools.stream().filter(tool -> tool.spec().name().equals("read_chapter"))
+                .findFirst().orElseThrow();
+        AgentTool.ToolResult full = read.execute(JSON.valueToTree(Map.of("chapterId", "prior")), context);
+        assertTrue(full.success());
+        assertEquals(longLine, ((Map<?,?>) full.data()).get("content"));
+        assertEquals("FULL_CHAPTER", full.evidence().getFirst().kind());
+    }
+
     @Test void readSettingsRejectsMixedScopeAsOneResult() {
         AgentTool tool = ContentTools.all(content, KEY).stream().filter(t -> t.spec().name().equals("read_settings")).findFirst().orElseThrow();
         ToolContext ctx = input().context();
