@@ -130,6 +130,84 @@ class RunSchedulerIT {
         });
     }
 
+    @Test void editsBetweenReadsAndSearchPagesKeepBaseFirstReadAndViewVersions() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            JdbcContentService content = new JdbcContentService(source);
+            String project = (String) content.createProject("owner", "version-view").get("id");
+            String prior = (String) content.createChapter("owner", project, "prior").get("id");
+            String second = (String) content.createChapter("owner", project, "second").get("id");
+            String target = (String) content.createChapter("owner", project, "target").get("id");
+            String priorOld = "needle prior old", secondOld = "needle second old", targetOld = "needle target old";
+            content.saveChapter("owner", prior, priorOld, 1);
+            content.saveChapter("owner", second, secondOld, 1);
+            content.saveChapter("owner", target, targetOld, 1);
+            AtomicInteger turn = new AtomicInteger();
+            String[] pinnedView = new String[1];
+            ModelGateway scripted = request -> switch (turn.incrementAndGet()) {
+                case 1 -> calls("read-before-edit",
+                        tool("target-first", "read_chapter", Map.of("chapterId", target)),
+                        tool("prior-first", "read_chapter", Map.of("chapterId", prior)));
+                case 2 -> {
+                    assertEquals(targetOld, data(request, "target-first").get("content"));
+                    assertEquals(priorOld, data(request, "prior-first").get("content"));
+                    content.saveChapter("owner", target, "changed target", 2);
+                    content.saveChapter("owner", prior, "changed prior", 2);
+                    yield calls("search-after-edit", tool("page-one", "search_chapters",
+                            Map.of("keyword", "needle", "scope", "ALL_CHAPTERS", "limit", 1)));
+                }
+                case 3 -> {
+                    Map<String,Object> firstPage = data(request, "page-one");
+                    List<?> matches = (List<?>) firstPage.get("matches");
+                    assertEquals(1, matches.size());
+                    assertEquals(prior, ((Map<?,?>) matches.getFirst()).get("chapterId"));
+                    assertEquals(2, ((Number) ((Map<?,?>) matches.getFirst()).get("version")).intValue());
+                    assertEquals(true, firstPage.get("hasMore"));
+                    pinnedView[0] = (String) firstPage.get("viewId");
+                    assertNotNull(pinnedView[0]);
+                    content.saveChapter("owner", second, "changed second", 2);
+                    yield calls("page-and-read-after-edit",
+                            tool("page-two", "search_chapters", Map.of("keyword", "needle", "scope", "ALL_CHAPTERS",
+                                    "limit", 2, "cursor", firstPage.get("nextCursor"))),
+                            tool("prior-again", "read_chapter", Map.of("chapterId", prior)),
+                            tool("second-after-view", "read_chapter", Map.of("chapterId", second)),
+                            tool("target-again", "read_chapter", Map.of("chapterId", target)));
+                }
+                case 4 -> {
+                    Map<String,Object> secondPage = data(request, "page-two");
+                    assertEquals(pinnedView[0], secondPage.get("viewId"));
+                    List<?> matches = (List<?>) secondPage.get("matches");
+                    assertEquals(List.of(second, target), matches.stream()
+                            .map(item -> ((Map<?,?>) item).get("chapterId")).toList());
+                    assertTrue(matches.stream().allMatch(item ->
+                            ((Number) ((Map<?,?>) item).get("version")).intValue() == 2));
+                    assertEquals(false, secondPage.get("hasMore"));
+                    assertEquals(priorOld, data(request, "prior-again").get("content"));
+                    assertEquals(secondOld, data(request, "second-after-view").get("content"));
+                    assertEquals(targetOld, data(request, "target-again").get("content"));
+                    yield new Response("检查完成。", List.of(), FinishReason.FINAL, "final", "end_turn", null);
+                }
+                default -> throw new AssertionError("Unexpected model turn");
+            };
+            try (RunScheduler scheduler = scheduler(source, scripted)) {
+                scheduler.start();
+                String runId = scheduler.submit(new JdbcRunAdmission.Request("owner", project, target, 2,
+                        "check version view", UUID.randomUUID().toString())).runId();
+                await(() -> "SUCCEEDED".equals(status(source, runId)));
+                assertEquals(4, turn.get());
+                Map<String,Object> detail = new JdbcRunQuery(source).detail("owner", runId);
+                List<?> sources = (List<?>) detail.get("sources");
+                assertTrue(sources.stream().filter(item -> ((Map<?,?>) item).get("chapterId") != null)
+                        .allMatch(item -> ((Number) ((Map<?,?>) item).get("chapterVersion")).intValue() == 2));
+                assertEquals(3, count(source, "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='"
+                        + runId + "' AND version=2"));
+                assertEquals("changed target", content.chapter("owner", target).get("content"));
+                assertEquals("changed prior", content.chapter("owner", prior).get("content"));
+                assertEquals("changed second", content.chapter("owner", second).get("content"));
+            }
+        });
+    }
+
     @Test void malformedChatToolArgumentsAreReturnedAndCorrectedAcrossHttpAndPostgres() throws Exception {
         withDatabase(source -> {
             Fixture fixture = fixtureAfterMigration(source, "chat-argument-correction");
@@ -180,6 +258,55 @@ class RunSchedulerIT {
                 assertEquals("SUCCEEDED", ((Map<?, ?>) steps.get(1)).get("status"));
                 assertNull(detail.get("proposalId"));
             } finally { provider.stop(0); }
+        });
+    }
+
+    @Test void modelFailuresStayDistinctAndNeverPublishAProposal() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            for (String code : List.of("MODEL_AUTH_ERROR", "MODEL_NETWORK_ERROR", "MODEL_TIMEOUT")) {
+                Fixture fixture = fixture(source, code);
+                AtomicInteger attempts = new AtomicInteger();
+                ModelGateway failure = request -> {
+                    attempts.incrementAndGet();
+                    throw new ModelGateway.ModelException(code, "Simulated provider failure");
+                };
+                try (RunScheduler scheduler = scheduler(source, failure)) {
+                    scheduler.start();
+                    String runId = scheduler.submit(fixture.request("check")).runId();
+                    await(() -> "FAILED".equals(status(source, runId)));
+                    assertEquals(code, errorCode(source, runId));
+                    assertEquals(1, attempts.get());
+                    assertEquals(0, count(source, "SELECT count(*) FROM tb_edit_proposal WHERE run_id='" + runId + "'"));
+                }
+            }
+            Fixture refusedFixture = fixture(source, "refused");
+            AtomicInteger refusedCalls = new AtomicInteger();
+            ModelGateway refused = request -> {
+                refusedCalls.incrementAndGet();
+                return new Response("", List.of(), FinishReason.REFUSED, "refused", "refusal", null);
+            };
+            try (RunScheduler scheduler = scheduler(source, refused)) {
+                scheduler.start();
+                String runId = scheduler.submit(refusedFixture.request("check")).runId();
+                await(() -> "FAILED".equals(status(source, runId)));
+                assertEquals("MODEL_REFUSED", errorCode(source, runId));
+                assertEquals(1, refusedCalls.get());
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_edit_proposal WHERE run_id='" + runId + "'"));
+            }
+            Fixture blankFixture = fixture(source, "blank-analysis");
+            AtomicInteger blankCalls = new AtomicInteger();
+            ModelGateway blank = request -> blankCalls.incrementAndGet() == 1
+                    ? calls("read", tool("target", "read_chapter", Map.of("chapterId", blankFixture.chapter())))
+                    : new Response("  ", List.of(), FinishReason.FINAL, "blank", "end_turn", null);
+            try (RunScheduler scheduler = scheduler(source, blank)) {
+                scheduler.start();
+                String runId = scheduler.submit(blankFixture.request("check")).runId();
+                await(() -> "FAILED".equals(status(source, runId)));
+                assertEquals("INVALID_MODEL_RESPONSE", errorCode(source, runId));
+                assertEquals(2, blankCalls.get());
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_edit_proposal WHERE run_id='" + runId + "'"));
+            }
         });
     }
 

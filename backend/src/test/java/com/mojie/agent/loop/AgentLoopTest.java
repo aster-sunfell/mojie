@@ -10,6 +10,7 @@ import java.time.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -91,6 +92,42 @@ class AgentLoopTest {
         Script model = new Script(List.of(response("analysis", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.FINAL)));
         assertEquals("INVALID_MODEL_RESPONSE", ((LoopOutcome.Failed) loop(model, LoopLimits.defaults()).run(input())).code());
         assertTrue(trace.startedTools.isEmpty());
+    }
+
+    @Test void refusalAndUnknownStopReasonFailDistinctlyWithoutDispatchingTools() {
+        for (Map.Entry<FinishReason, String> scenario : Map.of(
+                FinishReason.REFUSED, "MODEL_REFUSED",
+                FinishReason.OTHER, "INVALID_MODEL_RESPONSE").entrySet()) {
+            Script model = new Script(List.of(response("", List.of(
+                    call("r", "read_chapter", "{\"chapterId\":\"target\"}")), scenario.getKey())));
+            RecordingTrace scenarioTrace = new RecordingTrace();
+            LoopOutcome.Failed failure = (LoopOutcome.Failed) new AgentLoop(model,
+                    ContentTools.all(content, KEY), scenarioTrace, LoopLimits.defaults(), Clock.systemUTC(),
+                    cancelled::get).run(input());
+            assertEquals(scenario.getValue(), failure.code());
+            assertEquals(1, model.requests.size());
+            assertTrue(scenarioTrace.startedTools.isEmpty());
+        }
+    }
+
+    @Test void providerErrorsHaveOneAttemptAndBlankFinalAnalysisFails() {
+        for (String code : List.of("MODEL_AUTH_ERROR", "MODEL_NETWORK_ERROR", "MODEL_TIMEOUT")) {
+            AtomicInteger attempts = new AtomicInteger();
+            ModelGateway failed = request -> {
+                attempts.incrementAndGet();
+                throw new ModelGateway.ModelException(code, "provider error");
+            };
+            LoopOutcome.Failed outcome = (LoopOutcome.Failed) loop(failed, LoopLimits.defaults()).run(input());
+            assertEquals(code, outcome.code());
+            assertEquals(1, attempts.get());
+        }
+        Script blank = new Script(List.of(
+                response("", List.of(call("read", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.TOOL_CALLS),
+                response("  ", List.of(), FinishReason.FINAL)));
+        LoopOutcome.Failed outcome = (LoopOutcome.Failed) loop(blank, LoopLimits.defaults()).run(input());
+        assertEquals("INVALID_MODEL_RESPONSE", outcome.code());
+        assertEquals("Empty final analysis", outcome.detail());
+        assertEquals(2, blank.requests.size());
     }
 
     @Test void fullContextBudgetIsCheckedBeforeAProviderAttempt() {

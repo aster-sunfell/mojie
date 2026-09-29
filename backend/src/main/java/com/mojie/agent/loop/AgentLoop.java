@@ -87,7 +87,12 @@ public final class AgentLoop {
                 }
                 if (response.finishReason() == FinishReason.TRUNCATED || response.finishReason() == FinishReason.REFUSED
                         || response.finishReason() == FinishReason.OTHER) {
-                    String code = response.finishReason() == FinishReason.TRUNCATED ? "LIMIT_EXCEEDED" : "MODEL_ERROR";
+                    String code = switch (response.finishReason()) {
+                        case TRUNCATED -> "LIMIT_EXCEEDED";
+                        case REFUSED -> "MODEL_REFUSED";
+                        case OTHER -> "INVALID_MODEL_RESPONSE";
+                        default -> throw new IllegalStateException("Unexpected finish reason");
+                    };
                     trace.modelFailed(runId, callIndex, code, response.finishReason().name());
                     return new LoopOutcome.Failed(code, response.finishReason().name());
                 }
