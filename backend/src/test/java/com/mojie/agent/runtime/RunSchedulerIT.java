@@ -334,6 +334,47 @@ class RunSchedulerIT {
         });
     }
 
+    @Test void oversizedChapterScopeFailsWithoutPartialSearchAndCanFallBackToRead() throws Exception {
+        withDatabase(dataSource -> {
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            Fixture fixture = fixture(dataSource, "over-thousand-chapters");
+            try (Connection connection = dataSource.getConnection(); PreparedStatement chapters = connection.prepareStatement("""
+                    INSERT INTO tb_chapter(project_id, chapter_order, title, content)
+                    SELECT ?::uuid, n, 'chapter ' || n, '游泳' FROM generate_series(2, 1001) AS n
+                    """); PreparedStatement project = connection.prepareStatement(
+                    "UPDATE tb_project SET next_chapter_order = 1002 WHERE id = ?::uuid")) {
+                chapters.setString(1, fixture.project());
+                assertEquals(1000, chapters.executeUpdate());
+                project.setString(1, fixture.project()); project.executeUpdate();
+            }
+            ModelGateway fallback = request -> {
+                if (request.messages().size() == 1) return calls("scope-1",
+                        tool("search", "search_chapters", Map.of("keyword", "游泳", "scope", "ALL_CHAPTERS")),
+                        tool("read", "read_chapter", Map.of("chapterId", fixture.chapter())));
+                ToolReply search = request.messages().getLast().replies().stream()
+                        .filter(reply -> reply.callId().equals("search")).findFirst().orElseThrow();
+                assertEquals(false, search.result().get("success"));
+                assertEquals("SEARCH_SCOPE_TOO_LARGE", ((Map<?,?>) search.result().get("error")).get("code"));
+                assertEquals("body", data(request, "read").get("content"));
+                return new Response("字面搜索范围超过上限；已读取目标章，其他章节未核查。", List.of(),
+                        FinishReason.FINAL, "scope-2", "end_turn", null);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, fallback)) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("scope check")).runId();
+                await(() -> "SUCCEEDED".equals(status(dataSource, runId)));
+                Map<String,Object> detail = new JdbcRunQuery(dataSource).detail("owner", runId);
+                assertEquals(2, detail.get("toolCallCount"));
+                List<?> steps = (List<?>) detail.get("steps");
+                assertEquals("SEARCH_SCOPE_TOO_LARGE", ((Map<?,?>) steps.getFirst()).get("errorCode"));
+                List<?> sources = (List<?>) detail.get("sources");
+                assertEquals(1, sources.size());
+                assertEquals("FULL_CHAPTER", ((Map<?,?>) sources.getFirst()).get("kind"));
+                assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='" + runId + "'"));
+            }
+        });
+    }
+
     private static Response responseFor(ModelGateway.Request request) {
         if (request.messages().size() == 1) {
             String chapter = request.messages().getFirst().content().stream()
