@@ -11,6 +11,8 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 需要 Java 21、Maven、Node 20+、PostgreSQL 18。先执行 `docker compose -f deploy/compose.yaml up -d`，再在 `backend/` 运行 `mvn package && java -jar target/mojie-agent-core-0.1.0-SNAPSHOT-exec.jar`，在 `web/` 运行 `npm install && npm run dev`，打开 `http://127.0.0.1:5173`。未设置 `ANTHROPIC_API_KEY` 时可编辑内容，任务提交入口会说明模型未配置。
 
 固定演示数据可在服务启动后用 `node scripts/seed-demo.mjs` 创建；加 `--scale` 会创建 100 章与 200 条设定，并打印作品及目标章节 ID。对扩展数据执行 `node scripts/check-m4-load.mjs PROJECT_ID TARGET_CHAPTER_ID`，检查分页无重复和 20 次非模型请求延迟。两脚本使用 `MOJIE_API_URL` 指定 API 根地址，默认为 `http://127.0.0.1:8080/api/v1`。同源静态部署可参考 [Nginx 示例](deploy/nginx.conf.example)，需按实际路径调整根目录与后端地址。
+
+实际进程重启回归可运行 `node scripts/check-active-run-restart.mjs`：先构建 Java 可执行 JAR，并将 `MOJIE_TEST_JDBC_URL` 指向专用可丢弃的 PostgreSQL 数据库；使用 Java 21。脚本会启动和强制中断它自己的 Java 进程，验证活动任务标为 `SERVICE_RESTARTED`，并核对已成功任务、建议及 SSE 事件；不会调用真实模型。
 正文换行与 Unicode 的 HTTP 往返可运行 `node scripts/check-text-roundtrip.mjs`；它会创建一个独立测试作品并检查当前正文、历史版本和重复保存。
 
 ## 文档入口
