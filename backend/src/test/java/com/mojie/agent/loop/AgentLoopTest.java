@@ -240,6 +240,63 @@ class AgentLoopTest {
                 JSON.valueToTree(Map.of("keyword", "游泳\n")), context));
     }
 
+    @Test void denseChapterSearchPagesByLastMatchWithoutCollectingAllMatches() {
+        FakeContent repository = new FakeContent("游".repeat(6000));
+        AgentTool search = ContentTools.all(repository, KEY).stream()
+                .filter(tool -> tool.spec().name().equals("search_chapters")).findFirst().orElseThrow();
+        ToolContext context = input().context();
+        AgentTool.ToolResult first = search.execute(JSON.valueToTree(Map.of("keyword", "游", "limit", 20)), context);
+        assertTrue(first.success());
+        Map<?,?> firstData = (Map<?,?>) first.data();
+        List<?> firstMatches = (List<?>) firstData.get("matches");
+        assertEquals(20, firstMatches.size());
+        assertEquals(20, first.evidence().size());
+        assertEquals(0, ((Map<?,?>) firstMatches.getFirst()).get("matchStart"));
+        assertEquals(19, ((Map<?,?>) firstMatches.getLast()).get("matchStart"));
+        assertEquals(true, firstData.get("hasMore"));
+        String cursor = (String) firstData.get("nextCursor");
+        String decoded = new String(Base64.getUrlDecoder().decode(cursor.split("\\.")[0]));
+        assertTrue(decoded.contains("\nsearch:"));
+        assertTrue(decoded.endsWith(":1:19"));
+
+        JsonNode nextArgs = JSON.valueToTree(Map.of("keyword", "游", "limit", 7, "cursor", cursor));
+        AgentTool.ToolResult second = search.execute(nextArgs, context);
+        List<?> secondMatches = (List<?>) ((Map<?,?>) second.data()).get("matches");
+        assertEquals(7, secondMatches.size());
+        assertEquals(20, ((Map<?,?>) secondMatches.getFirst()).get("matchStart"));
+        assertEquals(26, ((Map<?,?>) secondMatches.getLast()).get("matchStart"));
+        assertEquals(second.data(), search.execute(nextArgs, context).data());
+    }
+
+    @Test void chapterSearchCursorContinuesAcrossChapterBoundary() {
+        ContentRepository repository = new ContentRepository() {
+            public List<ToolContext.Chapter> chapters(String projectId) {
+                return List.of(new ToolContext.Chapter("a", "第一章", 1, 1, "甲"),
+                        new ToolContext.Chapter("b", "第二章", 2, 1, "甲"),
+                        new ToolContext.Chapter("target", "目标章", 3, 1, "目标"));
+            }
+            public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
+                return chapters(projectId).stream().filter(chapter -> chapter.id().equals(id)).findFirst().orElse(null);
+            }
+            public ChapterView captureChapterView(String runId, String projectId, String targetId, long baseVersion,
+                                                  Map<String, ToolContext.Chapter> alreadyRead) {
+                return new ChapterView("view-" + runId, Map.of("a", 1L, "b", 1L, "target", baseVersion));
+            }
+            public List<Setting> settings(String projectId) { return List.of(); }
+        };
+        AgentTool search = ContentTools.all(repository, KEY).stream()
+                .filter(tool -> tool.spec().name().equals("search_chapters")).findFirst().orElseThrow();
+        ToolContext context = input().context();
+        Map<?,?> first = (Map<?,?>) search.execute(JSON.valueToTree(Map.of("keyword", "甲", "limit", 1)), context).data();
+        assertEquals("a", ((Map<?,?>) ((List<?>) first.get("matches")).getFirst()).get("chapterId"));
+        assertEquals(true, first.get("hasMore"));
+        Map<?,?> second = (Map<?,?>) search.execute(JSON.valueToTree(Map.of(
+                "keyword", "甲", "limit", 1, "cursor", first.get("nextCursor"))), context).data();
+        assertEquals("b", ((Map<?,?>) ((List<?>) second.get("matches")).getFirst()).get("chapterId"));
+        assertEquals(false, second.get("hasMore"));
+        assertNull(second.get("nextCursor"));
+    }
+
     @Test void cancellationDuringChapterScanStopsWithoutReturningPartialEvidence() {
         AtomicBoolean stopped = new AtomicBoolean();
         FakeContent base = new FakeContent("林舟不会游泳。\n林舟再次说不会游泳。");

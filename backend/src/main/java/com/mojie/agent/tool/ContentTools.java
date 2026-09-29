@@ -127,14 +127,23 @@ public final class ContentTools {
                 ctx.setChapterView(view.versions(), view.viewId());
             }
             String query = "search_chapters:" + ctx.chapterViewId() + ":" + keyword + ":" + scope;
-            int offset = cursor.offset(args, ctx, query);
+            SearchPosition after = cursor.searchPosition(args, ctx, query);
             int targetOrder = chapters.stream().filter(c -> c.id().equals(ctx.targetChapterId())).findFirst()
                     .map(ToolContext.Chapter::order).orElseThrow(() -> new IllegalArgumentException("Target chapter unavailable"));
+            ToolContext.Chapter afterChapter = after == null ? null : chapters.stream()
+                    .filter(c -> c.id().equals(after.chapterId())).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("INVALID_SEARCH_CURSOR"));
+            Comparator<ToolContext.Chapter> chapterOrder = Comparator.comparingInt(ToolContext.Chapter::order)
+                    .thenComparing(ToolContext.Chapter::id);
             List<Map<String, Object>> hits = new ArrayList<>();
-            List<Evidence> allEvidence = new ArrayList<>();
+            List<Evidence> evidence = new ArrayList<>();
+            SearchPosition lastReturned = null;
+            boolean hasMore = false;
+            scan:
             for (ToolContext.Chapter meta : chapters) {
                 searchRemaining(ctx, searchEnd);
                 if (scope.equals("BEFORE_TARGET") && meta.order() >= targetOrder) continue;
+                if (afterChapter != null && chapterOrder.compare(meta, afterChapter) < 0) continue;
                 Long version = ctx.chapterView().get(meta.id());
                 if (version == null) continue;
                 String content = meta.id().equals(ctx.targetChapterId()) ? ctx.baseContent()
@@ -143,10 +152,15 @@ public final class ContentTools {
                 for (String value : content.split("\n", -1)) {
                     searchRemaining(ctx, searchEnd);
                     line++;
+                    if (afterChapter != null && meta.id().equals(after.chapterId()) && line < after.lineNumber()) continue;
                     int from = 0, at;
                     while ((at = value.indexOf(keyword, from)) >= 0) {
                         searchRemaining(ctx, searchEnd);
+                        from = at + keyword.length();
                         int cp = value.codePointCount(0, at);
+                        if (afterChapter != null && meta.id().equals(after.chapterId())
+                                && line == after.lineNumber() && cp <= after.matchStart()) continue;
+                        if (hits.size() == limit) { hasMore = true; break scan; }
                         Snippet excerpt = snippet(value, at, keyword.length());
                         Map<String, Object> hit = new LinkedHashMap<>();
                         hit.put("chapterId", meta.id()); hit.put("chapterOrder", meta.order()); hit.put("title", meta.title());
@@ -154,19 +168,17 @@ public final class ContentTools {
                         hit.put("matchEnd", cp + keyword.codePointCount(0, keyword.length())); hit.put("snippetStart", excerpt.start());
                         hit.put("snippet", excerpt.text()); hit.put("snippetTruncated", excerpt.truncated());
                         hits.add(hit);
-                        allEvidence.add(new Evidence("SEARCH_SNIPPET", "CHAPTER", meta.id(), Long.toString(version), line, cp));
-                        from = at + keyword.length();
+                        evidence.add(new Evidence("SEARCH_SNIPPET", "CHAPTER", meta.id(), Long.toString(version), line, cp));
+                        lastReturned = new SearchPosition(meta.id(), line, cp);
                     }
                 }
             }
-            int end = Math.min(offset + limit, hits.size());
-            int start = Math.min(offset, end);
             Map<String, Object> data = new LinkedHashMap<>();
             data.put("keyword", keyword); data.put("scope", scope); data.put("viewId", ctx.chapterViewId());
-            data.put("matches", hits.subList(start, end)); data.put("hasMore", end < hits.size());
-            data.put("nextCursor", end < hits.size() ? cursor.encode(ctx, query, end) : null);
+            data.put("matches", hits); data.put("hasMore", hasMore);
+            data.put("nextCursor", hasMore ? cursor.encodeSearchPosition(ctx, query, lastReturned) : null);
             if (jsonSize(data) > 12_000) return ToolResult.error("RESULT_TOO_LARGE", "Search page exceeds 12000 code points", true);
-            return ToolResult.ok(data, allEvidence.subList(start, end));
+            return ToolResult.ok(data, evidence);
             } catch (ContentRepository.SearchTimeoutException e) {
                 return ToolResult.error("SEARCH_TIMEOUT", "Search exceeded its deadline", false);
             }
@@ -321,6 +333,7 @@ public final class ContentTools {
         try { return codePoints(JSON.writeValueAsString(value)); }
         catch (com.fasterxml.jackson.core.JsonProcessingException e) { throw new IllegalStateException(e); }
     }
+    private record SearchPosition(String chapterId, int lineNumber, int matchStart) {}
     private static String sha256(String value) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
@@ -329,13 +342,43 @@ public final class ContentTools {
         private final byte[] key;
         Cursor(byte[] key) { this.key = key; }
         String encode(ToolContext ctx, String query, int offset) {
-            String payload = ctx.runId() + "\n" + query + "\n" + offset;
+            return encode(ctx, query, Integer.toString(offset));
+        }
+        String encodeSearchPosition(ToolContext ctx, String query, SearchPosition position) {
+            String id = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(position.chapterId().getBytes(StandardCharsets.UTF_8));
+            return encode(ctx, query, "search:" + id + ":" + position.lineNumber() + ":" + position.matchStart());
+        }
+        private String encode(ToolContext ctx, String query, String position) {
+            String payload = ctx.runId() + "\n" + query + "\n" + position;
             String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
             return raw + "." + sign(raw);
         }
         int offset(JsonNode args, ToolContext ctx, String query) {
+            String value = position(args, ctx, query);
+            if (value == null) return 0;
+            try {
+                int offset = Integer.parseInt(value);
+                if (offset < 0) throw new IllegalArgumentException("INVALID_SEARCH_CURSOR");
+                return offset;
+            } catch (IllegalArgumentException e) { throw new IllegalArgumentException("INVALID_SEARCH_CURSOR"); }
+        }
+        SearchPosition searchPosition(JsonNode args, ToolContext ctx, String query) {
+            String value = position(args, ctx, query);
+            if (value == null) return null;
+            String[] fields = value.split(":", -1);
+            if (fields.length != 4 || !fields[0].equals("search")) throw new IllegalArgumentException("INVALID_SEARCH_CURSOR");
+            try {
+                String id = new String(Base64.getUrlDecoder().decode(fields[1]), StandardCharsets.UTF_8);
+                int line = Integer.parseInt(fields[2]);
+                int start = Integer.parseInt(fields[3]);
+                if (id.isBlank() || line < 1 || start < 0) throw new IllegalArgumentException("INVALID_SEARCH_CURSOR");
+                return new SearchPosition(id, line, start);
+            } catch (IllegalArgumentException e) { throw new IllegalArgumentException("INVALID_SEARCH_CURSOR"); }
+        }
+        private String position(JsonNode args, ToolContext ctx, String query) {
             String value = optional(args, "cursor", "");
-            if (value.isEmpty()) return 0;
+            if (value.isEmpty()) return null;
             if (value.length() > 4096) throw new IllegalArgumentException("INVALID_SEARCH_CURSOR");
             String[] parts = value.split("\\.", -1);
             if (parts.length != 2 || !MessageDigest.isEqual(sign(parts[0]).getBytes(StandardCharsets.US_ASCII), parts[1].getBytes(StandardCharsets.US_ASCII)))
@@ -343,9 +386,7 @@ public final class ContentTools {
             try {
                 String[] decoded = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8).split("\n", -1);
                 if (decoded.length != 3 || !decoded[0].equals(ctx.runId()) || !decoded[1].equals(query)) throw new IllegalArgumentException("INVALID_SEARCH_CURSOR");
-                int offset = Integer.parseInt(decoded[2]);
-                if (offset < 0) throw new IllegalArgumentException("INVALID_SEARCH_CURSOR");
-                return offset;
+                return decoded[2];
             } catch (IllegalArgumentException e) { throw new IllegalArgumentException("INVALID_SEARCH_CURSOR"); }
         }
         private String sign(String raw) {
