@@ -5,6 +5,8 @@ let projectId
 let chapterId
 
 test.beforeEach(async ({ request }) => {
+  projectId = null
+  chapterId = null
   projectId = (await (await request.post(`${api}/projects`, { data: { title: '浏览器 Agent 验收' } })).json()).data.id
   chapterId = (await (await request.post(`${api}/projects/${projectId}/chapters`,
     { data: { title: '目标章节' } })).json()).data.id
@@ -68,4 +70,21 @@ test('browser cancellation reaches a terminal state without a proposal', async (
   const runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}&chapterId=${chapterId}`)).json()).data.items
   expect(runs[0].status).toBe('CANCELLED')
   expect(runs[0].proposalId).toBeFalsy()
+})
+
+test('two tabs keep the losing draft when the chapter version changes', async ({ page }) => {
+  const second = await page.context().newPage()
+  try {
+    const path = `/projects/${projectId}/chapters/${chapterId}`
+    await Promise.all([page.goto(path), second.goto(path)])
+    await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
+    await expect(second.locator('.editor')).toHaveValue(/林舟游到了对岸/)
+    await page.locator('.editor').fill('第一个标签页的新正文。')
+    await second.locator('.editor').fill('第二个标签页保留的草稿。')
+    await page.getByRole('button', { name: '保存正文' }).click()
+    await expect(page.locator('.editorHeader')).toContainText('版本 3')
+    await second.getByRole('button', { name: '保存正文' }).click()
+    await expect(second.locator('.editorHeader')).toContainText('版本冲突')
+    await expect(second.locator('.editor')).toHaveValue('第二个标签页保留的草稿。')
+  } finally { await second.close() }
 })
