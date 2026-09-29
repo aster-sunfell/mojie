@@ -6,6 +6,7 @@ import com.mojie.agent.model.ModelGateway.*;
 import com.mojie.agent.run.infra.JdbcRunAdmission;
 import com.mojie.agent.run.infra.JdbcRunQuery;
 import com.mojie.content.JdbcContentService;
+import com.mojie.proposal.infra.JdbcEditProposalService;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -471,6 +472,67 @@ class RunSchedulerIT {
                 assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='" + runId + "'"));
             }
         });
+    }
+
+    @Test void failedOrCancelledCandidateCannotBeAccepted() throws Exception {
+        withDatabase(dataSource -> {
+            CountDownLatch secondCallEntered = new CountDownLatch(1);
+            CountDownLatch releaseSecondCall = new CountDownLatch(1);
+            ModelGateway model = request -> {
+                String instruction = request.messages().getFirst().content().stream()
+                        .filter(TextPart.class::isInstance).map(TextPart.class::cast)
+                        .findFirst().orElseThrow().text();
+                String target = instruction.substring(instruction.lastIndexOf(' ') + 1);
+                if (request.messages().size() == 1) return calls("candidate-first",
+                        tool("read", "read_chapter", Map.of("chapterId", target)),
+                        tool("candidate", "propose_edit", Map.of(
+                                "proposedContent", "replacement", "reason", "consistency")));
+                if (instruction.contains("truncation"))
+                    return new Response("", List.of(), FinishReason.TRUNCATED, "candidate-truncated", "max_tokens", null);
+                secondCallEntered.countDown();
+                long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (releaseSecondCall.getCount() > 0 && System.nanoTime() < end) {
+                    try { releaseSecondCall.await(100, TimeUnit.MILLISECONDS); }
+                    catch (InterruptedException ignored) { /* Late provider response after cancellation. */ }
+                }
+                return new Response("analysis", List.of(), FinishReason.FINAL,
+                        "candidate-late", "end_turn", null);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, model)) {
+                scheduler.start();
+                Fixture truncated = fixture(dataSource, "truncation");
+                String failedRun = scheduler.submit(truncated.request("truncation")).runId();
+                await(() -> "FAILED".equals(status(dataSource, failedRun)));
+                assertEquals("LIMIT_EXCEEDED", errorCode(dataSource, failedRun));
+                assertCandidateWasNotPublished(dataSource, truncated, failedRun);
+
+                Fixture cancelled = fixture(dataSource, "cancellation");
+                String cancelledRun = scheduler.submit(cancelled.request("cancellation")).runId();
+                assertTrue(secondCallEntered.await(5, TimeUnit.SECONDS));
+                assertEquals("RUNNING", scheduler.cancel(cancelled.project(), cancelledRun).status());
+                releaseSecondCall.countDown();
+                await(() -> "CANCELLED".equals(status(dataSource, cancelledRun))
+                        && scheduler.occupiedCapacity() == 0);
+                assertCandidateWasNotPublished(dataSource, cancelled, cancelledRun);
+                assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_edit_proposal"));
+            } finally { releaseSecondCall.countDown(); }
+        });
+    }
+
+    private static void assertCandidateWasNotPublished(PGSimpleDataSource dataSource, Fixture fixture, String runId)
+            throws SQLException {
+        Map<String,Object> detail = new JdbcRunQuery(dataSource).detail("owner", runId);
+        assertNull(detail.get("proposalId"));
+        assertTrue(((List<?>) detail.get("steps")).stream().anyMatch(item -> {
+            Map<?,?> step = (Map<?,?>) item;
+            return "propose_edit".equals(step.get("toolName")) && "SUCCEEDED".equals(step.get("status"));
+        }));
+        assertEquals("body", new JdbcContentService(dataSource).chapter("owner", fixture.chapter()).get("content"));
+        assertEquals(1, new JdbcContentService(dataSource).chapter("owner", fixture.chapter()).get("version"));
+        JdbcEditProposalService.ProposalException missing = assertThrows(
+                JdbcEditProposalService.ProposalException.class,
+                () -> new JdbcEditProposalService(dataSource).accept("owner", runId));
+        assertEquals("RESOURCE_NOT_FOUND", missing.code());
     }
 
     private static Response responseFor(ModelGateway.Request request) {
