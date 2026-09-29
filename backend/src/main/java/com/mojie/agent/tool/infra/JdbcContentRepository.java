@@ -158,6 +158,7 @@ public final class JdbcContentRepository implements ContentRepository {
             connection.setAutoCommit(false);
             try {
                 setLocalTimeout(connection, timeoutMillis);
+                setLocalLockTimeout(connection, timeoutMillis);
                 String statusSql = "SELECT status FROM tb_agent_run WHERE id = ?::uuid AND project_id = ?::uuid FOR UPDATE";
                 try (PreparedStatement statement = connection.prepareStatement(statusSql)) {
                     statement.setString(1, runId); statement.setString(2, projectId);
@@ -257,6 +258,12 @@ public final class JdbcContentRepository implements ContentRepository {
     private static void setLocalTimeout(Connection connection, long timeoutMillis) throws SQLException {
         long bounded = Math.max(1, Math.min(timeoutMillis, 5_000));
         try (PreparedStatement statement = connection.prepareStatement("SELECT set_config('statement_timeout', ?, true)")) {
+            statement.setString(1, bounded + "ms"); statement.execute();
+        }
+    }
+    private static void setLocalLockTimeout(Connection connection, long timeoutMillis) throws SQLException {
+        long bounded = Math.max(1, Math.min(timeoutMillis, 1_000));
+        try (PreparedStatement statement = connection.prepareStatement("SELECT set_config('lock_timeout', ?, true)")) {
             statement.setString(1, bounded + "ms"); statement.execute();
         }
     }

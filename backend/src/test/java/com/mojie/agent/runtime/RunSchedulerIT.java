@@ -577,7 +577,7 @@ class RunSchedulerIT {
         });
     }
 
-    @Test void cancellingBlockedViewTransactionDoesNotWaitForTheDatabaseLock() throws Exception {
+    @Test void cancellingBlockedViewTransactionRespectsLockTimeout() throws Exception {
         withDatabase(dataSource -> {
             Flyway.configure().dataSource(dataSource).load().migrate();
             Fixture fixture = fixture(dataSource, "blocked-view-cancel");

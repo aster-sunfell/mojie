@@ -101,10 +101,10 @@ public final class RunScheduler implements AutoCloseable {
 
     public JdbcRunLifecycle.CancelResult cancel(String projectId, String runId) {
         ensureReady();
-        RunHandle handle = handles.get(runId);
-        if (handle != null && handle.projectId.equals(projectId)) handle.signalCancel();
         JdbcRunLifecycle.CancelResult result = lifecycle.requestCancel(projectId, runId);
+        RunHandle handle = handles.get(runId);
         if (handle == null || !handle.projectId.equals(projectId)) return result;
+        handle.signalCancel();
         if ("CANCELLED".equals(result.status()) && handle.phase.compareAndSet(Phase.REGISTERED, Phase.CANCELLED_BEFORE_START)) {
             handle.task.cancel(false);
             workers.remove(handle.task);

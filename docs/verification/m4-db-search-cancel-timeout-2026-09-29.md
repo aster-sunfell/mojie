@@ -6,6 +6,6 @@
 
 `RunSchedulerIT.cancellingAQueryBlockedInPostgresEndsTheRunWithoutPartialEvidence` 在模型发出 `search_settings` 后锁住设定表，确认查询进入 PostgreSQL 的锁等待，再取消任务。Worker 在 2 秒内释放容量，任务终态为 `CANCELLED`；没有搜索来源或章节视图，未完成的工具步骤标为 `ABORTED`。Java 21 的 `mvn -o verify -q` 在本地 PostgreSQL 上通过。
 
-`RunSchedulerIT.cancellingBlockedViewTransactionDoesNotWaitForTheDatabaseLock` 另锁住章节视图表，让搜索在持有 run 行锁的视图事务中等待数据库。取消先向本地任务发信号并中止当前语句，再写持久取消请求，避免请求本身等待该 run 行锁。测试确认 2 秒内终态和容量恢复，视图与来源没有部分写入。取消 API 可能读到处理中 `RUNNING`，也可能读到已完成的 `CANCELLED`；两种回执都由最终终态与数据一致性校验。
+`RunSchedulerIT.cancellingBlockedViewTransactionRespectsLockTimeout` 另锁住章节视图表，让搜索在持有 run 行锁的视图事务中等待数据库。视图写事务设置最多 1 秒的 PostgreSQL `lock_timeout`，使等待取消请求的 run 行锁及时释放；随后先提交取消请求，再中断本地调用，符合总 PRD 6.4 的顺序。测试确认 2 秒内终态和容量恢复，视图与来源没有部分写入。取消 API 可能读到处理中 `RUNNING`，也可能读到已完成的 `CANCELLED`；两种回执都由最终终态与数据一致性校验。
 
 这些测试覆盖数据库锁等待中的超时、取消与版本视图事务仲裁。实际 HTTP 取消往返时延、1,000 章扫描中途取消，以及数据库服务整体不可用时的恢复仍需另测。
