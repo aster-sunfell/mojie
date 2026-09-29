@@ -4,7 +4,7 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 ## 当前实现
 
-`backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Messages 与 Chat Completions 模型适配器、内容管理和 HTTP/SSE 接口。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md) 和 [本次联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md)。真实模型评估仍需在配置 API key 后执行。
+`backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Messages 与 Chat Completions 模型适配器、内容管理和 HTTP/SSE 接口。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md)、[联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md) 和 [真实模型核查](docs/verification/agent-loop-real-model-2026-09-30.md)。正式发布验收仍有浏览器端到端和故障场景待签收。
 
 ## 本地运行
 
