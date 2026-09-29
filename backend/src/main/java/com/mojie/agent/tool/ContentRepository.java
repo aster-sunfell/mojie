@@ -5,8 +5,8 @@ import java.util.Map;
 
 /** Scoped content service adapter. Implementations must enforce project ownership and immutable revisions. */
 public interface ContentRepository {
-    List<ToolContext.Chapter> chapters(String projectId);
-    default List<ToolContext.Chapter> chapters(String projectId, long timeoutMillis) { return chapters(projectId); }
+    List<ChapterMetadata> chapters(String projectId);
+    default List<ChapterMetadata> chapters(String projectId, long timeoutMillis) { return chapters(projectId); }
     ToolContext.Chapter chapterRevision(String projectId, String chapterId, long version);
     default ToolContext.Chapter chapterRevision(String projectId, String chapterId, long version, long timeoutMillis) {
         return chapterRevision(projectId, chapterId, version);
@@ -25,4 +25,5 @@ public interface ContentRepository {
         public ChapterView { versions = Map.copyOf(versions); }
     }
     record Setting(String id, String type, String title, String content) {}
+    record ChapterMetadata(String id, String title, int order, long version) {}
 }

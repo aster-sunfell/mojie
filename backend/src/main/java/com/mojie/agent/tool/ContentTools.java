@@ -73,10 +73,10 @@ public final class ContentTools {
             int limit = number(args, "limit", 20, 1, 50);
             String query = "list_chapters";
             int offset = cursor.offset(args, ctx, query);
-            List<ToolContext.Chapter> chapters = repository.chapters(ctx.projectId()).stream()
-                    .sorted(Comparator.comparingInt(ToolContext.Chapter::order).thenComparing(ToolContext.Chapter::id)).toList();
+            List<ContentRepository.ChapterMetadata> chapters = repository.chapters(ctx.projectId()).stream()
+                    .sorted(Comparator.comparingInt(ContentRepository.ChapterMetadata::order).thenComparing(ContentRepository.ChapterMetadata::id)).toList();
             List<Map<String, Object>> rows = new ArrayList<>();
-            for (ToolContext.Chapter c : chapters.subList(Math.min(offset, chapters.size()), Math.min(offset + limit, chapters.size())))
+            for (ContentRepository.ChapterMetadata c : chapters.subList(Math.min(offset, chapters.size()), Math.min(offset + limit, chapters.size())))
                 rows.add(Map.of("chapterId", c.id(), "chapterOrder", c.order(), "title", c.title(), "version", c.version()));
             return page(rows, offset, limit, chapters.size(), cursor, ctx, query, List.of());
         };
@@ -88,13 +88,13 @@ public final class ContentTools {
             String id = required(args, "chapterId", 1, 128);
             ToolContext.Chapter chapter;
             if (id.equals(ctx.targetChapterId())) {
-                ToolContext.Chapter metadata = repository.chapters(ctx.projectId()).stream().filter(c -> c.id().equals(id)).findFirst().orElse(null);
+                ContentRepository.ChapterMetadata metadata = repository.chapters(ctx.projectId()).stream().filter(c -> c.id().equals(id)).findFirst().orElse(null);
                 if (metadata == null) return missing();
                 chapter = new ToolContext.Chapter(id, metadata.title(), metadata.order(), ctx.baseVersion(), ctx.baseContent());
             } else {
                 chapter = ctx.readChapters().get(id);
                 if (chapter == null) {
-                    ToolContext.Chapter current = repository.chapters(ctx.projectId()).stream().filter(c -> c.id().equals(id)).findFirst().orElse(null);
+                    ContentRepository.ChapterMetadata current = repository.chapters(ctx.projectId()).stream().filter(c -> c.id().equals(id)).findFirst().orElse(null);
                     if (current == null) return missing();
                     long version = ctx.chapterView() == null ? current.version() : ctx.chapterView().getOrDefault(id, -1L);
                     if (version < 0) return missing();
@@ -118,8 +118,8 @@ public final class ContentTools {
             String scope = optional(args, "scope", "BEFORE_TARGET");
             if (!scope.equals("BEFORE_TARGET") && !scope.equals("ALL_CHAPTERS")) throw new IllegalArgumentException("Invalid scope");
             int limit = number(args, "limit", 10, 1, 20);
-            List<ToolContext.Chapter> chapters = repository.chapters(ctx.projectId(), searchRemaining(ctx, searchEnd)).stream()
-                    .sorted(Comparator.comparingInt(ToolContext.Chapter::order).thenComparing(ToolContext.Chapter::id)).toList();
+            List<ContentRepository.ChapterMetadata> chapters = repository.chapters(ctx.projectId(), searchRemaining(ctx, searchEnd)).stream()
+                    .sorted(Comparator.comparingInt(ContentRepository.ChapterMetadata::order).thenComparing(ContentRepository.ChapterMetadata::id)).toList();
             if (chapters.size() > 1000) return ToolResult.error("SEARCH_SCOPE_TOO_LARGE", "Search view exceeds 1000 chapters", false);
             if (ctx.chapterView() == null) {
                 ContentRepository.ChapterView view = repository.captureChapterView(ctx.runId(), ctx.projectId(),
@@ -129,18 +129,18 @@ public final class ContentTools {
             String query = "search_chapters:" + ctx.chapterViewId() + ":" + keyword + ":" + scope;
             SearchPosition after = cursor.searchPosition(args, ctx, query);
             int targetOrder = chapters.stream().filter(c -> c.id().equals(ctx.targetChapterId())).findFirst()
-                    .map(ToolContext.Chapter::order).orElseThrow(() -> new IllegalArgumentException("Target chapter unavailable"));
-            ToolContext.Chapter afterChapter = after == null ? null : chapters.stream()
+                    .map(ContentRepository.ChapterMetadata::order).orElseThrow(() -> new IllegalArgumentException("Target chapter unavailable"));
+            ContentRepository.ChapterMetadata afterChapter = after == null ? null : chapters.stream()
                     .filter(c -> c.id().equals(after.chapterId())).findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("INVALID_SEARCH_CURSOR"));
-            Comparator<ToolContext.Chapter> chapterOrder = Comparator.comparingInt(ToolContext.Chapter::order)
-                    .thenComparing(ToolContext.Chapter::id);
+            Comparator<ContentRepository.ChapterMetadata> chapterOrder = Comparator.comparingInt(ContentRepository.ChapterMetadata::order)
+                    .thenComparing(ContentRepository.ChapterMetadata::id);
             List<Map<String, Object>> hits = new ArrayList<>();
             List<Evidence> evidence = new ArrayList<>();
             SearchPosition lastReturned = null;
             boolean hasMore = false;
             scan:
-            for (ToolContext.Chapter meta : chapters) {
+            for (ContentRepository.ChapterMetadata meta : chapters) {
                 searchRemaining(ctx, searchEnd);
                 if (scope.equals("BEFORE_TARGET") && meta.order() >= targetOrder) continue;
                 if (afterChapter != null && chapterOrder.compare(meta, afterChapter) < 0) continue;

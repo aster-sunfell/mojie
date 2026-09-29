@@ -270,13 +270,15 @@ class AgentLoopTest {
 
     @Test void chapterSearchCursorContinuesAcrossChapterBoundary() {
         ContentRepository repository = new ContentRepository() {
-            public List<ToolContext.Chapter> chapters(String projectId) {
-                return List.of(new ToolContext.Chapter("a", "第一章", 1, 1, "甲"),
-                        new ToolContext.Chapter("b", "第二章", 2, 1, "甲"),
-                        new ToolContext.Chapter("target", "目标章", 3, 1, "目标"));
+            public List<ChapterMetadata> chapters(String projectId) {
+                return List.of(new ChapterMetadata("a", "第一章", 1, 1),
+                        new ChapterMetadata("b", "第二章", 2, 1),
+                        new ChapterMetadata("target", "目标章", 3, 1));
             }
             public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
-                return chapters(projectId).stream().filter(chapter -> chapter.id().equals(id)).findFirst().orElse(null);
+                return chapters(projectId).stream().filter(chapter -> chapter.id().equals(id))
+                        .map(chapter -> new ToolContext.Chapter(id, chapter.title(), chapter.order(), version, "甲"))
+                        .findFirst().orElse(null);
             }
             public ChapterView captureChapterView(String runId, String projectId, String targetId, long baseVersion,
                                                   Map<String, ToolContext.Chapter> alreadyRead) {
@@ -301,7 +303,7 @@ class AgentLoopTest {
         AtomicBoolean stopped = new AtomicBoolean();
         FakeContent base = new FakeContent("林舟不会游泳。\n林舟再次说不会游泳。");
         ContentRepository repository = new ContentRepository() {
-            public List<ToolContext.Chapter> chapters(String projectId) { return base.chapters(projectId); }
+            public List<ChapterMetadata> chapters(String projectId) { return base.chapters(projectId); }
             public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
                 ToolContext.Chapter chapter = base.chapterRevision(projectId, id, version);
                 stopped.set(true);
@@ -435,12 +437,15 @@ class AgentLoopTest {
             this.priorContent = priorContent;
             this.settingRows = settingRows;
         }
-        public List<ToolContext.Chapter> chapters(String projectId) {
-            return List.of(new ToolContext.Chapter("prior", "前文", 1, 1, priorContent),
-                    new ToolContext.Chapter("target", "目标", 2, 2, "当前版本"));
+        public List<ChapterMetadata> chapters(String projectId) {
+            return List.of(new ChapterMetadata("prior", "前文", 1, 1),
+                    new ChapterMetadata("target", "目标", 2, 2));
         }
         public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
-            return chapters(projectId).stream().filter(c -> c.id().equals(id)).findFirst().orElse(null);
+            return chapters(projectId).stream().filter(c -> c.id().equals(id))
+                    .map(c -> new ToolContext.Chapter(c.id(), c.title(), c.order(), version,
+                            c.id().equals("prior") ? priorContent : "当前版本"))
+                    .findFirst().orElse(null);
         }
         public ChapterView captureChapterView(String runId, String projectId, String targetId, long baseVersion,
                                               Map<String, ToolContext.Chapter> alreadyRead) {

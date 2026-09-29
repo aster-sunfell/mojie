@@ -12,23 +12,23 @@ public final class JdbcContentRepository implements ContentRepository {
 
     public JdbcContentRepository(DataSource dataSource) { this.dataSource = Objects.requireNonNull(dataSource); }
 
-    @Override public List<ToolContext.Chapter> chapters(String projectId) {
+    @Override public List<ChapterMetadata> chapters(String projectId) {
         String sql = """
-                SELECT c.id, c.title, c.chapter_order, c.version, c.content
+                SELECT c.id, c.title, c.chapter_order, c.version
                   FROM tb_chapter c JOIN tb_project p ON p.id = c.project_id
                  WHERE c.project_id = ?::uuid AND c.deleted_at IS NULL AND p.deleted_at IS NULL
                  ORDER BY c.chapter_order, c.id
                 """;
         try (Connection connection = dataSource.getConnection()) {
-            return loadChapters(connection, sql, projectId);
+            return loadChapterMetadata(connection, sql, projectId);
         } catch (SQLException e) { throw failure(e); }
     }
 
-    @Override public List<ToolContext.Chapter> chapters(String projectId, long timeoutMillis) {
+    @Override public List<ChapterMetadata> chapters(String projectId, long timeoutMillis) {
         try (Connection connection = dataSource.getConnection()) {
             searchTimeout(connection, timeoutMillis);
-            List<ToolContext.Chapter> result = loadChapters(connection, """
-                    SELECT c.id, c.title, c.chapter_order, c.version, c.content
+            List<ChapterMetadata> result = loadChapterMetadata(connection, """
+                    SELECT c.id, c.title, c.chapter_order, c.version
                       FROM tb_chapter c JOIN tb_project p ON p.id = c.project_id
                      WHERE c.project_id = ?::uuid AND c.deleted_at IS NULL AND p.deleted_at IS NULL
                      ORDER BY c.chapter_order, c.id
@@ -213,12 +213,12 @@ public final class JdbcContentRepository implements ContentRepository {
         return view.isEmpty() ? null : new ChapterView(viewId, view);
     }
 
-    private static List<ToolContext.Chapter> loadChapters(Connection connection, String sql, String projectId) throws SQLException {
+    private static List<ChapterMetadata> loadChapterMetadata(Connection connection, String sql, String projectId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, projectId);
             try (ResultSet rows = statement.executeQuery()) {
-                List<ToolContext.Chapter> result = new ArrayList<>();
-                while (rows.next()) result.add(chapter(rows));
+                List<ChapterMetadata> result = new ArrayList<>();
+                while (rows.next()) result.add(new ChapterMetadata(rows.getString(1), rows.getString(2), rows.getInt(3), rows.getLong(4)));
                 return result;
             }
         }

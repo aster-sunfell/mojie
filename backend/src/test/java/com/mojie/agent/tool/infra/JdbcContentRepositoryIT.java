@@ -85,6 +85,8 @@ class JdbcContentRepositoryIT {
             }
 
             JdbcContentRepository repository = new JdbcContentRepository(dataSource);
+            assertEquals(List.of(prior, target), repository.chapters(project).stream()
+                    .map(ContentRepository.ChapterMetadata::id).toList());
             ToolContext.Chapter firstRead = repository.chapterRevision(project, prior, 1);
             assertEquals("old prior", firstRead.content());
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
@@ -94,6 +96,7 @@ class JdbcContentRepositoryIT {
             }
             ContentRepository.ChapterView view = repository.captureChapterView(run, project, target, 1,
                     Map.of(prior, firstRead));
+            assertEquals(2L, repository.chapters(project, 2_000).getFirst().version());
             assertEquals(1L, view.versions().get(prior));
             assertEquals(1L, view.versions().get(target));
             assertEquals(view, repository.captureChapterView(run, project, target, 1, Map.of()));

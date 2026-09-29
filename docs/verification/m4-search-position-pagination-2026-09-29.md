@@ -6,4 +6,6 @@
 
 `search_settings` 也只保留当前页命中及来源，用最后返回的设定 ID 续页。签名游标继续绑定 runId、关键词和类型；单元测试验证标题优先、跨设定续页时调整 `limit`、末页、重放和改词拒绝。改动后再次运行 Java 21 的 `mvn -o verify -q`，PostgreSQL 集成测试通过。
 
-此项验证的是分页正确性和命中结果内存上界；1,000 章压力场景中的实际扫描延迟、取消响应时间和 5 秒数据库超时仍需专门量测。
+章节目录仓库现在只查询 `id/title/chapter_order/version`；只有 `chapterRevision` 才读取历史正文。这样 `list_chapters` 和搜索初始化不会先把当前作品全部正式正文加载到 JVM。`JdbcContentRepositoryIT` 检查元数据顺序和版本变化，Java 21 的完整 PostgreSQL 验证再次通过。
+
+此项验证的是分页正确性，以及章节目录和命中结果的内存边界；1,000 章压力场景中的实际扫描延迟、取消响应时间和 5 秒数据库超时仍需专门量测。
