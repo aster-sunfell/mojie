@@ -29,7 +29,7 @@ public final class RunScheduler implements AutoCloseable {
     private final JdbcContentRepository content;
     private final JdbcLoopTrace trace;
     private final List<AgentTool> tools;
-    private final String systemPrompt, modelId, toolSchemaJson;
+    private final String systemPrompt, modelId, toolSchemaJson, modelApiPath;
     private final int maxOutputTokens;
     private final Semaphore permits = new Semaphore(10);
     private final ThreadPoolExecutor workers = new ThreadPoolExecutor(2, 2, 0, TimeUnit.MILLISECONDS,
@@ -41,11 +41,18 @@ public final class RunScheduler implements AutoCloseable {
 
     public RunScheduler(DataSource dataSource, ModelGateway model, Clock clock, String systemPrompt,
                         String modelId, int maxOutputTokens, byte[] cursorKey) {
+        this(dataSource, model, clock, systemPrompt, modelId, maxOutputTokens, cursorKey,
+                com.mojie.agent.model.ModelApiConfig.MESSAGES);
+    }
+
+    public RunScheduler(DataSource dataSource, ModelGateway model, Clock clock, String systemPrompt,
+                        String modelId, int maxOutputTokens, byte[] cursorKey, String modelApiPath) {
         this.dataSource = Objects.requireNonNull(dataSource);
         this.model = Objects.requireNonNull(model);
         this.clock = Objects.requireNonNull(clock);
         this.systemPrompt = Objects.requireNonNull(systemPrompt);
         this.modelId = Objects.requireNonNull(modelId);
+        this.modelApiPath = Objects.requireNonNull(modelApiPath);
         this.maxOutputTokens = maxOutputTokens;
         this.admission = new JdbcRunAdmission(dataSource, clock, processId);
         this.terminal = new JdbcRunTerminalStore(dataSource, clock);
@@ -76,7 +83,7 @@ public final class RunScheduler implements AutoCloseable {
         JdbcRunAdmission.Receipt receipt;
         try {
             JdbcRunAdmission.Config config = new JdbcRunAdmission.Config(systemPrompt, toolSchemaJson, modelId,
-                    Map.of("maxOutputTokens", maxOutputTokens));
+                    Map.of("maxOutputTokens", maxOutputTokens, "apiPath", modelApiPath));
             receipt = admission.create(request, config);
         } catch (RuntimeException e) {
             permits.release();

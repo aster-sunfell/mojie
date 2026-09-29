@@ -4,7 +4,7 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 ## 当前实现
 
-`backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Anthropic 适配器、内容管理和 HTTP/SSE 接口。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md) 和 [本次联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md)。真实模型评估仍需在配置 API key 后执行。
+`backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Messages 与 Chat Completions 模型适配器、内容管理和 HTTP/SSE 接口。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md) 和 [本次联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md)。真实模型评估仍需在配置 API key 后执行。
 
 ## 本地运行
 
@@ -14,19 +14,19 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 docker compose -f deploy/compose.yaml -p deploy up -d postgres nginx
 ```
 
-新检出的仓库先将 `deploy/.env.example` 复制为 `deploy/.env`，按需填写 `ANTHROPIC_API_KEY`。后端终端运行以下脚本。它会构建 JAR，并从 `deploy/.env` 导出数据库密码、`ANTHROPIC_API_KEY` 等配置后启动 Java：
+新检出的仓库先将 `deploy/.env.example` 复制为 `deploy/.env`，填写 `MOJIE_MODEL_API_KEY` 即可启用模型；通过 `MOJIE_MODEL_API_PATH` 在 `/v1/messages` 与 `/v1/chat/completions` 间切换。后端终端运行以下脚本。它会构建 JAR，并从 `deploy/.env` 导出配置后启动 Java：
 
 ```bash
 sh scripts/start-local-backend.sh
 ```
 
-前端终端运行 `(cd web && npm ci && npm run dev)`。浏览器打开 `http://127.0.0.1:8088`，通过容器中的 Nginx 访问。只测后端 API 时可只启动 `postgres`；结束后按需执行 `docker compose -f deploy/compose.yaml -p deploy stop nginx postgres`，数据卷会保留。`deploy` 是原有本地 Compose 项目名，沿用它可继续使用现有数据库卷。本地 Nginx 使用 Linux 主机网络，Java 与 Vite 可继续只监听 `127.0.0.1`。在 `deploy/.env` 中留空 `ANTHROPIC_API_KEY` 时可编辑内容，任务提交入口会说明模型未配置。
+前端终端运行 `(cd web && npm ci && npm run dev)`。浏览器打开 `http://127.0.0.1:8088`，通过容器中的 Nginx 访问。只测后端 API 时可只启动 `postgres`；结束后按需执行 `docker compose -f deploy/compose.yaml -p deploy stop nginx postgres`，数据卷会保留。`deploy` 是原有本地 Compose 项目名，沿用它可继续使用现有数据库卷。本地 Nginx 使用 Linux 主机网络，Java 与 Vite 可继续只监听 `127.0.0.1`。在 `deploy/.env` 中留空 `MOJIE_MODEL_API_KEY` 时可编辑内容，任务提交入口会说明模型未配置。`MOJIE_MODEL_BASE_URL` 填域名根地址，不包含 `/v1`；切换接口后重启后端生效。不支持的接口路径会使后端在启动时明确报错。
 
 固定演示数据可在服务启动后用 `node scripts/seed-demo.mjs` 创建；加 `--scale` 会创建 100 章与 200 条设定，并打印作品及目标章节 ID。对扩展数据执行 `node scripts/check-m4-load.mjs PROJECT_ID TARGET_CHAPTER_ID`，检查分页无重复和 20 次非模型请求延迟。两脚本使用 `MOJIE_API_URL` 指定 API 根地址，默认为 `http://127.0.0.1:8080/api/v1`；要经 Nginx 检查时设为 `http://127.0.0.1:8088/api/v1`。
 
 ## 远程部署
 
-远程主机只需 Docker 和 Compose。首次拉取仓库后，复制同一份 `deploy/.env.example` 为 `deploy/.env.prod`，取消注释并填写数据库密码与稳定的 `MOJIE_CURSOR_KEY`，按需填写 `ANTHROPIC_API_KEY`。从仓库根目录启动：
+远程主机只需 Docker 和 Compose。首次拉取仓库后，复制同一份 `deploy/.env.example` 为 `deploy/.env.prod`，取消注释并填写数据库密码与稳定的 `MOJIE_CURSOR_KEY`，按需填写 `MOJIE_MODEL_API_KEY`。从仓库根目录启动：
 
 ```bash
 cp deploy/.env.example deploy/.env.prod

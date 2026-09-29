@@ -64,6 +64,8 @@ public final class AgentLoop {
                 } catch (ModelGateway.ModelException e) {
                     trace.modelFailed(runId, callIndex, e.code(), e.getMessage());
                     return new LoopOutcome.Failed(e.code(), e.getMessage());
+                } catch (java.util.concurrent.CancellationException e) {
+                    return new LoopOutcome.Cancelled();
                 } catch (RuntimeException e) {
                     trace.modelFailed(runId, callIndex, "MODEL_ERROR", e.getClass().getSimpleName());
                     return new LoopOutcome.Failed("MODEL_ERROR", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());

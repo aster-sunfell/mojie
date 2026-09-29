@@ -133,6 +133,12 @@ class AgentLoopTest {
                 LoopLimits.defaults(), Clock.systemUTC(), cancelled::get).run(input()));
     }
 
+    @Test void interruptedProviderCallCancelsTheRun() {
+        ModelGateway model = request -> { throw new java.util.concurrent.CancellationException("interrupted"); };
+        assertInstanceOf(LoopOutcome.Cancelled.class, loop(model, LoopLimits.defaults()).run(input()));
+        assertEquals(1, trace.modelInputs.size());
+    }
+
     @Test void toolResultTextUsesUnicodeCodePointsAndNoHistoricalDoubleCount() {
         Script model = new Script(List.of(
                 response("", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.TOOL_CALLS),
@@ -457,7 +463,7 @@ class AgentLoopTest {
                 JSON.valueToTree(Map.of("keyword", "人物", "cursor", cursor)), context));
     }
 
-    private AgentLoop loop(Script model, LoopLimits limits) {
+    private AgentLoop loop(ModelGateway model, LoopLimits limits) {
         return new AgentLoop(model, ContentTools.all(content, KEY), trace, limits, Clock.systemUTC(), cancelled::get);
     }
     private LoopInput input() { return new LoopInput(new ToolContext(UUID.randomUUID().toString(), "p", "target", 2, "旧章😀"),

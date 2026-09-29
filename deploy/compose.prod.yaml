@@ -28,9 +28,13 @@ services:
       MOJIE_DB_PASSWORD: "${MOJIE_DB_PASSWORD:?Set MOJIE_DB_PASSWORD in deploy/.env.prod}"
       MOJIE_BIND_HOST: 0.0.0.0
       MOJIE_CURSOR_KEY: "${MOJIE_CURSOR_KEY:?Set MOJIE_CURSOR_KEY in deploy/.env.prod}"
+      MOJIE_MODEL_API_PATH: "${MOJIE_MODEL_API_PATH:-/v1/messages}"
+      MOJIE_MODEL_BASE_URL: "${MOJIE_MODEL_BASE_URL:-}"
+      MOJIE_MODEL_API_KEY: "${MOJIE_MODEL_API_KEY:-}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      MOJIE_ANTHROPIC_BASE_URL: "${MOJIE_ANTHROPIC_BASE_URL:-}"
       MOJIE_OWNER_ID: "${MOJIE_OWNER_ID:-local-author}"
-      MOJIE_MODEL_ID: "${MOJIE_MODEL_ID:-claude-sonnet-4-5}"
+      MOJIE_MODEL_ID: "${MOJIE_MODEL_ID:-}"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/api/v1/health | grep -Eq '\"status\"[[:space:]]*:[[:space:]]*\"UP\"'"]
       interval: 10s

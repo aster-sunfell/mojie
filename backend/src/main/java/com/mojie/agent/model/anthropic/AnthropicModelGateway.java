@@ -28,6 +28,10 @@ public final class AnthropicModelGateway implements ModelGateway, AutoCloseable 
         return new AnthropicModelGateway(createClient(apiKey, System.getenv("MOJIE_ANTHROPIC_BASE_URL")), true);
     }
 
+    public static AnthropicModelGateway configured(String apiKey, String baseUrl) {
+        return new AnthropicModelGateway(createClient(apiKey, baseUrl), true);
+    }
+
     static AnthropicClient createClient(String apiKey, String baseUrl) {
         AnthropicOkHttpClient.Builder builder = AnthropicOkHttpClient.builder()
                 .apiKey(apiKey)

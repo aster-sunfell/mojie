@@ -3,6 +3,7 @@ package com.mojie.api;
 import com.mojie.agent.run.infra.JdbcRunAdmission;
 import com.mojie.agent.run.infra.JdbcRunQuery;
 import com.mojie.agent.runtime.RunScheduler;
+import com.mojie.agent.model.ModelApiConfig;
 import com.mojie.proposal.infra.JdbcEditProposalService;
 import jakarta.annotation.PreDestroy;
 import java.sql.Connection;
@@ -23,14 +24,15 @@ public final class AgentController {
     private final JdbcEditProposalService proposals;
     private final DataSource dataSource;
     private final String owner = System.getenv().getOrDefault("MOJIE_OWNER_ID", "local-author");
-    private final boolean modelConfigured = System.getenv("ANTHROPIC_API_KEY") != null
-            && !System.getenv("ANTHROPIC_API_KEY").isBlank();
+    private final boolean modelConfigured;
     private final boolean traceEnabled = "true".equalsIgnoreCase(System.getenv("MOJIE_DEV_TRACE"));
     private final ScheduledExecutorService events = Executors.newScheduledThreadPool(2, r -> {
         Thread thread = new Thread(r, "mojie-sse"); thread.setDaemon(true); return thread;
     });
-    public AgentController(RunScheduler scheduler, JdbcRunQuery query, JdbcEditProposalService proposals, DataSource dataSource) {
+    public AgentController(RunScheduler scheduler, JdbcRunQuery query, JdbcEditProposalService proposals,
+                           DataSource dataSource, ModelApiConfig modelConfig) {
         this.scheduler = scheduler; this.query = query; this.proposals = proposals; this.dataSource = dataSource;
+        this.modelConfigured = modelConfig.configured();
     }
     @PreDestroy public void closeEventPoller() { events.shutdownNow(); }
     private static Map<String,Object> data(Object value) { return Map.of("data", value); }
