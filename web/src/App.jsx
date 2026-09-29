@@ -266,7 +266,7 @@ function AgentPanel({ projectId, chapter, dirty, refreshChapter, onAcceptanceBus
         <div className="steps">{run.steps?.map(step => <details key={step.toolExecutionId}><summary><span>{step.toolName}</span><small>{step.status}{step.errorCode ? ` · ${step.errorCode}` : ''}</small></summary><p>{step.summary}</p><pre>{JSON.stringify(step.args, null, 2)}</pre>{step.result && <pre>{JSON.stringify(step.result, null, 2)}</pre>}</details>)}</div>
         <div className="sectionTitle"><h3>查阅来源</h3><small>{run.sources?.length || 0} 条</small></div>
         <div className="sources">{run.sources?.map(item => <button key={item.id} onClick={() => setSource(item)}><strong>{item.kind === 'SEARCH_SNIPPET' ? '搜索摘录' : item.kind === 'FULL_SETTING' ? '完整设定' : '完整章节'}</strong><small>{item.chapterId ? `版本 ${item.chapterVersion}${item.lineNumber ? ` · 第 ${item.lineNumber} 行` : ''}` : '设定'}</small><small>{item.providedToModel ? '已进入模型请求' : '仅执行，未确认送达模型'}</small></button>)}</div>
-        {run.status === 'SUCCEEDED' && run.proposalId && <Proposal id={run.proposalId} dirty={dirty} refreshChapter={refreshChapter} refreshRun={refresh} onAcceptanceBusy={onAcceptanceBusy} />}
+        {run.status === 'SUCCEEDED' && run.proposalId && <Proposal key={run.proposalId} id={run.proposalId} dirty={dirty} refreshChapter={refreshChapter} refreshRun={refresh} onAcceptanceBusy={onAcceptanceBusy} />}
       </div>}
     </div>{source && <SourceView source={source} step={run?.steps?.find(item => item.toolExecutionId === source.toolExecutionId)} close={() => setSource(null)} />}
   </aside>

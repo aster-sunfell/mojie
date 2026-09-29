@@ -148,6 +148,35 @@ test('an older task list response cannot overwrite a newer refresh', async () =>
   expect(screen.queryByRole('button', { name: '加载更多任务' })).toBeNull()
 })
 
+test('late proposal detail from a previously selected task cannot appear under another task', async () => {
+  window.history.replaceState({}, '', '/projects/p/chapters/c')
+  let finishOldProposal
+  const oldProposal = new Promise(resolve => { finishOldProposal = resolve })
+  const run = id => ({ id, projectId: 'p', targetChapterId: 'c', status: 'SUCCEEDED', proposalId: `q-${id}`,
+    lastEventSeq: 1, queuedAt: id === 'r1' ? '2026-09-29T00:00:00Z' : '2026-09-29T01:00:00Z', steps: [], sources: [] })
+  globalThis.fetch = vi.fn(url => {
+    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
+    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply({ items: [chapter], nextCursor: null }))
+    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
+    if (url === '/api/v1/agent/runs?projectId=p&chapterId=c&limit=50')
+      return Promise.resolve(reply({ items: [run('r1'), run('r2')], nextCursor: null }))
+    if (url === '/api/v1/agent/runs/r1') return Promise.resolve(reply(run('r1')))
+    if (url === '/api/v1/agent/runs/r2') return Promise.resolve(reply(run('r2')))
+    if (url === '/api/v1/edit-proposals/q-r1') return oldProposal
+    if (url === '/api/v1/edit-proposals/q-r2')
+      return Promise.resolve(reply({ id: 'q-r2', status: 'PENDING', baseVersion: 1, baseContent: '原文', proposedContent: '第二份建议', reason: '第二份理由' }))
+    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/edit-proposals/q-r1', expect.any(Object)))
+  fireEvent.click(document.querySelectorAll('.agentPanel .runList button')[1])
+  await screen.findByText('第二份建议')
+  await act(async () => { finishOldProposal(reply({ id: 'q-r1', status: 'PENDING', baseVersion: 1, baseContent: '原文', proposedContent: '第一份旧建议', reason: '旧理由' })) })
+  expect(screen.getByText('第二份建议')).toBeTruthy()
+  expect(screen.queryByText('第一份旧建议')).toBeNull()
+})
+
 test('chapter navigation loads the next page without losing the first page', async () => {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
   const later = { ...chapter, id: 'c51', chapterOrder: 51, title: '第五十一章' }
