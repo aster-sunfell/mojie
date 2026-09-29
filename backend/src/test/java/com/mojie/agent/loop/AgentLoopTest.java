@@ -71,6 +71,21 @@ class AgentLoopTest {
         assertTrue(trace.startedTools.isEmpty());
     }
 
+    @Test void missingCallIdRejectsWholeBatchBeforeToolsRun() {
+        Script model = new Script(List.of(response("", List.of(
+                call("valid", "read_chapter", "{\"chapterId\":\"target\"}"),
+                call("", "list_settings", "{}")), FinishReason.TOOL_CALLS)));
+        assertEquals("INVALID_MODEL_RESPONSE", ((LoopOutcome.Failed) loop(model, LoopLimits.defaults()).run(input())).code());
+        assertTrue(trace.startedTools.isEmpty());
+    }
+
+    @Test void truncatedToolBatchExecutesNothing() {
+        Script model = new Script(List.of(response("", List.of(
+                call("valid", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.TRUNCATED)));
+        assertEquals("LIMIT_EXCEEDED", ((LoopOutcome.Failed) loop(model, LoopLimits.defaults()).run(input())).code());
+        assertTrue(trace.startedTools.isEmpty());
+    }
+
     @Test void conflictingFinishReasonRejectsWholeBatch() {
         Script model = new Script(List.of(response("analysis", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.FINAL)));
         assertEquals("INVALID_MODEL_RESPONSE", ((LoopOutcome.Failed) loop(model, LoopLimits.defaults()).run(input())).code());

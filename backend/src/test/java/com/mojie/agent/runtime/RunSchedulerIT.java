@@ -6,6 +6,14 @@ import com.mojie.agent.model.ModelGateway.*;
 import com.mojie.agent.model.openai.ChatCompletionsModelGateway;
 import com.mojie.agent.run.infra.JdbcRunAdmission;
 import com.mojie.agent.run.infra.JdbcRunQuery;
+import com.mojie.agent.run.infra.JdbcRunLifecycle;
+import com.mojie.agent.run.infra.JdbcRunTerminalStore;
+import com.mojie.agent.loop.LoopOutcome;
+import com.mojie.agent.tool.AgentTool;
+import com.mojie.agent.tool.ContentTools;
+import com.mojie.agent.tool.ToolContext;
+import com.mojie.agent.tool.infra.JdbcContentRepository;
+import com.mojie.agent.trace.infra.JdbcLoopTrace;
 import com.mojie.content.JdbcContentService;
 import com.mojie.proposal.infra.JdbcEditProposalService;
 import org.flywaydb.core.Flyway;
@@ -252,6 +260,116 @@ class RunSchedulerIT {
                 assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_event WHERE run_id='" + runId
                         + "' AND type='run.failed'"));
             } finally { modelRelease.countDown(); unavailable.set(false); }
+        });
+    }
+
+    @Test void toolFinishEventFailureRollsBackStepReplyAndEvidence() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            Fixture fixture = fixture(source, "tool-transaction-failure");
+            failAgentEventInsert(source, "tool.finished");
+            AtomicInteger modelCalls = new AtomicInteger();
+            ModelGateway scripted = request -> {
+                modelCalls.incrementAndGet();
+                return calls("read-turn", tool("read-target", "read_chapter",
+                        Map.of("chapterId", fixture.chapter())));
+            };
+            try (RunScheduler scheduler = scheduler(source, scripted)) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("read")).runId();
+                await(() -> "FAILED".equals(status(source, runId)));
+                assertEquals("PERSISTENCE_ERROR", errorCode(source, runId));
+                assertEquals(1, modelCalls.get());
+                assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId
+                        + "' AND status='ABORTED'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId
+                        + "' AND status='SUCCEEDED'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_agent_message WHERE run_id='" + runId
+                        + "' AND role='TOOL'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_agent_context_item WHERE run_id='" + runId + "'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_agent_event WHERE run_id='" + runId
+                        + "' AND type='tool.finished'"));
+                assertEquals(0, count(source, "SELECT tool_text_codepoints FROM tb_agent_run WHERE id='" + runId + "'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_project WHERE id='" + fixture.project()
+                        + "' AND active_run_id IS NOT NULL"));
+            }
+        });
+    }
+
+    @Test void successEventFailureRollsBackProposalStatusAndActivitySlot() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            Fixture fixture = fixture(source, "success-transaction-failure");
+            failAgentEventInsert(source, "run.succeeded");
+            AtomicInteger modelCalls = new AtomicInteger();
+            ModelGateway scripted = request -> {
+                if (modelCalls.incrementAndGet() == 1) return calls("proposal-turn",
+                        tool("read-target", "read_chapter", Map.of("chapterId", fixture.chapter())),
+                        tool("candidate", "propose_edit", Map.of("proposedContent", "revised body", "reason", "fix")));
+                return new Response("建议修改正文。", List.of(), FinishReason.FINAL, "final-turn", "end_turn", null);
+            };
+            try (RunScheduler scheduler = scheduler(source, scripted)) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("propose")).runId();
+                await(() -> "FAILED".equals(status(source, runId)));
+                assertEquals("PERSISTENCE_ERROR", errorCode(source, runId));
+                assertEquals(2, modelCalls.get());
+                assertEquals(2, count(source, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId
+                        + "' AND status='SUCCEEDED'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_edit_proposal WHERE run_id='" + runId + "'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_agent_event WHERE run_id='" + runId
+                        + "' AND type='run.succeeded'"));
+                assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_event WHERE run_id='" + runId
+                        + "' AND type='run.failed'"));
+                assertEquals(0, count(source, "SELECT count(*) FROM tb_project WHERE id='" + fixture.project()
+                        + "' AND active_run_id IS NOT NULL"));
+            }
+        });
+    }
+
+    @Test void cancelledAfterToolReplyPersistsExecutionButMarksSourceUnsent() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            Fixture fixture = fixture(source, "unsent-source");
+            Clock clock = Clock.systemUTC();
+            JdbcRunTerminalStore terminal = new JdbcRunTerminalStore(source, clock);
+            JdbcRunLifecycle lifecycle = new JdbcRunLifecycle(source, terminal);
+            UUID processId = UUID.randomUUID();
+            JdbcRunAdmission admission = new JdbcRunAdmission(source, clock, processId);
+            String runId = admission.create(fixture.request("read then cancel"),
+                    new JdbcRunAdmission.Config("system", "{\"tools\":[]}", "scripted", Map.of("maxOutputTokens", 100)))
+                    .runId();
+            assertTrue(lifecycle.start(fixture.project(), runId, processId));
+
+            JdbcLoopTrace trace = new JdbcLoopTrace(source);
+            ToolCall call = tool("read-target", "read_chapter", Map.of("chapterId", fixture.chapter()));
+            trace.modelStarted(runId, 1, List.of(1L));
+            long assistantSeq = trace.modelFinished(runId, 1, calls("tool-turn", call));
+            assertEquals(2L, assistantSeq);
+            String executionId = trace.toolStarted(runId, 1, call);
+            ToolContext context = new ToolContext(runId, fixture.project(), fixture.chapter(), 1, "body");
+            AgentTool read = ContentTools.all(new JdbcContentRepository(source), "0123456789abcdef".getBytes())
+                    .stream().filter(item -> item.spec().name().equals("read_chapter")).findFirst().orElseThrow();
+            AgentTool.ToolResult result = read.execute(call.arguments(), context);
+            assertTrue(result.success());
+            String wire = JSON.writeValueAsString(result.wire());
+            long replySeq = trace.toolFinished(runId, 1, call, executionId, result, wire,
+                    wire.codePointCount(0, wire.length()), true);
+            assertEquals(3L, replySeq);
+
+            assertEquals(new JdbcRunLifecycle.CancelResult("RUNNING", true),
+                    lifecycle.requestCancel(fixture.project(), runId));
+            assertEquals("CANCELLED", terminal.finish(fixture.project(), runId, new LoopOutcome.Cancelled()).status());
+            Map<String,Object> detail = new JdbcRunQuery(source).detail("owner", runId);
+            assertEquals("CANCELLED", detail.get("status"));
+            assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId
+                    + "' AND status='SUCCEEDED'"));
+            assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_message WHERE run_id='" + runId
+                    + "' AND role='TOOL'"));
+            List<?> sources = (List<?>) detail.get("sources");
+            assertEquals(1, sources.size());
+            assertEquals(false, ((Map<?,?>) sources.getFirst()).get("providedToModel"));
+            assertNull(detail.get("proposalId"));
         });
     }
 
@@ -830,6 +948,24 @@ class RunSchedulerIT {
             public <T> T unwrap(Class<T> type) throws SQLException { return source.unwrap(type); }
             public boolean isWrapperFor(Class<?> type) throws SQLException { return source.isWrapperFor(type); }
         };
+    }
+    private static void failAgentEventInsert(PGSimpleDataSource source, String eventType) throws SQLException {
+        try (Connection connection = source.getConnection(); Statement sql = connection.createStatement()) {
+            sql.execute("""
+                    CREATE FUNCTION fail_selected_agent_event() RETURNS trigger LANGUAGE plpgsql AS $$
+                    BEGIN
+                      IF NEW.type = '%s' THEN
+                        RAISE EXCEPTION 'Injected event insert failure';
+                      END IF;
+                      RETURN NEW;
+                    END
+                    $$
+                    """.formatted(eventType));
+            sql.execute("""
+                    CREATE TRIGGER fail_selected_agent_event BEFORE INSERT ON tb_agent_event
+                    FOR EACH ROW EXECUTE FUNCTION fail_selected_agent_event()
+                    """);
+        }
     }
     private record Fixture(String project, String chapter) {
         JdbcRunAdmission.Request request(String label) {
