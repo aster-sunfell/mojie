@@ -4,7 +4,8 @@ import java.net.URI;
 import java.util.Map;
 
 /** Validated, process-wide selection of one model wire protocol. */
-public record ModelApiConfig(String apiPath, String baseUrl, String apiKey, String modelId) {
+public record ModelApiConfig(String apiPath, String baseUrl, String apiKey, String modelId,
+                             int contextWindowTokens) {
     public static final String MESSAGES = "/v1/messages";
     public static final String CHAT_COMPLETIONS = "/v1/chat/completions";
 
@@ -36,14 +37,30 @@ public record ModelApiConfig(String apiPath, String baseUrl, String apiKey, Stri
         if (key != null && model == null)
             throw new IllegalArgumentException("MOJIE_MODEL_ID is required for " + path);
         if (model == null) model = "unconfigured";
-        return new ModelApiConfig(path, base, key, model);
+        String rawWindow = value(env, "MOJIE_MODEL_CONTEXT_TOKENS");
+        int contextWindowTokens;
+        if (rawWindow != null) {
+            try { contextWindowTokens = Integer.parseInt(rawWindow); }
+            catch (NumberFormatException e) { throw new IllegalArgumentException("MOJIE_MODEL_CONTEXT_TOKENS must be a positive integer", e); }
+            if (contextWindowTokens <= 0) throw new IllegalArgumentException("MOJIE_MODEL_CONTEXT_TOKENS must be a positive integer");
+        } else if ("deepseek-ai/DeepSeek-V4-Flash".equals(model)) {
+            contextWindowTokens = 1_000_000;
+        } else if ("claude-sonnet-4-5".equals(model)) {
+            contextWindowTokens = 200_000;
+        } else if (key == null) {
+            contextWindowTokens = 200_000;
+        } else {
+            throw new IllegalArgumentException("MOJIE_MODEL_CONTEXT_TOKENS is required for model " + model);
+        }
+        return new ModelApiConfig(path, base, key, model, contextWindowTokens);
     }
 
     public boolean configured() { return apiKey != null; }
 
     @Override public String toString() {
         return "ModelApiConfig[apiPath=" + apiPath + ", baseUrl=" + baseUrl
-                + ", apiKey=<redacted>, modelId=" + modelId + "]";
+                + ", apiKey=<redacted>, modelId=" + modelId
+                + ", contextWindowTokens=" + contextWindowTokens + "]";
     }
 
     private static String value(Map<String, String> env, String name) {

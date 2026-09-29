@@ -225,6 +225,28 @@ class RunSchedulerIT {
         });
     }
 
+    @Test void configuredContextWindowFailsBeforeFirstModelRequestAndIsSnapshotted() throws Exception {
+        withDatabase(source -> {
+            AtomicInteger modelCalls = new AtomicInteger();
+            ModelGateway scripted = request -> {
+                modelCalls.incrementAndGet();
+                return responseFor(request);
+            };
+            try (RunScheduler scheduler = new RunScheduler(source, scripted, Clock.systemUTC(), "system", "scripted",
+                    100, "0123456789abcdef0123456789abcdef".getBytes(), "/v1/messages", 3_000)) {
+                scheduler.start();
+                Fixture fixture = fixture(source, "short-model-window");
+                String runId = scheduler.submit(fixture.request("check")).runId();
+                await(() -> "FAILED".equals(status(source, runId)));
+                assertEquals("LIMIT_EXCEEDED", errorCode(source, runId));
+                assertEquals(0, modelCalls.get());
+                assertEquals(0, count(source, "SELECT model_call_count FROM tb_agent_run WHERE id='" + runId + "'"));
+                assertEquals(3_000, count(source, "SELECT (config_snapshot->>'contextWindowTokens')::int "
+                        + "FROM tb_agent_run WHERE id='" + runId + "'"));
+            }
+        });
+    }
+
     @Test void databaseRecoverySettlesAnExitedWorkerWithoutReplayingTheModel() throws Exception {
         withDatabase(source -> {
             AtomicBoolean unavailable = new AtomicBoolean();

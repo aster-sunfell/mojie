@@ -15,7 +15,7 @@ public final class JdbcRunReader {
 
     public record RunData(String runId, String projectId, String targetChapterId, int baseVersion,
                           String baseContent, String instruction, String systemPrompt, String modelId,
-                          int maxOutputTokens, Instant deadline) {}
+                          int maxOutputTokens, int contextWindowTokens, Instant deadline) {}
 
     public RunData load(String runId) {
         String sql = """
@@ -30,10 +30,13 @@ public final class JdbcRunReader {
                 if (!rows.next()) throw new IllegalStateException("Run is not active");
                 JsonNode config = json.readTree(rows.getString(9));
                 int maxOutputTokens = config.path("maxOutputTokens").asInt(16_000);
-                if (maxOutputTokens <= 0) throw new IllegalStateException("Invalid run model configuration");
+                int contextWindowTokens = config.path("contextWindowTokens").asInt(0);
+                if (maxOutputTokens <= 0 || contextWindowTokens <= 0)
+                    throw new IllegalStateException("Invalid run model configuration");
                 return new RunData(rows.getString(1), rows.getString(2), rows.getString(3), rows.getInt(4),
                         rows.getString(5), rows.getString(6), rows.getString(7), rows.getString(8),
-                        maxOutputTokens, rows.getObject(10, java.time.OffsetDateTime.class).toInstant());
+                        maxOutputTokens, contextWindowTokens,
+                        rows.getObject(10, java.time.OffsetDateTime.class).toInstant());
             }
         } catch (Exception e) { throw new IllegalStateException("Run input unavailable", e); }
     }

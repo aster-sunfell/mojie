@@ -9,6 +9,7 @@ import com.mojie.agent.tool.AgentTool.ToolResult;
 import com.mojie.agent.tool.ToolContext;
 import java.time.Clock;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 
@@ -53,8 +54,15 @@ public final class AgentLoop {
                 long remaining = Duration.between(clock.instant(), input.deadline()).toMillis();
                 long timeout = Math.min(limits.maxRequestMillis(), remaining);
                 Request request = new Request(input.systemPrompt(), messages, specs, input.modelId(), input.maxOutputTokens(), timeout);
-                if (contextSize(request) > limits.maxContextCodePoints())
-                    return limit("MODEL_CONTEXT", contextSize(request), limits.maxContextCodePoints());
+                String serializedRequest = json.writeValueAsString(request);
+                long contextCodePoints = codePoints(serializedRequest) + (long) request.maxOutputTokens() * 4;
+                if (contextCodePoints > limits.maxContextCodePoints())
+                    return limit("MODEL_CONTEXT_CHARS", contextCodePoints, limits.maxContextCodePoints());
+                // Byte length bounds byte-level tokenizer input; reserve room for provider framing and special tokens.
+                long contextTokenBound = serializedRequest.getBytes(StandardCharsets.UTF_8).length
+                        + (long) request.maxOutputTokens() + 4_096;
+                if (contextTokenBound > limits.maxContextTokens())
+                    return limit("MODEL_CONTEXT_TOKENS", contextTokenBound, limits.maxContextTokens());
 
                 int callIndex = ++modelCalls;
                 trace.modelStarted(runId, callIndex, List.copyOf(messageSeqs));
@@ -206,10 +214,6 @@ public final class AgentLoop {
     }
     private LoopOutcome.Failed limit(String kind, long used, long max) {
         return new LoopOutcome.Failed("LIMIT_EXCEEDED", kind + ": " + used + "/" + max);
-    }
-    private int contextSize(Request request) {
-        try { return codePoints(json.writeValueAsString(request)) + request.maxOutputTokens() * 4; }
-        catch (com.fasterxml.jackson.core.JsonProcessingException e) { throw new IllegalStateException("Cannot serialize model request", e); }
     }
     private static int codePoints(String value) { return value.codePointCount(0, value.length()); }
 }

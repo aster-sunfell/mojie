@@ -30,7 +30,7 @@ public final class RunScheduler implements AutoCloseable {
     private final JdbcLoopTrace trace;
     private final List<AgentTool> tools;
     private final String systemPrompt, modelId, toolSchemaJson, modelApiPath;
-    private final int maxOutputTokens;
+    private final int maxOutputTokens, contextWindowTokens;
     private final Semaphore permits = new Semaphore(10);
     private final ThreadPoolExecutor workers = new ThreadPoolExecutor(2, 2, 0, TimeUnit.MILLISECONDS,
             new ArrayBlockingQueue<>(8), new ThreadPoolExecutor.AbortPolicy());
@@ -49,6 +49,12 @@ public final class RunScheduler implements AutoCloseable {
 
     public RunScheduler(DataSource dataSource, ModelGateway model, Clock clock, String systemPrompt,
                         String modelId, int maxOutputTokens, byte[] cursorKey, String modelApiPath) {
+        this(dataSource, model, clock, systemPrompt, modelId, maxOutputTokens, cursorKey, modelApiPath, 1_000_000);
+    }
+
+    public RunScheduler(DataSource dataSource, ModelGateway model, Clock clock, String systemPrompt,
+                        String modelId, int maxOutputTokens, byte[] cursorKey, String modelApiPath,
+                        int contextWindowTokens) {
         this.dataSource = Objects.requireNonNull(dataSource);
         this.model = Objects.requireNonNull(model);
         this.clock = Objects.requireNonNull(clock);
@@ -56,6 +62,8 @@ public final class RunScheduler implements AutoCloseable {
         this.modelId = Objects.requireNonNull(modelId);
         this.modelApiPath = Objects.requireNonNull(modelApiPath);
         this.maxOutputTokens = maxOutputTokens;
+        if (contextWindowTokens <= 0) throw new IllegalArgumentException("Context window must be positive");
+        this.contextWindowTokens = contextWindowTokens;
         this.admission = new JdbcRunAdmission(dataSource, clock, processId);
         this.terminal = new JdbcRunTerminalStore(dataSource, clock);
         this.lifecycle = new JdbcRunLifecycle(dataSource, terminal);
@@ -85,7 +93,8 @@ public final class RunScheduler implements AutoCloseable {
         JdbcRunAdmission.Receipt receipt;
         try {
             JdbcRunAdmission.Config config = new JdbcRunAdmission.Config(systemPrompt, toolSchemaJson, modelId,
-                    Map.of("maxOutputTokens", maxOutputTokens, "apiPath", modelApiPath));
+                    Map.of("maxOutputTokens", maxOutputTokens, "apiPath", modelApiPath,
+                            "contextWindowTokens", contextWindowTokens));
             receipt = admission.create(request, config);
         } catch (RuntimeException e) {
             permits.release();
@@ -142,7 +151,9 @@ public final class RunScheduler implements AutoCloseable {
             ToolContext context = new ToolContext(run.runId(), run.projectId(), run.targetChapterId(),
                     run.baseVersion(), run.baseContent());
             handle.context = context;
-            AgentLoop loop = new AgentLoop(model, tools, trace, LoopLimits.defaults(), clock, handle.cancel::get);
+            AgentLoop loop = new AgentLoop(model, tools, trace,
+                    LoopLimits.defaults().withContextWindowTokens(run.contextWindowTokens()),
+                    clock, handle.cancel::get);
             LoopOutcome outcome = loop.run(new LoopInput(context, run.instruction(), run.systemPrompt(),
                     run.modelId(), run.maxOutputTokens(), run.deadline()));
             terminal.finish(handle.projectId, handle.runId, outcome);

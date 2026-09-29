@@ -61,7 +61,7 @@ const backend = spawn('java', ['-jar', path.join(root, 'backend/target/mojie-age
     MOJIE_DB_PASSWORD: process.env.MOJIE_TEST_DB_PASSWORD || 'mojie_dev_only',
     MOJIE_PORT: '18080', MOJIE_BIND_HOST: '127.0.0.1', MOJIE_MODEL_API_PATH: '/v1/messages',
     MOJIE_MODEL_BASE_URL: 'http://127.0.0.1:18081', MOJIE_MODEL_API_KEY: 'browser-test-key',
-    MOJIE_MODEL_ID: 'browser-test' },
+    MOJIE_MODEL_ID: 'browser-test', MOJIE_MODEL_CONTEXT_TOKENS: '200000' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let recentLog = ''

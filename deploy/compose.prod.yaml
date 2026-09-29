@@ -35,6 +35,7 @@ services:
       MOJIE_ANTHROPIC_BASE_URL: "${MOJIE_ANTHROPIC_BASE_URL:-}"
       MOJIE_OWNER_ID: "${MOJIE_OWNER_ID:-local-author}"
       MOJIE_MODEL_ID: "${MOJIE_MODEL_ID:-}"
+      MOJIE_MODEL_CONTEXT_TOKENS: "${MOJIE_MODEL_CONTEXT_TOKENS:-}"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/api/v1/health | grep -Eq '\"status\"[[:space:]]*:[[:space:]]*\"UP\"'"]
       interval: 10s

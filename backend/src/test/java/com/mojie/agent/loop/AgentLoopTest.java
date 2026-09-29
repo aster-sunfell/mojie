@@ -7,6 +7,7 @@ import com.mojie.agent.model.ModelGateway.*;
 import com.mojie.agent.tool.*;
 import org.junit.jupiter.api.Test;
 import java.time.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -98,6 +99,24 @@ class AgentLoopTest {
         assertEquals("LIMIT_EXCEEDED", ((LoopOutcome.Failed) loop(model, limits).run(input())).code());
         assertTrue(model.requests.isEmpty());
         assertTrue(trace.modelInputs.isEmpty());
+    }
+
+    @Test void modelTokenWindowChecksHistorySeparatelyFromCharacterBudget() throws Exception {
+        List<Response> turns = List.of(
+                response("", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.TOOL_CALLS),
+                response("完成", List.of(), FinishReason.FINAL));
+        Script baseline = new Script(turns);
+        assertInstanceOf(LoopOutcome.Completed.class, loop(baseline, LoopLimits.defaults()).run(input()));
+        int firstRequestBound = JSON.writeValueAsString(baseline.requests.getFirst())
+                .getBytes(StandardCharsets.UTF_8).length + baseline.requests.getFirst().maxOutputTokens() + 4_096;
+        Script limited = new Script(turns);
+        int previousModelInputs = trace.modelInputs.size();
+        LoopOutcome.Failed failed = (LoopOutcome.Failed) loop(limited,
+                LoopLimits.defaults().withContextWindowTokens(firstRequestBound)).run(input());
+        assertEquals("LIMIT_EXCEEDED", failed.code());
+        assertTrue(failed.detail().startsWith("MODEL_CONTEXT_TOKENS:"));
+        assertEquals(1, limited.requests.size());
+        assertEquals(previousModelInputs + 1, trace.modelInputs.size());
     }
 
     @Test void unknownToolAndBadArgumentsAreReturnedAndCounted() {

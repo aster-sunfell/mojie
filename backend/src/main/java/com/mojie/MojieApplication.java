@@ -44,7 +44,7 @@ public class MojieApplication {
                 + "and any '范围与不确定性：'. Do not start with '现在我' or '让我', and do not repeat the conclusion.";
         String cursorSecret = System.getenv().getOrDefault("MOJIE_CURSOR_KEY", "mojie-local-dev-cursor-key-change-me");
         RunScheduler scheduler = new RunScheduler(dataSource, gateway, Clock.systemUTC(), prompt, config.modelId(), 16_000,
-                cursorSecret.getBytes(StandardCharsets.UTF_8), config.apiPath());
+                cursorSecret.getBytes(StandardCharsets.UTF_8), config.apiPath(), config.contextWindowTokens());
         scheduler.start();
         return scheduler;
     }
