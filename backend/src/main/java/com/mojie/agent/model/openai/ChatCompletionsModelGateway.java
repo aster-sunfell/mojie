@@ -87,10 +87,12 @@ public final class ChatCompletionsModelGateway implements ModelGateway, AutoClos
                 for (ContentPart part : message.content()) {
                     if (part instanceof TextPart text) content.append(text.text());
                     else if (part instanceof ToolCall call) {
-                        if (call.arguments() == null || !call.arguments().isObject())
-                            throw new ModelException("INVALID_MODEL_RESPONSE", "Provider tool arguments are not an object");
+                        // A malformed argument string is still a declared tool call. Replay it verbatim
+                        // with the structured validation error so the model can correct its own call.
+                        String arguments = call.arguments() != null && call.arguments().isTextual()
+                                ? call.arguments().asText() : encode(call.arguments());
                         calls.add(Map.of("id", call.id(), "type", "function", "function",
-                                Map.of("name", call.name(), "arguments", encode(call.arguments()))));
+                                Map.of("name", call.name(), "arguments", arguments)));
                     } else if (part instanceof OpaquePart opaque
                             && "chat_reasoning".equals(opaque.providerBlock().path("type").asText())
                             && opaque.providerBlock().path("reasoning_content").isTextual()) {
@@ -156,11 +158,12 @@ public final class ChatCompletionsModelGateway implements ModelGateway, AutoClos
                     throw invalid("Invalid tool call fields");
                 String id = rawId.asText();
                 String name = rawName.asText();
+                if (id.isBlank() || name.isBlank()) throw invalid("Invalid tool call");
                 JsonNode arguments;
                 try { arguments = json.readTree(rawArguments.asText()); }
-                catch (JsonProcessingException e) { throw invalid("Tool arguments are not JSON"); }
-                if (id.isBlank() || name.isBlank() || arguments == null || !arguments.isObject())
-                    throw invalid("Invalid tool call");
+                catch (JsonProcessingException e) { arguments = null; }
+                if (arguments == null || !arguments.isObject())
+                    arguments = json.getNodeFactory().textNode(rawArguments.asText());
                 content.add(new ToolCall(id, name, arguments));
             }
         }

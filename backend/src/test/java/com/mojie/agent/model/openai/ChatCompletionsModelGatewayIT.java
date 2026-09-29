@@ -83,16 +83,26 @@ class ChatCompletionsModelGatewayIT {
         }
     }
 
-    @Test void malformedToolArgumentsFailBeforeExecution() throws Exception {
-        HttpServer server = server(200, """
-                {"id":"bad","choices":[{"message":{"role":"assistant","content":null,
-                 "tool_calls":[{"id":"call-1","type":"function","function":{"name":"read_chapter",
-                 "arguments":"not-json"}}]},"finish_reason":"tool_calls"}]}
-                """, new AtomicInteger(), new AtomicReference<>());
-        try (ChatCompletionsModelGateway gateway = new ChatCompletionsModelGateway("test-key", endpoint(server))) {
-            assertEquals("INVALID_MODEL_RESPONSE", assertThrows(ModelException.class,
-                    () -> gateway.call(simpleRequest())).code());
-        } finally { server.stop(0); }
+    @Test void malformedToolArgumentsRemainPairedForModelCorrection() throws Exception {
+        for (String raw : List.of("not-json", "[]", "{} {}")) {
+            AtomicReference<JsonNode> sent = new AtomicReference<>();
+            String response = completion("tool_calls", "\"tool_calls\":[{\"id\":\"call-1\",\"type\":\"function\","
+                    + "\"function\":{\"name\":\"read_chapter\",\"arguments\":" + JSON.writeValueAsString(raw) + "}}]");
+            HttpServer server = server(200, response, new AtomicInteger(), sent);
+            try (ChatCompletionsModelGateway gateway = new ChatCompletionsModelGateway("test-key", endpoint(server))) {
+                Response first = gateway.call(simpleRequest());
+                assertEquals(FinishReason.TOOL_CALLS, first.finishReason());
+                assertEquals(raw, first.calls().getFirst().arguments().asText());
+                gateway.call(new Request("system", List.of(ModelGateway.Message.user("check"),
+                        ModelGateway.Message.assistant(first.content()), ModelGateway.Message.tools(List.of(
+                                new ToolReply("call-1", "execution-1", Map.of("success", false,
+                                        "error", Map.of("code", "VALIDATION_ERROR")))))),
+                        List.of(), "model", 100, 5_000));
+                assertEquals(raw, sent.get().path("messages").get(2).path("tool_calls").get(0)
+                        .path("function").path("arguments").asText());
+                assertEquals("call-1", sent.get().path("messages").get(3).path("tool_call_id").asText());
+            } finally { server.stop(0); }
+        }
     }
 
     @Test void malformedResponsesAreProtocolErrors() throws Exception {
@@ -102,7 +112,7 @@ class ChatCompletionsModelGatewayIT {
                 completion("tool_calls", "\"tool_calls\":[{\"id\":7,\"type\":\"function\","
                         + "\"function\":{\"name\":\"read_chapter\",\"arguments\":\"{}\"}}]"),
                 completion("tool_calls", "\"tool_calls\":[{\"id\":\"c\",\"type\":\"function\","
-                        + "\"function\":{\"name\":\"read_chapter\",\"arguments\":\"{} {}\"}}]"))) {
+                        + "\"function\":{\"name\":7,\"arguments\":\"{}\"}}]"))) {
             HttpServer server = server(200, response, new AtomicInteger(), new AtomicReference<>());
             try (var gateway = new ChatCompletionsModelGateway("test-key", endpoint(server))) {
                 assertEquals("INVALID_MODEL_RESPONSE", assertThrows(ModelException.class,
