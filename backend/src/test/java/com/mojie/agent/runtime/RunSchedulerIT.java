@@ -474,6 +474,60 @@ class RunSchedulerIT {
         });
     }
 
+    @Test void thousandLongChaptersCanBeSearchedWithoutPartialResultsOrTimeout() throws Exception {
+        withDatabase(dataSource -> {
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            Fixture fixture = fixture(dataSource, "thousand-long-chapters");
+            try (Connection connection = dataSource.getConnection();
+                 PreparedStatement chapters = connection.prepareStatement("""
+                         INSERT INTO tb_chapter(project_id, chapter_order, title, content)
+                         SELECT ?::uuid, n, 'chapter ' || n, repeat('甲', 5998)
+                           FROM generate_series(2, 1000) AS n
+                         """);
+                 PreparedStatement revisions = connection.prepareStatement("""
+                         INSERT INTO tb_chapter_revision(chapter_id, version, content, source)
+                         SELECT id, version, content, 'CREATE' FROM tb_chapter
+                          WHERE project_id = ?::uuid AND chapter_order >= 2
+                         """);
+                 PreparedStatement project = connection.prepareStatement(
+                         "UPDATE tb_project SET next_chapter_order = 1001 WHERE id = ?::uuid")) {
+                chapters.setString(1, fixture.project());
+                assertEquals(999, chapters.executeUpdate());
+                revisions.setString(1, fixture.project());
+                assertEquals(999, revisions.executeUpdate());
+                project.setString(1, fixture.project()); project.executeUpdate();
+            }
+            ModelGateway model = request -> {
+                if (request.messages().size() == 1) return calls("pressure-1",
+                        tool("search", "search_chapters", Map.of("keyword", "不存在", "scope", "ALL_CHAPTERS")),
+                        tool("read", "read_chapter", Map.of("chapterId", fixture.chapter())));
+                ToolReply search = request.messages().getLast().replies().stream()
+                        .filter(reply -> reply.callId().equals("search")).findFirst().orElseThrow();
+                assertEquals(true, search.result().get("success"));
+                assertEquals(List.of(), ((Map<?,?>) search.result().get("data")).get("matches"));
+                assertEquals(false, ((Map<?,?>) search.result().get("data")).get("hasMore"));
+                return new Response("本次字面搜索未命中；目标章已完整读取。", List.of(), FinishReason.FINAL,
+                        "pressure-2", "end_turn", null);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, model)) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("large scope check")).runId();
+                await(() -> "SUCCEEDED".equals(status(dataSource, runId)));
+                assertEquals(1000, count(dataSource,
+                        "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='" + runId + "'"));
+                Map<String,Object> detail = new JdbcRunQuery(dataSource).detail("owner", runId);
+                assertEquals(2, detail.get("toolCallCount"));
+                assertEquals(1, ((List<?>) detail.get("sources")).size());
+                try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement();
+                     ResultSet rows = sql.executeQuery("SELECT EXTRACT(EPOCH FROM (finished_at - started_at)) * 1000 " +
+                             "FROM tb_agent_step WHERE run_id='" + runId + "' AND tool_name='search_chapters'")) {
+                    assertTrue(rows.next());
+                    assertTrue(rows.getDouble(1) < 5_500, "Search step exceeded its five-second budget");
+                }
+            }
+        });
+    }
+
     @Test void failedOrCancelledCandidateCannotBeAccepted() throws Exception {
         withDatabase(dataSource -> {
             CountDownLatch secondCallEntered = new CountDownLatch(1);
