@@ -13,6 +13,9 @@ import java.sql.*;
 import java.time.Clock;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -172,6 +175,101 @@ class RunSchedulerIT {
                 await(() -> "CANCELLED".equals(status(dataSource, firstRun))
                         && "SUCCEEDED".equals(status(dataSource, secondRun)) && scheduler.occupiedCapacity() == 0);
                 assertEquals("CANCELLED", status(dataSource, queuedRun));
+            } finally { release.countDown(); }
+        });
+    }
+
+    @Test void fullQueueRejectsCleanlyAndQueuedCancellationRestoresCapacity() throws Exception {
+        withDatabase(dataSource -> {
+            CountDownLatch running = new CountDownLatch(2);
+            CountDownLatch release = new CountDownLatch(1);
+            ModelGateway blocked = request -> {
+                if (request.messages().size() == 1) {
+                    running.countDown();
+                    long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+                    while (release.getCount() > 0 && System.nanoTime() < end) {
+                        try { release.await(100, TimeUnit.MILLISECONDS); }
+                        catch (InterruptedException ignored) { /* Keep the physical workers occupied. */ }
+                    }
+                }
+                return responseFor(request);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, blocked)) {
+                scheduler.start();
+                List<Fixture> fixtures = new ArrayList<>();
+                for (int i = 0; i < 11; i++) fixtures.add(fixture(dataSource, "capacity-" + i));
+                List<String> accepted = new ArrayList<>();
+                accepted.add(scheduler.submit(fixtures.get(0).request("check 0")).runId());
+                accepted.add(scheduler.submit(fixtures.get(1).request("check 1")).runId());
+                assertTrue(running.await(5, TimeUnit.SECONDS));
+                for (int i = 2; i < 10; i++)
+                    accepted.add(scheduler.submit(fixtures.get(i).request("check " + i)).runId());
+                assertEquals(10, scheduler.occupiedCapacity());
+                assertEquals(2, scheduler.runningThreads());
+                JdbcRunAdmission.AdmissionException full = assertThrows(JdbcRunAdmission.AdmissionException.class,
+                        () -> scheduler.submit(fixtures.get(10).request("overflow")));
+                assertEquals("RUN_CAPACITY_EXCEEDED", full.code());
+                assertEquals(10, count(dataSource, "SELECT count(*) FROM tb_agent_run"));
+                JdbcContentService.ContentException busy = assertThrows(JdbcContentService.ContentException.class,
+                        () -> new JdbcContentService(dataSource).deleteProject("owner", fixtures.get(2).project()));
+                assertEquals("RESOURCE_BUSY", busy.code());
+                assertEquals(10, scheduler.occupiedCapacity());
+
+                String cancelled = accepted.get(9);
+                assertEquals("CANCELLED", scheduler.cancel(fixtures.get(9).project(), cancelled).status());
+                await(() -> scheduler.occupiedCapacity() == 9);
+                String replacement = scheduler.submit(fixtures.get(10).request("replacement")).runId();
+                assertEquals("QUEUED", status(dataSource, replacement));
+                assertEquals(10, scheduler.occupiedCapacity());
+                release.countDown();
+                await(() -> accepted.subList(0, 9).stream().allMatch(id -> "SUCCEEDED".equals(status(dataSource, id)))
+                        && "SUCCEEDED".equals(status(dataSource, replacement))
+                        && scheduler.occupiedCapacity() == 0);
+                assertEquals("CANCELLED", status(dataSource, cancelled));
+            } finally { release.countDown(); }
+        });
+    }
+
+    @Test void concurrentSubmissionsForOneProjectAdmitOnlyOneRun() throws Exception {
+        withDatabase(dataSource -> {
+            CountDownLatch release = new CountDownLatch(1);
+            ModelGateway blocked = request -> {
+                if (request.messages().size() == 1) {
+                    try { release.await(10, TimeUnit.SECONDS); }
+                    catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                }
+                return responseFor(request);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, blocked)) {
+                scheduler.start();
+                Fixture fixture = fixture(dataSource, "one-project");
+                CountDownLatch start = new CountDownLatch(1);
+                ExecutorService submitters = Executors.newFixedThreadPool(2);
+                try {
+                    List<Future<Object>> results = new ArrayList<>();
+                    for (int i = 0; i < 2; i++) {
+                        int number = i;
+                        results.add(submitters.submit(() -> {
+                            start.await();
+                            try { return scheduler.submit(fixture.request("concurrent " + number)); }
+                            catch (JdbcRunAdmission.AdmissionException rejected) { return rejected.code(); }
+                        }));
+                    }
+                    start.countDown();
+                    List<Object> outcomes = new ArrayList<>();
+                    for (Future<Object> result : results) outcomes.add(result.get(5, TimeUnit.SECONDS));
+                    List<JdbcRunAdmission.Receipt> accepted = outcomes.stream()
+                            .filter(JdbcRunAdmission.Receipt.class::isInstance)
+                            .map(JdbcRunAdmission.Receipt.class::cast).toList();
+                    assertEquals(1, accepted.size());
+                    assertTrue(accepted.getFirst().created());
+                    assertEquals(1, outcomes.stream().filter("RESOURCE_BUSY"::equals).count());
+                    assertEquals(1, count(dataSource, "SELECT count(*) FROM tb_agent_run"));
+                    assertEquals(1, scheduler.occupiedCapacity());
+                    release.countDown();
+                    await(() -> "SUCCEEDED".equals(status(dataSource, accepted.getFirst().runId()))
+                            && scheduler.occupiedCapacity() == 0);
+                } finally { release.countDown(); submitters.shutdownNow(); }
             } finally { release.countDown(); }
         });
     }
