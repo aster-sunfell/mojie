@@ -208,6 +208,66 @@ class RunSchedulerIT {
         });
     }
 
+    @Test void lateCancelledWorkerCannotClearNextRunForSameProject() throws Exception {
+        withDatabase(dataSource -> {
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            CountDownLatch enteredA = new CountDownLatch(1);
+            CountDownLatch enteredB = new CountDownLatch(1);
+            CountDownLatch releaseA = new CountDownLatch(1);
+            CountDownLatch releaseB = new CountDownLatch(1);
+            Fixture fixture = fixture(dataSource, "same-project");
+            String nextChapter = (String) new JdbcContentService(dataSource)
+                    .createChapter("owner", fixture.project(), "下一章").get("id");
+            ModelGateway delayed = request -> {
+                if (request.messages().size() == 1) {
+                    String instruction = request.messages().getFirst().content().stream()
+                            .filter(TextPart.class::isInstance).map(TextPart.class::cast)
+                            .findFirst().orElseThrow().text();
+                    boolean oldRun = instruction.endsWith(fixture.chapter());
+                    (oldRun ? enteredA : enteredB).countDown();
+                    CountDownLatch gate = oldRun ? releaseA : releaseB;
+                    long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+                    while (gate.getCount() > 0 && System.nanoTime() < end) {
+                        try { gate.await(100, TimeUnit.MILLISECONDS); }
+                        catch (InterruptedException ignored) { /* Provider does not promptly exit. */ }
+                    }
+                }
+                return responseFor(request);
+            };
+            try (RunScheduler scheduler = scheduler(dataSource, delayed)) {
+                scheduler.start();
+                String runA = scheduler.submit(fixture.request("check A")).runId();
+                assertTrue(enteredA.await(5, TimeUnit.SECONDS));
+                assertEquals("RUNNING", scheduler.cancel(fixture.project(), runA).status());
+                try (Connection connection = dataSource.getConnection(); PreparedStatement sql = connection.prepareStatement(
+                        "UPDATE tb_agent_run SET deadline_at = now() - interval '1 second' WHERE id = ?::uuid")) {
+                    sql.setString(1, runA); sql.executeUpdate();
+                }
+                await(() -> "CANCELLED".equals(status(dataSource, runA)));
+                assertEquals(1, scheduler.occupiedCapacity());
+
+                String runB = scheduler.submit(new JdbcRunAdmission.Request("owner", fixture.project(), nextChapter, 1,
+                        "check B " + nextChapter, UUID.randomUUID().toString())).runId();
+                assertTrue(enteredB.await(5, TimeUnit.SECONDS));
+                assertEquals(2, scheduler.occupiedCapacity());
+                assertEquals(1, count(dataSource, "SELECT count(*) FROM tb_project WHERE id='" + fixture.project()
+                        + "' AND active_run_id='" + runB + "'"));
+
+                assertEquals("CANCELLED", scheduler.cancel(fixture.project(), runA).status());
+                releaseA.countDown();
+                await(() -> scheduler.occupiedCapacity() == 1);
+                assertEquals("CANCELLED", status(dataSource, runA));
+                assertEquals("RUNNING", status(dataSource, runB));
+                assertEquals(1, count(dataSource, "SELECT count(*) FROM tb_project WHERE id='" + fixture.project()
+                        + "' AND active_run_id='" + runB + "'"));
+                releaseB.countDown();
+                await(() -> "SUCCEEDED".equals(status(dataSource, runB)) && scheduler.occupiedCapacity() == 0);
+                assertEquals(0, count(dataSource, "SELECT count(*) FROM tb_project WHERE id='" + fixture.project()
+                        + "' AND active_run_id IS NOT NULL"));
+            } finally { releaseA.countDown(); releaseB.countDown(); }
+        });
+    }
+
     private static Response responseFor(ModelGateway.Request request) {
         if (request.messages().size() == 1) {
             String chapter = request.messages().getFirst().content().stream()
@@ -235,7 +295,8 @@ class RunSchedulerIT {
     private static Fixture fixture(PGSimpleDataSource source, String name) throws SQLException {
         String project = UUID.randomUUID().toString(), chapter = UUID.randomUUID().toString();
         try (Connection connection = source.getConnection(); Statement sql = connection.createStatement()) {
-            sql.execute("INSERT INTO tb_project(id, owner_id, name) VALUES ('" + project + "','owner','" + name + "')");
+            sql.execute("INSERT INTO tb_project(id, owner_id, name, next_chapter_order) VALUES ('" + project
+                    + "','owner','" + name + "',2)");
             sql.execute("INSERT INTO tb_chapter(id, project_id, chapter_order, title, content) VALUES " +
                     "('" + chapter + "','" + project + "',1,'chapter','body')");
             sql.execute("INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES " +
