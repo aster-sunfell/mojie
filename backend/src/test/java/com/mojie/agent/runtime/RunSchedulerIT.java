@@ -3,6 +3,7 @@ package com.mojie.agent.runtime;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mojie.agent.model.ModelGateway;
 import com.mojie.agent.model.ModelGateway.*;
+import com.mojie.agent.model.openai.ChatCompletionsModelGateway;
 import com.mojie.agent.run.infra.JdbcRunAdmission;
 import com.mojie.agent.run.infra.JdbcRunQuery;
 import com.mojie.content.JdbcContentService;
@@ -10,9 +11,12 @@ import com.mojie.proposal.infra.JdbcEditProposalService;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
+import com.sun.net.httpserver.HttpServer;
 import java.sql.*;
 import java.time.Clock;
 import java.io.PrintWriter;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -116,6 +120,71 @@ class RunSchedulerIT {
                 assertTrue(sources.stream().allMatch(item -> Boolean.TRUE.equals(((Map<?,?>) item).get("providedToModel"))));
             }
         });
+    }
+
+    @Test void malformedChatToolArgumentsAreReturnedAndCorrectedAcrossHttpAndPostgres() throws Exception {
+        withDatabase(source -> {
+            Fixture fixture = fixtureAfterMigration(source, "chat-argument-correction");
+            AtomicInteger calls = new AtomicInteger();
+            HttpServer provider = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            provider.createContext("/v1/chat/completions", exchange -> {
+                int index = calls.incrementAndGet();
+                JsonMapper mapper = JsonMapper.builder().build();
+                var body = mapper.readTree(exchange.getRequestBody().readAllBytes());
+                if (index == 2) {
+                    var messages = body.path("messages");
+                    var reply = messages.get(messages.size() - 1);
+                    assertEquals("tool", reply.path("role").asText());
+                    assertEquals("bad-arguments", reply.path("tool_call_id").asText());
+                    assertEquals("VALIDATION_ERROR", mapper.readTree(reply.path("content").asText())
+                            .path("error").path("code").asText());
+                    assertEquals("not-json", messages.get(messages.size() - 2).path("tool_calls")
+                            .get(0).path("function").path("arguments").asText());
+                }
+                String response = switch (index) {
+                    case 1 -> chatToolResponse("bad-arguments", "not-json");
+                    case 2 -> chatToolResponse("corrected-read", "{\"chapterId\":\"" + fixture.chapter() + "\"}");
+                    case 3 -> """
+                            {"id":"final","choices":[{"message":{"role":"assistant","content":"已读取目标章并完成检查。"},
+                             "finish_reason":"stop"}]}
+                            """;
+                    default -> throw new AssertionError("Unexpected model call " + index);
+                };
+                byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, bytes.length);
+                try (var output = exchange.getResponseBody()) { output.write(bytes); }
+            });
+            provider.start();
+            try (ChatCompletionsModelGateway gateway = new ChatCompletionsModelGateway("local-test-key",
+                    "http://127.0.0.1:" + provider.getAddress().getPort());
+                 RunScheduler scheduler = new RunScheduler(source, gateway, Clock.systemUTC(), "system", "scripted", 100,
+                         "0123456789abcdef0123456789abcdef".getBytes(), "/v1/chat/completions")) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("correct malformed arguments")).runId();
+                await(() -> "SUCCEEDED".equals(status(source, runId)));
+                var detail = new JdbcRunQuery(source).detail("owner", runId);
+                assertEquals(3, calls.get());
+                assertEquals(3, detail.get("modelCallCount"));
+                assertEquals(2, detail.get("toolCallCount"));
+                List<?> steps = (List<?>) detail.get("steps");
+                assertEquals("VALIDATION_ERROR", ((Map<?, ?>) steps.get(0)).get("errorCode"));
+                assertEquals("SUCCEEDED", ((Map<?, ?>) steps.get(1)).get("status"));
+                assertNull(detail.get("proposalId"));
+            } finally { provider.stop(0); }
+        });
+    }
+
+    private static String chatToolResponse(String callId, String arguments) throws java.io.IOException {
+        return "{\"id\":\"" + callId + "\",\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,"
+                + "\"tool_calls\":[{\"id\":\"" + callId + "\",\"type\":\"function\",\"function\":{"
+                + "\"name\":\"read_chapter\",\"arguments\":" + JSON.writeValueAsString(arguments) + "}}]},"
+                + "\"finish_reason\":\"tool_calls\"}]}";
+    }
+
+    private static Fixture fixtureAfterMigration(PGSimpleDataSource source, String name) throws SQLException {
+        Flyway.configure().dataSource(source).load().migrate();
+        return fixture(source, name);
     }
 
     private static ToolCall tool(String id, String name, Map<String,?> args) {
