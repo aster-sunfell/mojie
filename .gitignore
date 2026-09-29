@@ -2,5 +2,7 @@
 /backend/target/
 /web/node_modules/
 /web/dist/
+/web/test-results/
+/web/playwright-report/
 /deploy/.env
 /deploy/.env.prod

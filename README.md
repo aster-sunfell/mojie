@@ -24,6 +24,17 @@ sh scripts/start-local-backend.sh
 
 固定演示数据可在服务启动后用 `node scripts/seed-demo.mjs` 创建；加 `--scale` 会创建 100 章与 200 条设定，并打印作品及目标章节 ID。对扩展数据执行 `node scripts/check-m4-load.mjs PROJECT_ID TARGET_CHAPTER_ID`，检查分页无重复和 20 次非模型请求延迟。两脚本使用 `MOJIE_API_URL` 指定 API 根地址，默认为 `http://127.0.0.1:8080/api/v1`；要经 Nginx 检查时设为 `http://127.0.0.1:8088/api/v1`。
 
+浏览器端到端回归使用独立、可丢弃的 PostgreSQL 数据库和本地模拟模型，不读取 `deploy/.env` 的真实密钥。先创建测试库并安装 Chromium Headless Shell，然后执行；Playwright 启动脚本会自动构建 Java 后端：
+
+```bash
+(cd web && npm ci && npx playwright install chromium --only-shell)
+docker exec deploy-postgres-1 psql -U mojie -d postgres -c 'CREATE DATABASE mojie_browser_e2e OWNER mojie'
+MOJIE_TEST_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/mojie_browser_e2e \
+  MOJIE_TEST_DB_USER=mojie MOJIE_TEST_DB_PASSWORD=mojie_dev_only npm --prefix web run test:e2e
+```
+
+首次创建测试库后，后续直接重跑最后一条命令即可。Playwright 会启动真实 Java API、Vite 和本地模拟模型，测试浏览器刷新、SSE 中断后的恢复、来源/草稿保护、采纳与运行中取消。结果见 [浏览器核查记录](docs/verification/browser-agent-loop-2026-09-30.md)。
+
 ## 远程部署
 
 远程主机只需 Docker 和 Compose。首次拉取仓库后，复制同一份 `deploy/.env.example` 为 `deploy/.env.prod`，取消注释并填写数据库密码与稳定的 `MOJIE_CURSOR_KEY`，按需填写 `MOJIE_MODEL_API_KEY`。从仓库根目录启动：
