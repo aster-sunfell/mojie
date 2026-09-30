@@ -42,3 +42,18 @@ The route inventory is in `../docs/api/openapi.yaml`; event replay details are i
 SSE admits at most 20 active subscriptions. An additional connection receives HTTP 429 / `STREAM_CAPACITY_EXCEEDED`; run queries remain available. Each connection has at most one in-flight batch, with bounded delivery workers separate from the 500 ms timer and the Agent workers. Terminal completion and detected disconnects release the slot once. The HTTP regression in `web/e2e/agent-loop.spec.js` opens 20 streams, verifies rejection of the 21st, and replays terminal events 25 times to check capacity recovery.
 
 The [2026-09-30 real-model verification](../docs/verification/agent-loop-real-model-2026-09-30.md) covers analysis, searches, and a complete 5,910-code-point proposal. [Browser tests](../docs/verification/browser-agent-loop-2026-09-30.md) cover basic refresh, disconnected SSE recovery, draft protection, adoption, and cancellation through the real Java API. [Database recovery verification](../docs/verification/agent-loop-db-recovery-2026-09-30.md) covers in-process terminal retry after connection loss and atomic rollback during tool and success commits. Remaining release gates include unverified browser timing races, further failure combinations, full PRD acceptance sign-off, and provider-tokenizer validation of the context preflight.
+
+## Repeatable live-model verification
+
+The previous successful live report used DeepSeek V4 Flash. For SiliconFlow V3.2, the exact model ID is `deepseek-ai/DeepSeek-V3.2`, and `MOJIE_MODEL_CONTEXT_TOKENS=163840` matches the provider's [model listing](https://siliconflow.cn/models?page=1&q=DeepSeek-V3.2). The optional `Pro/` variant is a different provider ID and must be recorded separately. Configuration validity and a successful single request do not prove that a multi-turn run can finish. The [initial V3.2 audit](../docs/verification/agent-loop-deepseek-v3.2-2026-10-01.json) records the original configuration failure, timeouts and provider rate limits.
+
+Start the Java API against a dedicated test database, with a real model configured and `MOJIE_DEV_TRACE=true`. Do not point the verification at an author's working database. From the repository root:
+
+```bash
+python3 scripts/check-agent-loop-live.py \
+  --base-url http://127.0.0.1:18082/api/v1 \
+  --model deepseek-ai/DeepSeek-V3.2 \
+  --output /tmp/mojie-live-new-attempt.json
+```
+
+The script uses Python's standard library only as an HTTP test client; the application still runs without Python. It creates separate three-chapter/three-setting projects for the five PRD materials: no change, contradiction with adoption, a 5,900-code-point whole-chapter edit, an empty literal search with synonymous evidence, and insufficient evidence. It checks full target delivery, unchanged official text before adoption, exact whole-chapter preservation, one-time adoption and terminal SSE replay. It exits nonzero on failed technical assertions and saves failed runs as well as successful ones. Existing output files are never overwritten; `--cases readonly edit long synonym insufficient` can select a subset for a separately recorded attempt. The `--model` label must be checked against `tb_agent_run.model_id` and `config_snapshot`; it does not change server configuration. Inspect the saved final analyses and evidence manually for literary correctness and honest coverage.
