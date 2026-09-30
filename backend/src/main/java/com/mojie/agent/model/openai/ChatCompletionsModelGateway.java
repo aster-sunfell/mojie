@@ -204,6 +204,7 @@ public final class ChatCompletionsModelGateway implements ModelGateway, AutoClos
 
     private static ModelException statusError(int status) {
         if (status == 401 || status == 403) return new ModelException("MODEL_AUTH_ERROR", "Model authentication failed");
+        if (status == 402) return new ModelException("MODEL_PAYMENT_REQUIRED", "模型账户余额不足或需要开通付费权限，请检查模型服务账户。");
         if (status == 429) return new ModelException("MODEL_RATE_LIMITED", "Model rate limit reached");
         if (status == 408 || status == 504) return new ModelException("MODEL_TIMEOUT", "Model request timed out");
         if (status == 404) return new ModelException("MODEL_ERROR", "Model endpoint or model ID was not found");

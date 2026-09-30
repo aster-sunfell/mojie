@@ -744,6 +744,7 @@ SSE 持续失败时，前端每 2 秒查询任务快照；已知终态后停止�
 | 任务错误 SCHEDULING_FAILED | 已创建任务但调度失败 | 显示失败；不保留虚假的排队状态 |
 | 任务错误 PERSISTENCE_ERROR | 消息或结果持久化失败 | 显示失败或状态暂不可确认；恢复后重新查询 |
 | 任务错误 INSUFFICIENT_CONTEXT | 未读取目标章节便给出最终结论 | 显示检查未完成，不展示可采纳建议 |
+| 任务错误 MODEL_PAYMENT_REQUIRED | 模型提供方返回 HTTP 402，要求付费或补充余额 | 提示检查模型账户，不自动重试、不发布建议 |
 | 工具错误 INVALID_SEARCH_CURSOR / SEARCH_SCOPE_TOO_LARGE / SEARCH_TIMEOUT | 游标非法、搜索规模超限或搜索超时 | 展示真实失败原因；不得把失败显示为无命中；模型纠错规则见 5.9 |
 | 503 SERVICE_UNAVAILABLE | 数据库不可用或服务尚未就绪 | 保留本地输入，禁止把未知结果当成成功 |
 

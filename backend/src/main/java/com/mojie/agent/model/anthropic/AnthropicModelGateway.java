@@ -66,6 +66,8 @@ public final class AnthropicModelGateway implements ModelGateway, AutoCloseable 
         } catch (BadRequestException e) {
             throw new ModelException("MODEL_ERROR", "Model request was rejected");
         } catch (AnthropicServiceException e) {
+            if (e.statusCode() == 402)
+                throw new ModelException("MODEL_PAYMENT_REQUIRED", "模型账户余额不足或需要开通付费权限，请检查模型服务账户。");
             throw new ModelException("MODEL_ERROR", "Model provider failed with HTTP " + e.statusCode());
         } catch (AnthropicException e) {
             throw new ModelException("MODEL_ERROR", "Model SDK failed");

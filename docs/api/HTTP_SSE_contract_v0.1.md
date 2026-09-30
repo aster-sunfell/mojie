@@ -2,6 +2,8 @@
 
 所有路径以 `/api/v1` 为前缀。成功 JSON 使用 `{ "data": ... }`；删除成功返回 204、无正文。失败 JSON 使用 `{ "code": "...", "message": "...", "requestId": "...", "details": {} }`。客户端应按 HTTP 状态和 `code` 处理错误，不解析服务端堆栈。
 
+任务内模型调用的 HTTP 402 记录为 `FAILED / MODEL_PAYMENT_REQUIRED`，提示检查模型账户余额或付费权限。消息采用后端固定文案，不展示提供方原始响应；不自动重试，也不发布候选稿。任务详情查询本身仍正常返回 HTTP 200。
+
 ## 列表分页
 
 `GET /projects`、`GET /projects/{id}/chapters`、`GET /projects/{id}/settings`、`GET /chapters/{id}/revisions` 和 `GET /agent/runs` 的 `data` 为 `{ "items": [...], "nextCursor": string | null }`。`limit` 默认 20、最大 50。传回 `nextCursor` 作为下一次请求的 `cursor`，末页为 `null`；游标绑定当前作者、资源及筛选条件，改条件后从第一页重新请求。无效或篡改游标返回 400 `VALIDATION_ERROR`。游标是已读位置，不是整个列表的时间点快照；翻页期间新增或更改内容可能改变列表。

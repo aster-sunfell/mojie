@@ -264,7 +264,7 @@ class RunSchedulerIT {
     @Test void modelFailuresStayDistinctAndNeverPublishAProposal() throws Exception {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();
-            for (String code : List.of("MODEL_AUTH_ERROR", "MODEL_NETWORK_ERROR", "MODEL_TIMEOUT")) {
+            for (String code : List.of("MODEL_AUTH_ERROR", "MODEL_PAYMENT_REQUIRED", "MODEL_NETWORK_ERROR", "MODEL_TIMEOUT")) {
                 Fixture fixture = fixture(source, code);
                 AtomicInteger attempts = new AtomicInteger();
                 ModelGateway failure = request -> {

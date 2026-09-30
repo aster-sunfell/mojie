@@ -76,9 +76,9 @@ class AnthropicModelGatewayIT {
         } finally { client.close(); server.stop(0); }
     }
 
-    @Test void authenticationAndPermissionErrorsAreClassifiedWithoutRetry() throws Exception {
+    @Test void authenticationPaymentAndPermissionErrorsAreClassifiedWithoutRetry() throws Exception {
         assumeTrue("1".equals(System.getenv("MOJIE_TEST_LOCAL_HTTP")));
-        for (int status : List.of(401, 403)) {
+        for (int status : List.of(401, 402, 403)) {
             AtomicInteger calls = new AtomicInteger();
             HttpServer server = server(status,
                     "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"secret detail\"}}",
@@ -87,7 +87,7 @@ class AnthropicModelGatewayIT {
             try (AnthropicModelGateway gateway = new AnthropicModelGateway(client)) {
                 ModelGateway.ModelException failure = assertThrows(ModelGateway.ModelException.class,
                         () -> gateway.call(simpleRequest(5_000)));
-                assertEquals("MODEL_AUTH_ERROR", failure.code());
+                assertEquals(status == 402 ? "MODEL_PAYMENT_REQUIRED" : "MODEL_AUTH_ERROR", failure.code());
                 assertFalse(failure.getMessage().contains("secret detail"));
                 assertEquals(1, calls.get());
             } finally { client.close(); server.stop(0); }

@@ -69,12 +69,12 @@ class ChatCompletionsModelGatewayIT {
     }
 
     @Test void errorsUseOneAttemptAndNeverExposeProviderBody() throws Exception {
-        for (int status : List.of(401, 403, 429, 404, 408, 504, 500)) {
+        for (int status : List.of(401, 402, 403, 429, 404, 408, 504, 500)) {
             AtomicInteger calls = new AtomicInteger();
             HttpServer server = server(status, "{\"error\":\"secret detail\"}", calls, new AtomicReference<>());
             try (ChatCompletionsModelGateway gateway = new ChatCompletionsModelGateway("test-key", endpoint(server))) {
                 ModelException failure = assertThrows(ModelException.class, () -> gateway.call(simpleRequest()));
-                assertEquals(status == 401 || status == 403 ? "MODEL_AUTH_ERROR" : status == 429 ? "MODEL_RATE_LIMITED"
+                assertEquals(status == 401 || status == 403 ? "MODEL_AUTH_ERROR" : status == 402 ? "MODEL_PAYMENT_REQUIRED" : status == 429 ? "MODEL_RATE_LIMITED"
                                 : status == 408 || status == 504 ? "MODEL_TIMEOUT" : "MODEL_ERROR",
                         failure.code());
                 assertFalse(failure.getMessage().contains("secret detail"));

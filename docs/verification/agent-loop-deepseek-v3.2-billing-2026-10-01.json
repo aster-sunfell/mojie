@@ -1,0 +1,78 @@
+{
+  "startedAt": "2026-09-30T16:31:44.199594+00:00",
+  "gitCommit": "9ce176b5d03ba3b2aa0863b4d02a3127fb2b31d9",
+  "api": "http://127.0.0.1:18082/api/v1",
+  "expectedModel": "deepseek-ai/DeepSeek-V3.2",
+  "cases": [
+    {
+      "caseId": "readonly",
+      "name": "无需修改",
+      "startedAt": "2026-09-30T16:31:44.285004+00:00",
+      "inputCodePoints": 23,
+      "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+      "projectId": "01a0f328-5ebd-725f-a901-8a0bcf9c2bad",
+      "targetChapterId": "01a0f328-5ef4-73f3-aaa0-0c8a0a4d522f",
+      "runId": "01a0f328-5f26-74ba-8b22-453929b9846d",
+      "elapsedSeconds": 1.0,
+      "run": {
+        "id": "01a0f328-5f26-74ba-8b22-453929b9846d",
+        "projectId": "01a0f328-5ebd-725f-a901-8a0bcf9c2bad",
+        "targetChapterId": "01a0f328-5ef4-73f3-aaa0-0c8a0a4d522f",
+        "baseVersion": 2,
+        "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:31:44.420864Z",
+        "startedAt": "2026-09-30T16:31:44.432019Z",
+        "finishedAt": "2026-09-30T16:31:44.744034Z",
+        "analysis": null,
+        "errorCode": "MODEL_ERROR",
+        "errorDetail": "Model provider failed with HTTP 402",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_ERROR",
+          "errorDetail": "Model provider failed with HTTP 402"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "lastType": "run.failed"
+      },
+      "checks": {
+        "succeeded": false,
+        "chapterUnchangedBeforeAdoption": true,
+        "targetFullReadProvided": false,
+        "expectedProposalPresence": true,
+        "sseContinuousToTerminal": true
+      },
+      "passed": false
+    }
+  ],
+  "scope": "Technical live-model assertions; final literary judgments require human review.",
+  "finishedAt": "2026-09-30T16:31:45.499424+00:00",
+  "passed": false,
+  "providerDiagnostic": {
+    "httpStatus": 402,
+    "code": 30001,
+    "message": "Sorry, your account balance is insufficient",
+    "source": "Direct request to the configured SiliconFlow V3.2 endpoint; no credentials retained"
+  },
+  "followup": {
+    "classificationAfterFix": "MODEL_PAYMENT_REQUIRED",
+    "originalRunPreserved": true,
+    "verification": "Both model adapters: local HTTP 402, one attempt and sanitized message; PostgreSQL: failed terminal and no proposal. mvn verify passed 37 unit and 36 integration tests."
+  }
+}
