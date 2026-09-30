@@ -1,0 +1,2102 @@
+{
+  "startedAt": "2026-09-30T17:05:57.554826+00:00",
+  "gitCommit": "a4212519ede908e1fee9f8a98b470eab3d0a5265",
+  "api": "http://127.0.0.1:18082/api/v1",
+  "expectedModel": "deepseek-ai/DeepSeek-V3.2",
+  "cases": [
+    {
+      "caseId": "readonly",
+      "name": "无需修改",
+      "startedAt": "2026-09-30T17:05:57.564347+00:00",
+      "inputCodePoints": 23,
+      "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+      "projectId": "01a0f347-b356-7ec4-bc48-95fef43e7f47",
+      "targetChapterId": "01a0f347-b386-7b15-9353-8b1d34530990",
+      "runId": "01a0f347-b3b3-70d3-aaf4-93cc0c4f1e56",
+      "elapsedSeconds": 77.5,
+      "run": {
+        "id": "01a0f347-b3b3-70d3-aaf4-93cc0c4f1e56",
+        "projectId": "01a0f347-b356-7ec4-bc48-95fef43e7f47",
+        "targetChapterId": "01a0f347-b386-7b15-9353-8b1d34530990",
+        "baseVersion": 2,
+        "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+        "status": "SUCCEEDED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T17:05:57.681828Z",
+        "startedAt": "2026-09-30T17:05:57.695281Z",
+        "finishedAt": "2026-09-30T17:07:10.415912Z",
+        "analysis": "现在我有完整的上下文信息，可以进行分析。\n\n**结论：** 目标章中林舟的行为没有矛盾。\n\n**依据：**\n1. **人物设定一致性**：林舟的设定明确说明\"林舟不会游泳，熟悉步行路线\"。在第三章中，林舟\"望着深水，决定不上水。他沿石桥走到了对岸\"完全符合这一设定。作为一个不会游泳的人，他做出了理智的决定——不下水，而是走桥。\n\n2. **前文铺垫一致性**：在第一章中，林舟明确表示\"遇到深水只能绕行或走桥\"。这为他第三章遇到深水时的行为做好了逻辑铺垫。他不会游泳，所以选择绕行或走桥是符合人物特征的。\n\n3. **情节发展连贯性**：在第二章中，林舟\"查看地图，发现河上有一座安全的石桥。他尚未学习新技能。\"这表明他提前规划了路线，知道有石桥可用，并且没有掌握游泳等新技能。第三章中他实际执行了这一计划——走石桥过河。\n\n4. **行为逻辑合理性**：林舟作为一个不会游泳但熟悉步行路线的人，面对深水时选择走桥是符合逻辑的安全行为。他没有冒险下水，也没有试图学习游泳仓促过河，而是采用了预先规划的安全方案。\n\n**范围与不确定性：**\n- 已查阅范围：第三章目标章全文、第一、二章全文、林舟的人物设定\n- 未查阅其他相关设定（如地点设定、其他人物设定），但根据现有证据已足够判断林舟行为的内部一致性\n- 没有发现任何行为矛盾或设定冲突",
+        "errorCode": null,
+        "errorDetail": null,
+        "modelCallCount": 6,
+        "toolCallCount": 6,
+        "toolTextCodepoints": 1285,
+        "lastEventSeq": 27,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "457c818e-66be-4963-8a71-e0be29f1f93c",
+            "toolCallId": "01a0f347c91a4a83d3defe4776265bdd",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f347-b386-7b15-9353-8b1d34530990"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "林舟望着深水，决定不上水。他沿石桥走到了对岸。",
+                "version": 2,
+                "chapterId": "01a0f347-b386-7b15-9353-8b1d34530990",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:06:04.081061Z",
+            "finishedAt": "2026-09-30T17:06:04.089100Z",
+            "modelCallIndex": 1
+          },
+          {
+            "toolExecutionId": "45b9966d-59a7-4d4c-a8c6-54d4a09d4e90",
+            "toolCallId": "01a0f347b69ff19310db95a65eb1ed30",
+            "toolName": "search_settings",
+            "args": {
+              "keyword": "林舟"
+            },
+            "result": {
+              "data": {
+                "items": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "snippet": "林舟",
+                    "settingId": "01a0f347-b395-7733-b234-db56a03947e5",
+                    "matchField": "TITLE",
+                    "codePointOffset": 0
+                  }
+                ],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:06:10.771669Z",
+            "finishedAt": "2026-09-30T17:06:10.780091Z",
+            "modelCallIndex": 2
+          },
+          {
+            "toolExecutionId": "2fef1bfc-ea0c-40bc-8395-43fd5874530c",
+            "toolCallId": "01a0f347d05737cdaf18837d314b7d79",
+            "toolName": "read_settings",
+            "args": {
+              "settingIds": [
+                "01a0f347-b395-7733-b234-db56a03947e5"
+              ]
+            },
+            "result": {
+              "data": {
+                "settings": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "content": "林舟不会游泳，熟悉步行路线。",
+                    "settingId": "01a0f347-b395-7733-b234-db56a03947e5"
+                  }
+                ]
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:06:27.827082Z",
+            "finishedAt": "2026-09-30T17:06:27.832347Z",
+            "modelCallIndex": 3
+          },
+          {
+            "toolExecutionId": "9a80a737-f5b6-4dba-9fad-171b93b6b97f",
+            "toolCallId": "01a0f34810d7099d3b40f0c6bba61bf9",
+            "toolName": "list_chapters",
+            "args": {},
+            "result": {
+              "data": {
+                "items": [
+                  {
+                    "title": "第一章·旧事",
+                    "version": 2,
+                    "chapterId": "01a0f347-b362-73d9-b014-75bf1882792e",
+                    "chapterOrder": 1
+                  },
+                  {
+                    "title": "第二章·出发",
+                    "version": 2,
+                    "chapterId": "01a0f347-b378-7018-a6c9-58b8a771f3a9",
+                    "chapterOrder": 2
+                  },
+                  {
+                    "title": "第三章·目标",
+                    "version": 2,
+                    "chapterId": "01a0f347-b386-7b15-9353-8b1d34530990",
+                    "chapterOrder": 3
+                  }
+                ],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:06:35.759486Z",
+            "finishedAt": "2026-09-30T17:06:35.765001Z",
+            "modelCallIndex": 4
+          },
+          {
+            "toolExecutionId": "dda41b71-bb8c-4957-886f-d71e03a39cae",
+            "toolCallId": "01a0f347819f3baa050dcf5e4f6100b0",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f347-b362-73d9-b014-75bf1882792e"
+            },
+            "result": {
+              "data": {
+                "title": "第一章·旧事",
+                "content": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                "version": 2,
+                "chapterId": "01a0f347-b362-73d9-b014-75bf1882792e",
+                "chapterOrder": 1
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:06:48.775347Z",
+            "finishedAt": "2026-09-30T17:06:48.782080Z",
+            "modelCallIndex": 5
+          },
+          {
+            "toolExecutionId": "1c71bb02-e85d-4154-b262-b2e63055430d",
+            "toolCallId": "01a0f34781a03baa050dcf5e4f6100b1",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f347-b378-7018-a6c9-58b8a771f3a9"
+            },
+            "result": {
+              "data": {
+                "title": "第二章·出发",
+                "content": "林舟查看地图，发现河上有一座安全的石桥。他尚未学习新技能。",
+                "version": 2,
+                "chapterId": "01a0f347-b378-7018-a6c9-58b8a771f3a9",
+                "chapterOrder": 2
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:06:48.788709Z",
+            "finishedAt": "2026-09-30T17:06:48.794785Z",
+            "modelCallIndex": 5
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f347-ccbb-7130-b3dd-7e664ae0342c",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f347-b386-7b15-9353-8b1d34530990",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "457c818e-66be-4963-8a71-e0be29f1f93c",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f347-e6dd-79fe-9872-6525d413ac04",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f347-b395-7733-b234-db56a03947e5",
+            "lineNumber": null,
+            "codepointOffset": 0,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "45b9966d-59a7-4d4c-a8c6-54d4a09d4e90",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f348-2979-7f37-96e5-e132f8d8ae3b",
+            "kind": "FULL_SETTING",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f347-b395-7733-b234-db56a03947e5",
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "2fef1bfc-ea0c-40bc-8395-43fd5874530c",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f348-7b50-71bf-a678-b21d6af87c67",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f347-b362-73d9-b014-75bf1882792e",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "dda41b71-bb8c-4957-886f-d71e03a39cae",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f348-7b5c-7339-a096-6ba385bf53cb",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f347-b378-7018-a6c9-58b8a771f3a9",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "1c71bb02-e85d-4154-b262-b2e63055430d",
+            "providedToModel": true
+          }
+        ]
+      },
+      "modelId": "deepseek-ai/DeepSeek-V3.2",
+      "modelConfig": {
+        "apiPath": "/v1/chat/completions",
+        "maxOutputTokens": 16000,
+        "contextWindowTokens": 163840
+      },
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1188,
+            "outputTokens": 85
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1363,
+            "outputTokens": 70
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 3,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1527,
+            "outputTokens": 71
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 4,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1677,
+            "outputTokens": 44
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 5,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1887,
+            "outputTokens": 130
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 6,
+          "status": "SUCCEEDED",
+          "finishReason": "FINAL",
+          "rawFinishReason": "stop",
+          "usage": {
+            "inputTokens": 2187,
+            "outputTokens": 338
+          },
+          "errorCode": null,
+          "errorDetail": null
+        }
+      ],
+      "sseReplay": {
+        "count": 25,
+        "lastType": "run.succeeded"
+      },
+      "checks": {
+        "succeeded": true,
+        "chapterUnchangedBeforeAdoption": true,
+        "targetFullReadProvided": true,
+        "expectedProposalPresence": true,
+        "expectedPersistedModel": true,
+        "sseContinuousToTerminal": true
+      },
+      "passed": true
+    },
+    {
+      "caseId": "edit",
+      "name": "矛盾与采纳",
+      "startedAt": "2026-09-30T17:07:11.226254+00:00",
+      "inputCodePoints": 39,
+      "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+      "projectId": "01a0f348-d2fd-71de-8185-fa8fdf02adc4",
+      "targetChapterId": "01a0f348-d31d-7594-9f55-f3b4e8b01d26",
+      "runId": "01a0f348-d33c-75a0-aafb-ed3de0c9cf84",
+      "elapsedSeconds": 56.0,
+      "run": {
+        "id": "01a0f348-d33c-75a0-aafb-ed3de0c9cf84",
+        "projectId": "01a0f348-d2fd-71de-8185-fa8fdf02adc4",
+        "targetChapterId": "01a0f348-d31d-7594-9f55-f3b4e8b01d26",
+        "baseVersion": 2,
+        "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T17:07:11.291840Z",
+        "startedAt": "2026-09-30T17:07:11.297225Z",
+        "finishedAt": "2026-09-30T17:08:02.210185Z",
+        "analysis": null,
+        "errorCode": "LIMIT_EXCEEDED",
+        "errorDetail": "MODEL_CALLS: 8/8",
+        "modelCallCount": 8,
+        "toolCallCount": 7,
+        "toolTextCodepoints": 1996,
+        "lastEventSeq": 33,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "739046b0-2171-4a82-a456-70c8fea21672",
+            "toolCallId": "01a0f348b78c7e554dbddd10c7071431",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f348-d31d-7594-9f55-f3b4e8b01d26"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "林舟站在河边，收好地图。\n林舟游到了对岸。\n他回头望了望山路，继续向城镇走去。",
+                "version": 2,
+                "chapterId": "01a0f348-d31d-7594-9f55-f3b4e8b01d26",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:07:19.443672Z",
+            "finishedAt": "2026-09-30T17:07:19.448316Z",
+            "modelCallIndex": 1
+          },
+          {
+            "toolExecutionId": "0fb1beec-e77c-417b-8de8-67fe70a82093",
+            "toolCallId": "01a0f348feb6ae028864d11fbb5fbcaf",
+            "toolName": "search_chapters",
+            "args": {
+              "scope": "ALL_CHAPTERS",
+              "keyword": "游泳"
+            },
+            "result": {
+              "data": {
+                "scope": "ALL_CHAPTERS",
+                "viewId": "fd927799-7b99-4063-97d5-30daad08cd09",
+                "hasMore": false,
+                "keyword": "游泳",
+                "matches": [
+                  {
+                    "title": "第一章·旧事",
+                    "snippet": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                    "version": 2,
+                    "matchEnd": 11,
+                    "chapterId": "01a0f348-d304-71f9-a5f5-2db8c481ae0b",
+                    "lineNumber": 1,
+                    "matchStart": 9,
+                    "chapterOrder": 1,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  }
+                ],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:07:22.851227Z",
+            "finishedAt": "2026-09-30T17:07:22.868797Z",
+            "modelCallIndex": 2
+          },
+          {
+            "toolExecutionId": "f005deea-0d8a-4250-baf8-0a1f9a25f469",
+            "toolCallId": "01a0f34914257e341ba974819391a16a",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f348-d304-71f9-a5f5-2db8c481ae0b"
+            },
+            "result": {
+              "data": {
+                "title": "第一章·旧事",
+                "content": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                "version": 2,
+                "chapterId": "01a0f348-d304-71f9-a5f5-2db8c481ae0b",
+                "chapterOrder": 1
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:07:28.698907Z",
+            "finishedAt": "2026-09-30T17:07:28.704653Z",
+            "modelCallIndex": 3
+          },
+          {
+            "toolExecutionId": "0117a20d-1934-4089-ab56-03c4a9db1507",
+            "toolCallId": "01a0f349451029f156482ca711efd4b7",
+            "toolName": "search_settings",
+            "args": {
+              "keyword": "游泳"
+            },
+            "result": {
+              "data": {
+                "items": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "snippet": "林舟不会游泳，熟悉步行路线。",
+                    "settingId": "01a0f348-d328-7a6c-898d-063312609296",
+                    "matchField": "CONTENT",
+                    "codePointOffset": 4
+                  }
+                ],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:07:42.048889Z",
+            "finishedAt": "2026-09-30T17:07:42.056106Z",
+            "modelCallIndex": 4
+          },
+          {
+            "toolExecutionId": "a82854f1-a820-460c-aa1b-7071486af6ac",
+            "toolCallId": "01a0f349593d1daf69c012e33650c3f2",
+            "toolName": "read_settings",
+            "args": {
+              "settingIds": [
+                "01a0f348-d328-7a6c-898d-063312609296"
+              ]
+            },
+            "result": {
+              "data": {
+                "settings": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "content": "林舟不会游泳，熟悉步行路线。",
+                    "settingId": "01a0f348-d328-7a6c-898d-063312609296"
+                  }
+                ]
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:07:47.536755Z",
+            "finishedAt": "2026-09-30T17:07:47.544293Z",
+            "modelCallIndex": 5
+          },
+          {
+            "toolExecutionId": "075604a1-e1e9-4436-8fb5-dee1e4156e9a",
+            "toolCallId": "01a0f3496d5a5a7d3ce91f98f36fcdd6",
+            "toolName": "search_settings",
+            "args": {
+              "keyword": "林舟"
+            },
+            "result": {
+              "data": {
+                "items": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "snippet": "林舟",
+                    "settingId": "01a0f348-d328-7a6c-898d-063312609296",
+                    "matchField": "TITLE",
+                    "codePointOffset": 0
+                  }
+                ],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:07:51.077163Z",
+            "finishedAt": "2026-09-30T17:07:51.083697Z",
+            "modelCallIndex": 6
+          },
+          {
+            "toolExecutionId": "3078fbfc-b687-4cf6-8d4e-026c2bd00367",
+            "toolCallId": "01a0f349820999e1fa8518b7a6122299",
+            "toolName": "search_chapters",
+            "args": {
+              "scope": "ALL_CHAPTERS",
+              "keyword": "桥"
+            },
+            "result": {
+              "data": {
+                "scope": "ALL_CHAPTERS",
+                "viewId": "fd927799-7b99-4063-97d5-30daad08cd09",
+                "hasMore": false,
+                "keyword": "桥",
+                "matches": [
+                  {
+                    "title": "第一章·旧事",
+                    "snippet": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                    "version": 2,
+                    "matchEnd": 23,
+                    "chapterId": "01a0f348-d304-71f9-a5f5-2db8c481ae0b",
+                    "lineNumber": 1,
+                    "matchStart": 22,
+                    "chapterOrder": 1,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  },
+                  {
+                    "title": "第二章·出发",
+                    "snippet": "林舟查看地图，发现河上有一座安全的石桥。他尚未学习新技能。",
+                    "version": 2,
+                    "matchEnd": 19,
+                    "chapterId": "01a0f348-d310-7e92-ab74-e9ddb2be4211",
+                    "lineNumber": 1,
+                    "matchStart": 18,
+                    "chapterOrder": 2,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  }
+                ],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:07:56.723247Z",
+            "finishedAt": "2026-09-30T17:07:56.732436Z",
+            "modelCallIndex": 7
+          },
+          {
+            "toolExecutionId": "01a0f349-9a1e-7d8a-8a64-a055031b1984",
+            "toolCallId": "01a0f349963ca25ed2bfc8f98704328a",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f348-d310-7e92-ab74-e9ddb2be4211"
+            },
+            "result": null,
+            "summary": null,
+            "status": "ABORTED",
+            "errorCode": "MODEL_CALLS",
+            "startedAt": "2026-09-30T17:08:02.205806Z",
+            "finishedAt": "2026-09-30T17:08:02.205806Z",
+            "modelCallIndex": 8
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f348-f319-7dc3-b033-357507eebb41",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f348-d31d-7594-9f55-f3b4e8b01d26",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "739046b0-2171-4a82-a456-70c8fea21672",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-0076-765d-81a3-2eb26d916b76",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f348-d304-71f9-a5f5-2db8c481ae0b",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 9,
+            "contentHash": null,
+            "toolExecutionId": "0fb1beec-e77c-417b-8de8-67fe70a82093",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-1742-710e-b78d-40d94e24162c",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f348-d304-71f9-a5f5-2db8c481ae0b",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "f005deea-0d8a-4250-baf8-0a1f9a25f469",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-4b69-771f-b112-7fec27f7b747",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f348-d328-7a6c-898d-063312609296",
+            "lineNumber": null,
+            "codepointOffset": 4,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "0117a20d-1934-4089-ab56-03c4a9db1507",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-60d9-7ac4-ad75-6463fce47ad7",
+            "kind": "FULL_SETTING",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f348-d328-7a6c-898d-063312609296",
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "a82854f1-a820-460c-aa1b-7071486af6ac",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-6ead-729c-8be4-8833f2b79b75",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f348-d328-7a6c-898d-063312609296",
+            "lineNumber": null,
+            "codepointOffset": 0,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "075604a1-e1e9-4436-8fb5-dee1e4156e9a",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-84be-7677-8226-d35af5468b2b",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f348-d304-71f9-a5f5-2db8c481ae0b",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 22,
+            "contentHash": null,
+            "toolExecutionId": "3078fbfc-b687-4cf6-8d4e-026c2bd00367",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-84bf-7541-be50-6856ac6ef6bf",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f348-d310-7e92-ab74-e9ddb2be4211",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 18,
+            "contentHash": null,
+            "toolExecutionId": "3078fbfc-b687-4cf6-8d4e-026c2bd00367",
+            "providedToModel": true
+          }
+        ]
+      },
+      "modelId": "deepseek-ai/DeepSeek-V3.2",
+      "modelConfig": {
+        "apiPath": "/v1/chat/completions",
+        "maxOutputTokens": 16000,
+        "contextWindowTokens": 163840
+      },
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1223,
+            "outputTokens": 91
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1421,
+            "outputTokens": 76
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 3,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1669,
+            "outputTokens": 88
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 4,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1849,
+            "outputTokens": 52
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 5,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2002,
+            "outputTokens": 73
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 6,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2154,
+            "outputTokens": 60
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 7,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2308,
+            "outputTokens": 76
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 8,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2648,
+            "outputTokens": 72
+          },
+          "errorCode": null,
+          "errorDetail": null
+        }
+      ],
+      "sseReplay": {
+        "count": 31,
+        "lastType": "run.failed"
+      },
+      "checks": {
+        "succeeded": false,
+        "chapterUnchangedBeforeAdoption": true,
+        "targetFullReadProvided": true,
+        "expectedProposalPresence": false,
+        "expectedPersistedModel": true,
+        "sseContinuousToTerminal": true
+      },
+      "passed": false
+    },
+    {
+      "caseId": "long",
+      "name": "5900码点完整候选",
+      "startedAt": "2026-09-30T17:08:02.920321+00:00",
+      "inputCodePoints": 5900,
+      "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+      "projectId": "01a0f349-9cec-7c3b-b9d6-99bb3b33cc9f",
+      "targetChapterId": "01a0f349-9d0b-7fbf-a7a9-0a3423747047",
+      "runId": "01a0f349-9d43-7c01-86d2-7beb91d82efa",
+      "elapsedSeconds": 100.2,
+      "run": {
+        "id": "01a0f349-9d43-7c01-86d2-7beb91d82efa",
+        "projectId": "01a0f349-9cec-7c3b-b9d6-99bb3b33cc9f",
+        "targetChapterId": "01a0f349-9d0b-7fbf-a7a9-0a3423747047",
+        "baseVersion": 2,
+        "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T17:08:03.010804Z",
+        "startedAt": "2026-09-30T17:08:03.016987Z",
+        "finishedAt": "2026-09-30T17:09:36.068250Z",
+        "analysis": null,
+        "errorCode": "MODEL_TIMEOUT",
+        "errorDetail": "Model request timed out",
+        "modelCallCount": 6,
+        "toolCallCount": 5,
+        "toolTextCodepoints": 7168,
+        "lastEventSeq": 25,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "b0239d39-1cdb-42e5-a745-14990f17fdb0",
+            "toolCallId": "01a0f349ac2c02908fc45eab9d217020",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f349-9d0b-7fbf-a7a9-0a3423747047"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "第01处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第02处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第03处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第04处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第05处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第06处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第07处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第08处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第09处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第10处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第11处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第12处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第13处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第14处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第15处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第16处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第17处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第18处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第19处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第20处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第21处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第22处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第23处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第24处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第25处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第26处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第27处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第28处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第29处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第30处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第31处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第32处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第33处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第34处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第35处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第36处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第37处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第38处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第39处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第40处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第41处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第42处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第43处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第44处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第45处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第46处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第47处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第48处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第49处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第50处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第51处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第52处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第53处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第54处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第55处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第56处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第57处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第58处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第59处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第60处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第61处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第62处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第63处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第64处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第65处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第66处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第67处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第68处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第69处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第70处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第71处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第72处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第73处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第74处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第75处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第76处路标旁，林舟停下脚步，核对地图上用墨线标出的方向。山风吹过树梢，远处的石桥清晰可见。他记下沿途的石墙、松林与村舍，准备日后整理成一份旅途笔记。\n\n第77处路标旁，林舟停下脚步，核对地图上用墨\n\n林舟游到了对岸。\n他收好地图，沿着石阶走向城镇。",
+                "version": 2,
+                "chapterId": "01a0f349-9d0b-7fbf-a7a9-0a3423747047",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:08:08.179952Z",
+            "finishedAt": "2026-09-30T17:08:08.184609Z",
+            "modelCallIndex": 1
+          },
+          {
+            "toolExecutionId": "5366b4b0-1fd4-4f99-a477-4cdadb25d65f",
+            "toolCallId": "01a0f349be265f980671205da8306bb4",
+            "toolName": "search_settings",
+            "args": {
+              "keyword": "游泳"
+            },
+            "result": {
+              "data": {
+                "items": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "snippet": "林舟不会游泳，熟悉步行路线。",
+                    "settingId": "01a0f349-9d1a-7485-a60b-39fc9b456594",
+                    "matchField": "CONTENT",
+                    "codePointOffset": 4
+                  }
+                ],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:08:13.083589Z",
+            "finishedAt": "2026-09-30T17:08:13.090288Z",
+            "modelCallIndex": 2
+          },
+          {
+            "toolExecutionId": "12e4ff16-5d92-41af-a777-7157020f3a42",
+            "toolCallId": "01a0f349d1e5291d96c184227f7ba58a",
+            "toolName": "read_settings",
+            "args": {
+              "settingIds": [
+                "01a0f349-9d1a-7485-a60b-39fc9b456594"
+              ]
+            },
+            "result": {
+              "data": {
+                "settings": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "content": "林舟不会游泳，熟悉步行路线。",
+                    "settingId": "01a0f349-9d1a-7485-a60b-39fc9b456594"
+                  }
+                ]
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:08:18.466406Z",
+            "finishedAt": "2026-09-30T17:08:18.471032Z",
+            "modelCallIndex": 3
+          },
+          {
+            "toolExecutionId": "b0394f3a-2e07-4f43-8928-e2835c1020d3",
+            "toolCallId": "01a0f349fad2b36c0035f5ebf0f7b9d5",
+            "toolName": "search_chapters",
+            "args": {
+              "scope": "BEFORE_TARGET",
+              "keyword": "游泳"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "1c969b6a-7ee9-4359-8dea-eb5a61560f74",
+                "hasMore": false,
+                "keyword": "游泳",
+                "matches": [
+                  {
+                    "title": "第一章·旧事",
+                    "snippet": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                    "version": 2,
+                    "matchEnd": 11,
+                    "chapterId": "01a0f349-9cf4-7031-a17b-ed0319085394",
+                    "lineNumber": 1,
+                    "matchStart": 9,
+                    "chapterOrder": 1,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  }
+                ],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:08:27.609497Z",
+            "finishedAt": "2026-09-30T17:08:27.621018Z",
+            "modelCallIndex": 4
+          },
+          {
+            "toolExecutionId": "e7c9b3b2-f0ae-4acb-b903-7cd88a9490f3",
+            "toolCallId": "01a0f34a196ef6de53f09048dcccbc58",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f349-9cf4-7031-a17b-ed0319085394"
+            },
+            "result": {
+              "data": {
+                "title": "第一章·旧事",
+                "content": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                "version": 2,
+                "chapterId": "01a0f349-9cf4-7031-a17b-ed0319085394",
+                "chapterOrder": 1
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:08:36.034416Z",
+            "finishedAt": "2026-09-30T17:08:36.039312Z",
+            "modelCallIndex": 5
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f349-b17a-7c0a-8cfd-59e3946a5f08",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f349-9d0b-7fbf-a7a9-0a3423747047",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "b0239d39-1cdb-42e5-a745-14990f17fdb0",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-c4a3-7ae7-ac58-c6edffb88b27",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f349-9d1a-7485-a60b-39fc9b456594",
+            "lineNumber": null,
+            "codepointOffset": 4,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "5366b4b0-1fd4-4f99-a477-4cdadb25d65f",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-d9a8-7129-a7eb-10a5774fb5e4",
+            "kind": "FULL_SETTING",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f349-9d1a-7485-a60b-39fc9b456594",
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "12e4ff16-5d92-41af-a777-7157020f3a42",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f349-fd66-71c0-8617-97065e6d828b",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f349-9cf4-7031-a17b-ed0319085394",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 9,
+            "contentHash": null,
+            "toolExecutionId": "b0394f3a-2e07-4f43-8928-e2835c1020d3",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34a-1e48-7879-a43e-6ccc7bb4ca02",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f349-9cf4-7031-a17b-ed0319085394",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "e7c9b3b2-f0ae-4acb-b903-7cd88a9490f3",
+            "providedToModel": false
+          }
+        ]
+      },
+      "modelId": "deepseek-ai/DeepSeek-V3.2",
+      "modelConfig": {
+        "apiPath": "/v1/chat/completions",
+        "maxOutputTokens": 16000,
+        "contextWindowTokens": 163840
+      },
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1226,
+            "outputTokens": 81
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 5752,
+            "outputTokens": 67
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 3,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 5923,
+            "outputTokens": 84
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 4,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 6089,
+            "outputTokens": 81
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 5,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 6341,
+            "outputTokens": 79
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 6,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_TIMEOUT",
+          "errorDetail": "Model request timed out"
+        }
+      ],
+      "sseReplay": {
+        "count": 23,
+        "lastType": "run.failed"
+      },
+      "checks": {
+        "succeeded": false,
+        "chapterUnchangedBeforeAdoption": true,
+        "targetFullReadProvided": true,
+        "expectedProposalPresence": false,
+        "expectedPersistedModel": true,
+        "sseContinuousToTerminal": true
+      },
+      "passed": false
+    },
+    {
+      "caseId": "synonym",
+      "name": "字面无命中有同义证据",
+      "startedAt": "2026-09-30T17:09:37.013952+00:00",
+      "inputCodePoints": 29,
+      "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+      "projectId": "01a0f34b-0c7a-71be-b4d1-9602d35fee74",
+      "targetChapterId": "01a0f34b-0c94-7fa1-8027-e0ad14626e66",
+      "runId": "01a0f34b-0cae-71e3-8213-51b202f41649",
+      "elapsedSeconds": 122.6,
+      "run": {
+        "id": "01a0f34b-0cae-71e3-8213-51b202f41649",
+        "projectId": "01a0f34b-0c7a-71be-b4d1-9602d35fee74",
+        "targetChapterId": "01a0f34b-0c94-7fa1-8027-e0ad14626e66",
+        "baseVersion": 2,
+        "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T17:09:37.069746Z",
+        "startedAt": "2026-09-30T17:09:37.074626Z",
+        "finishedAt": "2026-09-30T17:11:30.640717Z",
+        "analysis": null,
+        "errorCode": "LIMIT_EXCEEDED",
+        "errorDetail": "MODEL_CALLS: 8/8",
+        "modelCallCount": 8,
+        "toolCallCount": 7,
+        "toolTextCodepoints": 1539,
+        "lastEventSeq": 33,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "64b0de85-993b-40c1-bf7b-c6f2f9b40f1b",
+            "toolCallId": "01a0f34af5be852465a1bb32bd91bb09",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f34b-0c94-7fa1-8027-e0ad14626e66"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "林舟纵身跃入深水，独自泅渡到了对岸。他此前没有学过新本领。",
+                "version": 2,
+                "chapterId": "01a0f34b-0c94-7fa1-8027-e0ad14626e66",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:09:43.754425Z",
+            "finishedAt": "2026-09-30T17:09:43.759136Z",
+            "modelCallIndex": 1
+          },
+          {
+            "toolExecutionId": "c3ec955b-db8f-434d-b7ea-22043e2f896b",
+            "toolCallId": "01a0f34ae46b8123ddae4600f493a450",
+            "toolName": "search_chapters",
+            "args": {
+              "scope": "BEFORE_TARGET",
+              "keyword": "游泳"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "27e6b7fa-2dcc-4359-b8ca-0b0ea1d9fd07",
+                "hasMore": false,
+                "keyword": "游泳",
+                "matches": [],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:10:26.662762Z",
+            "finishedAt": "2026-09-30T17:10:26.675292Z",
+            "modelCallIndex": 2
+          },
+          {
+            "toolExecutionId": "df762331-15ec-4ed9-ad53-2f3980031af2",
+            "toolCallId": "01a0f34bb130de9658a9ed8163b1c3c0",
+            "toolName": "list_chapters",
+            "args": {
+              "limit": 10
+            },
+            "result": {
+              "data": {
+                "items": [
+                  {
+                    "title": "第一章·旧事",
+                    "version": 2,
+                    "chapterId": "01a0f34b-0c80-7586-8338-30474c3303a3",
+                    "chapterOrder": 1
+                  },
+                  {
+                    "title": "第二章·出发",
+                    "version": 2,
+                    "chapterId": "01a0f34b-0c8a-77c1-89db-80e8aa78c00b",
+                    "chapterOrder": 2
+                  },
+                  {
+                    "title": "第三章·目标",
+                    "version": 2,
+                    "chapterId": "01a0f34b-0c94-7fa1-8027-e0ad14626e66",
+                    "chapterOrder": 3
+                  }
+                ],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:10:42.492402Z",
+            "finishedAt": "2026-09-30T17:10:42.499326Z",
+            "modelCallIndex": 3
+          },
+          {
+            "toolExecutionId": "562226f6-31a5-4eb8-8c97-b0b0b8670cd7",
+            "toolCallId": "01a0f34b42bb6c95fa55d05cab141171",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f34b-0c80-7586-8338-30474c3303a3"
+            },
+            "result": {
+              "data": {
+                "title": "第一章·旧事",
+                "content": "林舟从未学会泅水，过去总靠渡船过河。",
+                "version": 2,
+                "chapterId": "01a0f34b-0c80-7586-8338-30474c3303a3",
+                "chapterOrder": 1
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:10:52.457950Z",
+            "finishedAt": "2026-09-30T17:10:52.464322Z",
+            "modelCallIndex": 4
+          },
+          {
+            "toolExecutionId": "3f50f32e-d590-4092-94c6-66643871399e",
+            "toolCallId": "01a0f34b9ecd7022338f465c41a9efd7",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f34b-0c8a-77c1-89db-80e8aa78c00b"
+            },
+            "result": {
+              "data": {
+                "title": "第二章·出发",
+                "content": "林舟查看地图，发现河上有一座安全的石桥。他尚未学习新技能。",
+                "version": 2,
+                "chapterId": "01a0f34b-0c8a-77c1-89db-80e8aa78c00b",
+                "chapterOrder": 2
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:11:06.796466Z",
+            "finishedAt": "2026-09-30T17:11:06.802423Z",
+            "modelCallIndex": 5
+          },
+          {
+            "toolExecutionId": "c039a87b-a5b1-46d0-9c85-c553f4fc76ea",
+            "toolCallId": "01a0f34c594898903693949e051f5ae1",
+            "toolName": "search_chapters",
+            "args": {
+              "scope": "BEFORE_TARGET",
+              "keyword": "泅"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "27e6b7fa-2dcc-4359-b8ca-0b0ea1d9fd07",
+                "hasMore": false,
+                "keyword": "泅",
+                "matches": [
+                  {
+                    "title": "第一章·旧事",
+                    "snippet": "林舟从未学会泅水，过去总靠渡船过河。",
+                    "version": 2,
+                    "matchEnd": 7,
+                    "chapterId": "01a0f34b-0c80-7586-8338-30474c3303a3",
+                    "lineNumber": 1,
+                    "matchStart": 6,
+                    "chapterOrder": 1,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  }
+                ],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:11:14.751882Z",
+            "finishedAt": "2026-09-30T17:11:14.758356Z",
+            "modelCallIndex": 6
+          },
+          {
+            "toolExecutionId": "766a4025-5e84-49a0-92eb-bf2d260f2791",
+            "toolCallId": "01a0f34bc172c4d8835f9d31851de63a",
+            "toolName": "search_settings",
+            "args": {
+              "keyword": "游泳"
+            },
+            "result": {
+              "data": {
+                "items": [],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:11:23.092815Z",
+            "finishedAt": "2026-09-30T17:11:23.097545Z",
+            "modelCallIndex": 7
+          },
+          {
+            "toolExecutionId": "01a0f34c-c84f-75d6-9ad9-2a9b74d4abf9",
+            "toolCallId": "01a0f34bf545efa1e5915ce31bff14c1",
+            "toolName": "search_settings",
+            "args": {
+              "keyword": "泅"
+            },
+            "result": null,
+            "summary": null,
+            "status": "ABORTED",
+            "errorCode": "MODEL_CALLS",
+            "startedAt": "2026-09-30T17:11:30.638662Z",
+            "finishedAt": "2026-09-30T17:11:30.638662Z",
+            "modelCallIndex": 8
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f34b-26d0-73cf-85d8-705726fefb51",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f34b-0c94-7fa1-8027-e0ad14626e66",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "64b0de85-993b-40c1-bf7b-c6f2f9b40f1b",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34c-3331-77d7-b173-6fd9a416ba3f",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f34b-0c80-7586-8338-30474c3303a3",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "562226f6-31a5-4eb8-8c97-b0b0b8670cd7",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34c-6b33-7cba-b241-3a30ab1e71ec",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f34b-0c8a-77c1-89db-80e8aa78c00b",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "3f50f32e-d590-4092-94c6-66643871399e",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34c-8a47-7bc0-8202-fa2b47e3efcb",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f34b-0c80-7586-8338-30474c3303a3",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 6,
+            "contentHash": null,
+            "toolExecutionId": "c039a87b-a5b1-46d0-9c85-c553f4fc76ea",
+            "providedToModel": true
+          }
+        ]
+      },
+      "modelId": "deepseek-ai/DeepSeek-V3.2",
+      "modelConfig": {
+        "apiPath": "/v1/chat/completions",
+        "maxOutputTokens": 16000,
+        "contextWindowTokens": 163840
+      },
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1201,
+            "outputTokens": 82
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1381,
+            "outputTokens": 118
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 3,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1582,
+            "outputTokens": 67
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 4,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1824,
+            "outputTokens": 84
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 5,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1999,
+            "outputTokens": 71
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 6,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2166,
+            "outputTokens": 96
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 7,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2439,
+            "outputTokens": 59
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 8,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2540,
+            "outputTokens": 44
+          },
+          "errorCode": null,
+          "errorDetail": null
+        }
+      ],
+      "sseReplay": {
+        "count": 31,
+        "lastType": "run.failed"
+      },
+      "checks": {
+        "succeeded": false,
+        "chapterUnchangedBeforeAdoption": true,
+        "targetFullReadProvided": true,
+        "expectedProposalPresence": true,
+        "expectedPersistedModel": true,
+        "sseContinuousToTerminal": true
+      },
+      "passed": false
+    },
+    {
+      "caseId": "insufficient",
+      "name": "信息不足",
+      "startedAt": "2026-09-30T17:11:30.975606+00:00",
+      "inputCodePoints": 27,
+      "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+      "projectId": "01a0f34c-c9a3-7038-bc5c-0074fee32e52",
+      "targetChapterId": "01a0f34c-c9be-7663-8357-20acda0e5604",
+      "runId": "01a0f34c-c9d9-71ff-a78c-68729a7a2922",
+      "elapsedSeconds": 76.8,
+      "run": {
+        "id": "01a0f34c-c9d9-71ff-a78c-68729a7a2922",
+        "projectId": "01a0f34c-c9a3-7038-bc5c-0074fee32e52",
+        "targetChapterId": "01a0f34c-c9be-7663-8357-20acda0e5604",
+        "baseVersion": 2,
+        "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T17:11:31.032708Z",
+        "startedAt": "2026-09-30T17:11:31.037094Z",
+        "finishedAt": "2026-09-30T17:12:43.380668Z",
+        "analysis": null,
+        "errorCode": "LIMIT_EXCEEDED",
+        "errorDetail": "MODEL_CALLS: 8/8",
+        "modelCallCount": 8,
+        "toolCallCount": 7,
+        "toolTextCodepoints": 1611,
+        "lastEventSeq": 33,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "8704f587-6400-4fa7-95c3-24503127e86e",
+            "toolCallId": "01a0f34bfc47ad2e328d47dd3d55ac3a",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f34c-c9be-7663-8357-20acda0e5604"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "林舟收到一封没有署名的信。信上只写着：今晚到旧桥相见。",
+                "version": 2,
+                "chapterId": "01a0f34c-c9be-7663-8357-20acda0e5604",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:11:41.646267Z",
+            "finishedAt": "2026-09-30T17:11:41.651510Z",
+            "modelCallIndex": 1
+          },
+          {
+            "toolExecutionId": "d3010a1a-ba48-4c4a-b7c9-1e0df33c9433",
+            "toolCallId": "01a0f34d21ea203b2f56a47925d2ab8d",
+            "toolName": "search_chapters",
+            "args": {
+              "limit": 5,
+              "scope": "BEFORE_TARGET",
+              "keyword": "林舟"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "90384325-f82a-4f01-90a5-81daeba490c3",
+                "hasMore": false,
+                "keyword": "林舟",
+                "matches": [
+                  {
+                    "title": "第一章·旧事",
+                    "snippet": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                    "version": 2,
+                    "matchEnd": 2,
+                    "chapterId": "01a0f34c-c9a7-7d32-9905-35c3d0668b60",
+                    "lineNumber": 1,
+                    "matchStart": 0,
+                    "chapterOrder": 1,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  },
+                  {
+                    "title": "第二章·出发",
+                    "snippet": "林舟查看地图，发现河上有一座安全的石桥。他尚未学习新技能。",
+                    "version": 2,
+                    "matchEnd": 2,
+                    "chapterId": "01a0f34c-c9b4-7a79-8ca0-33fd9630c816",
+                    "lineNumber": 1,
+                    "matchStart": 0,
+                    "chapterOrder": 2,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  }
+                ],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:11:53.845397Z",
+            "finishedAt": "2026-09-30T17:11:53.859209Z",
+            "modelCallIndex": 2
+          },
+          {
+            "toolExecutionId": "d4516909-2e49-4d80-8522-24b426e55338",
+            "toolCallId": "01a0f34d6403daae9b82a76dc90aaec0",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f34c-c9a7-7d32-9905-35c3d0668b60"
+            },
+            "result": {
+              "data": {
+                "title": "第一章·旧事",
+                "content": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                "version": 2,
+                "chapterId": "01a0f34c-c9a7-7d32-9905-35c3d0668b60",
+                "chapterOrder": 1
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:12:11.988300Z",
+            "finishedAt": "2026-09-30T17:12:11.992967Z",
+            "modelCallIndex": 3
+          },
+          {
+            "toolExecutionId": "ca1904be-d71a-4e2f-b8e1-61d16ebd1856",
+            "toolCallId": "01a0f34d74b2be93036bd4f0d3d142bb",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f34c-c9b4-7a79-8ca0-33fd9630c816"
+            },
+            "result": {
+              "data": {
+                "title": "第二章·出发",
+                "content": "林舟查看地图，发现河上有一座安全的石桥。他尚未学习新技能。",
+                "version": 2,
+                "chapterId": "01a0f34c-c9b4-7a79-8ca0-33fd9630c816",
+                "chapterOrder": 2
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:12:16.584495Z",
+            "finishedAt": "2026-09-30T17:12:16.589986Z",
+            "modelCallIndex": 4
+          },
+          {
+            "toolExecutionId": "33f20597-20a3-4d2b-837f-00f8945b2adb",
+            "toolCallId": "01a0f34d86d3d7046017a8dacd28a4c9",
+            "toolName": "search_settings",
+            "args": {
+              "limit": 10,
+              "keyword": "林舟"
+            },
+            "result": {
+              "data": {
+                "items": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "snippet": "林舟",
+                    "settingId": "01a0f34c-c9c8-741b-9de9-ae1bba69c383",
+                    "matchField": "TITLE",
+                    "codePointOffset": 0
+                  }
+                ],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:12:21.614178Z",
+            "finishedAt": "2026-09-30T17:12:21.619254Z",
+            "modelCallIndex": 5
+          },
+          {
+            "toolExecutionId": "8b44cd23-4c4e-45e1-a1c8-7ff4ed274eaa",
+            "toolCallId": "01a0f34d9f931ec440f69d6a22944627",
+            "toolName": "read_settings",
+            "args": {
+              "settingIds": [
+                "01a0f34c-c9c8-741b-9de9-ae1bba69c383"
+              ]
+            },
+            "result": {
+              "data": {
+                "settings": [
+                  {
+                    "type": "CHARACTER",
+                    "title": "林舟",
+                    "content": "林舟不会游泳，熟悉步行路线。",
+                    "settingId": "01a0f34c-c9c8-741b-9de9-ae1bba69c383"
+                  }
+                ]
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:12:26.123604Z",
+            "finishedAt": "2026-09-30T17:12:26.128657Z",
+            "modelCallIndex": 6
+          },
+          {
+            "toolExecutionId": "824e6d3b-180c-4806-b249-cff7e35853d5",
+            "toolCallId": "01a0f34dcd04bda709c54da176ed31eb",
+            "toolName": "search_settings",
+            "args": {
+              "limit": 10,
+              "keyword": "哥哥"
+            },
+            "result": {
+              "data": {
+                "items": [],
+                "hasMore": false,
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T17:12:38.556440Z",
+            "finishedAt": "2026-09-30T17:12:38.563477Z",
+            "modelCallIndex": 7
+          },
+          {
+            "toolExecutionId": "01a0f34d-e473-712a-bf93-5af8a92a7611",
+            "toolCallId": "01a0f34ddea042c424e944e118231019",
+            "toolName": "search_settings",
+            "args": {
+              "limit": 10,
+              "keyword": "兄弟"
+            },
+            "result": null,
+            "summary": null,
+            "status": "ABORTED",
+            "errorCode": "MODEL_CALLS",
+            "startedAt": "2026-09-30T17:12:43.378034Z",
+            "finishedAt": "2026-09-30T17:12:43.378034Z",
+            "modelCallIndex": 8
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f34c-f355-706c-9f4c-ae402695ecf9",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f34c-c9be-7663-8357-20acda0e5604",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "8704f587-6400-4fa7-95c3-24503127e86e",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34d-2304-76dd-99b2-6ee7f7ff118a",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f34c-c9a7-7d32-9905-35c3d0668b60",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 0,
+            "contentHash": null,
+            "toolExecutionId": "d3010a1a-ba48-4c4a-b7c9-1e0df33c9433",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34d-2305-7004-86fc-da9ae3c6a530",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f34c-c9b4-7a79-8ca0-33fd9630c816",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 0,
+            "contentHash": null,
+            "toolExecutionId": "d3010a1a-ba48-4c4a-b7c9-1e0df33c9433",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34d-69d9-7f58-9e03-85c7d43d8084",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f34c-c9a7-7d32-9905-35c3d0668b60",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "d4516909-2e49-4d80-8522-24b426e55338",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34d-7bcf-7589-beb5-8f01c3845fcc",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f34c-c9b4-7a79-8ca0-33fd9630c816",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "ca1904be-d71a-4e2f-b8e1-61d16ebd1856",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34d-8f74-7b2b-8e2f-63e9f70d56d9",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f34c-c9c8-741b-9de9-ae1bba69c383",
+            "lineNumber": null,
+            "codepointOffset": 0,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "33f20597-20a3-4d2b-837f-00f8945b2adb",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f34d-a111-7ee5-a108-f1d592655a65",
+            "kind": "FULL_SETTING",
+            "chapterId": null,
+            "chapterVersion": null,
+            "settingId": "01a0f34c-c9c8-741b-9de9-ae1bba69c383",
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": "06802042aae36ad9fd961579de89e65bdf629114d4321e23dd5ab1104e507880",
+            "toolExecutionId": "8b44cd23-4c4e-45e1-a1c8-7ff4ed274eaa",
+            "providedToModel": true
+          }
+        ]
+      },
+      "modelId": "deepseek-ai/DeepSeek-V3.2",
+      "modelConfig": {
+        "apiPath": "/v1/chat/completions",
+        "maxOutputTokens": 16000,
+        "contextWindowTokens": 163840
+      },
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1196,
+            "outputTokens": 91
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1380,
+            "outputTokens": 103
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 3,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1754,
+            "outputTokens": 84
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 4,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1932,
+            "outputTokens": 69
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 5,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2095,
+            "outputTokens": 73
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 6,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2266,
+            "outputTokens": 75
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 7,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2424,
+            "outputTokens": 75
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 8,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 2541,
+            "outputTokens": 59
+          },
+          "errorCode": null,
+          "errorDetail": null
+        }
+      ],
+      "sseReplay": {
+        "count": 31,
+        "lastType": "run.failed"
+      },
+      "checks": {
+        "succeeded": false,
+        "chapterUnchangedBeforeAdoption": true,
+        "targetFullReadProvided": true,
+        "expectedProposalPresence": true,
+        "expectedPersistedModel": true,
+        "sseContinuousToTerminal": true
+      },
+      "passed": false
+    }
+  ],
+  "scope": "Technical live-model assertions; final literary judgments require human review.",
+  "configuredModel": "deepseek-ai/DeepSeek-V3.2",
+  "finishedAt": "2026-09-30T17:12:43.475364+00:00",
+  "passed": false
+}
