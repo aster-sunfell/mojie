@@ -51,6 +51,8 @@ The [2026-09-30 real-model verification](../docs/verification/agent-loop-real-mo
 
 The previous successful live report used DeepSeek V4 Flash. For SiliconFlow V3.2, the exact model ID is `deepseek-ai/DeepSeek-V3.2`, and `MOJIE_MODEL_CONTEXT_TOKENS=163840` matches the provider's [model listing](https://siliconflow.cn/models?page=1&q=DeepSeek-V3.2). The optional `Pro/` variant is a different provider ID and must be recorded separately. Configuration validity and a successful single request do not prove that a multi-turn run can finish. The [initial V3.2 audit](../docs/verification/agent-loop-deepseek-v3.2-2026-10-01.json) records the original configuration failure, timeouts and provider rate limits.
 
+After billing recovered, three rounds of the five fixed materials used standard V3.2 only. The [latest review](../docs/verification/agent-loop-deepseek-v3.2-review-2026-10-01.json) records 3/5 technical passes after adding budget feedback: short proposal/adoption, synonymous evidence, and insufficient evidence. The latest readonly run hit the run deadline and the 5,900-code-point case hit a request timeout; neither had a published proposal. Output quality also remains incomplete: one successful analysis exposed an internal budget field and a process preface. Earlier successes, all failures, source inspections and unchanged limits are preserved in the [acceptance audit](../docs/verification/agent-loop-al-ac-audit-2026-09-30.md). This establishes real V3.2 tool-loop capability on short cases, not stable completion or release acceptance.
+
 Start the Java API against a dedicated test database, with a real model configured and `MOJIE_DEV_TRACE=true`. Do not point the verification at an author's working database. From the repository root:
 
 ```bash

@@ -4,6 +4,8 @@
 
 2026-10-01 补充：浏览器已实际断线重连，并将事先捕获的 RUNNING 快照延迟到 SUCCEEDED 后交付；页面终态与分析没有回退，AL-AC-22 更新为自动覆盖。另修复 SSE 全局 20 条连接上限，并验证第 21 条请求为 429、完成后名额恢复；前端降级轮询已对齐 2 秒。真实 V3.2 的提供方繁忙与余额不足记录单列，不以浏览器模拟模型结果代替真实模型完成。
 
+2026-10-01 后续：账户调用已恢复，V3.2 单次探测返回 HTTP 200；恢复后的三轮五材料实测已完成，成功和失败均保留，详见文末及 [逐例复核](agent-loop-deepseek-v3.2-review-2026-10-01.json)。最新一轮技术检查 3/5 通过，完整发布验收仍未通过。
+
 证据简称：Loop = `AgentLoopTest`；Scheduler = `RunSchedulerIT`；DB = `JdbcContentRepositoryIT` / `JdbcContentServiceIT`；Adapter = Messages 和 Chat Completions 适配器测试；Web = `App.test.jsx` / `useRun.test.jsx`；Browser = [Chromium 记录](browser-agent-loop-2026-09-30.md)；Live = [真实模型记录](agent-loop-real-model-2026-09-30.md)；Recovery = [数据库恢复记录](agent-loop-db-recovery-2026-09-30.md)。
 
 | AL-AC | 状态 | 证据与剩余边界 |
@@ -38,3 +40,23 @@
 | 28 | 部分 | DB 持久化链路、候选与采纳历史可关联；未送达来源判定有实现；异常取消下全部关联键组合尚未逐一核对 |
 
 本次 `mvn verify` 在 PostgreSQL 18.6 的独立测试 schema 上通过：Loop 33 项、Scheduler 22 项，DB 集成测试通过。原浏览器 4 项、Live 固定样本另见上述记录；2026-10-01 新增 SSE 容量及重连旧快照两项浏览器/HTTP 回归通过。当前可以判断显式 Agent Loop 的核心业务链路已完成并可用；AL-AC-15、19、21、25、28 仍需补足证据后才可逐项签收，完整 MVP 发布验收还需对照总 PRD。此处的核心实现判断不等于任何指定提供方或模型当前都可正常运行。
+
+## V3.2 账户恢复后的实测
+
+仅调用 SiliconFlow `deepseek-ai/DeepSeek-V3.2` 的 Chat Completions 接口，使用独立测试数据库，未更换模型家族。8 次模型、12 次工具、30,000 码点工具文本、60 秒单次请求和 180 秒运行限制均未放宽。五类材料、指令及精确候选稿断言保持不变。
+
+[恢复后原始轮次](agent-loop-deepseek-v3.2-recovered-2026-10-01.json)为 1/5 技术通过，另外三项耗尽模型次数、一项超时；[仅提示总预算后的轮次](agent-loop-deepseek-v3.2-budget-prompt-2026-10-01.json)仍为 1/5。之后在工具回填中增加持久化的剩余预算，最新结果如下；不同轮次不能混合挑选成功样本计算通过率。
+
+| 材料 | 最新结果 | 模型 / 工具次数 | 服务端运行秒数 | 复核 |
+| --- | --- | --- | --- | --- |
+| 无需修改 | FAILED / RUN_TIMEOUT | 7 / 6 | 180.029 | 前两轮曾成功，本轮失败；说明服务延迟仍不稳定 |
+| 矛盾与采纳 | SUCCEEDED | 7 / 6 | 81.222 | 引用与已读证据一致；候选逐字匹配；采纳前正文 v2，重复采纳后只产生一次 v3 修订 |
+| 5,900 码点完整候选 | FAILED / MODEL_TIMEOUT | 4 / 3 | 124.095 | 已完整读取目标章，但后续请求超时；没有候选稿，长正文验收未通过 |
+| 字面无命中有同义证据 | SUCCEEDED | 8 / 7 | 102.279 | 空搜索后读完前文和设定；矛盾判断及字面搜索局限与证据一致 |
+| 信息不足 | SUCCEEDED | 8 / 7 | 112.184 | 寄信人身份的证据不足判断正确；设定只见标题搜索结果，未完整读取，回答承认范围限制 |
+
+最新原始数据分为 [修改与采纳](agent-loop-deepseek-v3.2-budget-feedback-edit-2026-10-01.json) 和 [其余四项](agent-loop-deepseek-v3.2-budget-feedback-remaining-2026-10-01.json)，对应同一份 Java 代码 `51a90ea`。表中耗时由持久化 startedAt/finishedAt 计算；脚本 observed/elapsed 时间包含观察延迟，不能代替服务端截止时间。
+
+技术通过不代表最终回答质量全部合格：信息不足回答直接提到了内部 `finalResponseRequired`，并包含过程性开场；同义场景把“只有三章、没有后续内容”表述为“无法查看之后内容”，也应更准确。逐例判断是 Codex 对输出和已读来源的复核，不代替作者签收。长正文、服务延迟及这些输出问题仍阻止发布验收；本次不会以成功的短文本场景替代它们。
+
+预算回填的最终 `mvn verify` 在真实 PostgreSQL 和本地 HTTP 适配器测试启用时通过：38 项单元测试、36 项集成测试，零失败、零跳过。新增覆盖验证了错误调用及同批调用的预算计数、消息与步骤保存的完整 JSON 一致、回填预算计入文本总量，原有边界与终止规则继续通过。
