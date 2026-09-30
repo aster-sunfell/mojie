@@ -1,6 +1,10 @@
 package com.mojie.agent.run.infra;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mojie.common.Page;
 import com.mojie.common.PageCursor;
 import java.sql.*;
@@ -103,7 +107,9 @@ public final class JdbcRunQuery {
             c.setAutoCommit(false); c.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
             Map<String,Object> result = scoped(c, owner, runId);
             result.put("modelCalls", query(c, "SELECT id, call_index, input_message_seqs, status, finish_reason, raw_finish_reason, provider_request_id, error_code, error_detail, usage, started_at, finished_at FROM tb_agent_model_call WHERE run_id = ?::uuid ORDER BY call_index", runId));
-            result.put("messages", query(c, "SELECT message_seq, role, content, model_call_id, tool_call_id, tool_execution_id, created_at FROM tb_agent_message WHERE run_id = ?::uuid ORDER BY message_seq", runId));
+            List<Map<String,Object>> messages = query(c, "SELECT message_seq, role, content, model_call_id, tool_call_id, tool_execution_id, created_at FROM tb_agent_message WHERE run_id = ?::uuid ORDER BY message_seq", runId);
+            for (Map<String,Object> message : messages) redactOpaqueBlocks(message.get("content"));
+            result.put("messages", messages);
             result.put("steps", query(c, "SELECT tool_execution_id, model_call_id, tool_call_id, tool_name, args, result, status, error_code, started_at, finished_at FROM tb_agent_step WHERE run_id = ?::uuid ORDER BY started_at, tool_execution_id", runId));
             result.put("sources", query(c, "SELECT kind, chapter_id, chapter_version, setting_id, line_number, codepoint_offset, content_hash, tool_execution_id FROM tb_agent_context_item WHERE run_id = ?::uuid ORDER BY created_at, id", runId));
             c.commit(); return result;
@@ -171,5 +177,16 @@ public final class JdbcRunQuery {
     private Object decode(String value) {
         try { return json.readTree(value); }
         catch (Exception e) { throw new IllegalStateException("Stored JSON is invalid", e); }
+    }
+    private static void redactOpaqueBlocks(Object content) {
+        if (!(content instanceof ArrayNode blocks)) return;
+        for (JsonNode block : blocks) {
+            if (!(block instanceof ObjectNode part) || !"opaque".equals(part.path("type").asText())) continue;
+            String protocolType = part.path("block").path("type").asText("unknown");
+            ObjectNode redacted = JsonNodeFactory.instance.objectNode();
+            redacted.put("type", protocolType);
+            redacted.put("redacted", true);
+            part.set("block", redacted);
+        }
     }
 }

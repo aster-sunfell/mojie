@@ -76,7 +76,7 @@ public final class AgentLoop {
                     return new LoopOutcome.Cancelled();
                 } catch (RuntimeException e) {
                     trace.modelFailed(runId, callIndex, "MODEL_ERROR", e.getClass().getSimpleName());
-                    return new LoopOutcome.Failed("MODEL_ERROR", e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    return new LoopOutcome.Failed("MODEL_ERROR", "Model request failed unexpectedly");
                 }
                 stop = stop(input);
                 if (stop != null) return stop;

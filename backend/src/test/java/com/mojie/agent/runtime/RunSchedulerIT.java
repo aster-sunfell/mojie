@@ -307,6 +307,56 @@ class RunSchedulerIT {
                 assertEquals(2, blankCalls.get());
                 assertEquals(0, count(source, "SELECT count(*) FROM tb_edit_proposal WHERE run_id='" + runId + "'"));
             }
+            Fixture unexpectedFixture = fixture(source, "unexpected-provider-failure");
+            ModelGateway unexpected = request -> { throw new IllegalStateException("Bearer sensitive-canary"); };
+            try (RunScheduler scheduler = scheduler(source, unexpected)) {
+                scheduler.start();
+                String runId = scheduler.submit(unexpectedFixture.request("check")).runId();
+                await(() -> "FAILED".equals(status(source, runId)));
+                JdbcRunQuery query = new JdbcRunQuery(source);
+                assertEquals("MODEL_ERROR", errorCode(source, runId));
+                assertFalse(query.detail("owner", runId).toString().contains("sensitive-canary"));
+                assertFalse(query.trace("owner", runId).toString().contains("sensitive-canary"));
+                assertFalse(query.events("owner", runId, 0, 100).toString().contains("sensitive-canary"));
+            }
+        });
+    }
+
+    @Test void developerTraceRedactsOpaqueReasoningWhileContinuationKeepsIt() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            Fixture fixture = fixture(source, "opaque-trace");
+            String hidden = "hidden-phase-detail";
+            AtomicInteger turns = new AtomicInteger();
+            ModelGateway scripted = request -> {
+                if (turns.incrementAndGet() == 1) return new Response(List.of(
+                        new OpaquePart(JSON.valueToTree(Map.of("type", "chat_reasoning",
+                                "reasoning_content", hidden))),
+                        tool("read-target", "read_chapter", Map.of("chapterId", fixture.chapter()))),
+                        FinishReason.TOOL_CALLS, "first", "tool_calls", null);
+                assertEquals(hidden, ((OpaquePart) request.messages().get(1).content().getFirst())
+                        .providerBlock().path("reasoning_content").asText());
+                assertEquals("body", data(request, "read-target").get("content"));
+                return new Response("检查完成。", List.of(), FinishReason.FINAL, "second", "stop", null);
+            };
+            try (RunScheduler scheduler = scheduler(source, scripted)) {
+                scheduler.start();
+                String runId = scheduler.submit(fixture.request("check")).runId();
+                await(() -> "SUCCEEDED".equals(status(source, runId)));
+                assertEquals(2, turns.get());
+                assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_message WHERE run_id='" + runId
+                        + "' AND content::text LIKE '%" + hidden + "%'"));
+                JdbcRunQuery query = new JdbcRunQuery(source);
+                Map<String,Object> trace = query.trace("owner", runId);
+                assertFalse(trace.toString().contains(hidden));
+                List<?> messages = (List<?>) trace.get("messages");
+                Map<?,?> assistant = (Map<?,?>) messages.get(1);
+                var block = ((com.fasterxml.jackson.databind.JsonNode) assistant.get("content")).get(0).path("block");
+                assertEquals("chat_reasoning", block.path("type").asText());
+                assertTrue(block.path("redacted").asBoolean());
+                assertFalse(query.detail("owner", runId).toString().contains(hidden));
+                assertFalse(query.events("owner", runId, 0, 100).toString().contains(hidden));
+            }
         });
     }
 

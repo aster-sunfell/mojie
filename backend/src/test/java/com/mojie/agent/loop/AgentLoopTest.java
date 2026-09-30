@@ -130,6 +130,14 @@ class AgentLoopTest {
         assertEquals(2, blank.requests.size());
     }
 
+    @Test void unexpectedProviderExceptionMessageIsNotReturnedToTheAuthor() {
+        ModelGateway failed = request -> { throw new IllegalStateException("Bearer sensitive-canary"); };
+        LoopOutcome.Failed outcome = (LoopOutcome.Failed) loop(failed, LoopLimits.defaults()).run(input());
+        assertEquals("MODEL_ERROR", outcome.code());
+        assertEquals("Model request failed unexpectedly", outcome.detail());
+        assertFalse(outcome.detail().contains("sensitive-canary"));
+    }
+
     @Test void fullContextBudgetIsCheckedBeforeAProviderAttempt() {
         Script model = new Script(List.of());
         LoopLimits limits = new LoopLimits(8, 12, 30_000, 10, 60_000);
