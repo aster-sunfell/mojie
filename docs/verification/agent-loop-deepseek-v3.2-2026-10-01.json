@@ -1,0 +1,370 @@
+{
+  "date": "2026-10-01",
+  "timezone": "Asia/Shanghai",
+  "conclusion": "Core loop implemented; PRD acceptance incomplete; DeepSeek-V3.2 did not complete any of the five live cases in this audit.",
+  "scope": "Current working tree, including changes already present before the audit; no application source or deploy/.env changes made by this audit.",
+  "environment": {
+    "java": "21.0.12.1",
+    "postgresql": "18.6",
+    "dedicatedDatabase": "mojie_ds32_audit_20261001",
+    "api": "http://127.0.0.1:18082/api/v1"
+  },
+  "originalConfiguration": {
+    "modelId": "deepseek-ai/DeepSeek-3.2",
+    "apiPath": "/v1/messages",
+    "baseUrl": "https://api.siliconflow.cn",
+    "contextWindowTokens": null
+  },
+  "configurationChecks": {
+    "originalApplicationStartupExitCode": 1,
+    "startupError": "MOJIE_MODEL_CONTEXT_TOKENS is required for model deepseek-ai/DeepSeek-3.2",
+    "originalModelHttpStatus": 400,
+    "originalModelProviderCode": 20012,
+    "originalModelError": "Model does not exist. Please check it carefully.",
+    "availableModelId": "deepseek-ai/DeepSeek-V3.2",
+    "providerModelPageContextLen": 163840,
+    "providerModelPage": "https://siliconflow.cn/models?page=1&q=DeepSeek-V3.2",
+    "testWindowNote": "The live tests used a conservative temporary 128000-token window. No request hit the local context preflight. The provider page later confirmed contextLen=163840; provider tokenizer boundaries were not tested."
+  },
+  "tests": {
+    "backendCommand": "MOJIE_TEST_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/mojie MOJIE_TEST_DB_USER=mojie MOJIE_TEST_DB_PASSWORD=<local-test-password> MOJIE_TEST_LOCAL_HTTP=1 mvn -B -ntp verify",
+    "backendUnit": 37,
+    "backendDatabaseIntegration": 24,
+    "backendLocalHttpAdapters": 12,
+    "backendFailures": 0,
+    "backendSkipped": 0,
+    "frontendVitest": 16,
+    "frontendBuild": "passed",
+    "browser": "Not rerun today; 4 prior Chromium tests documented on 2026-09-30 used a simulated model."
+  },
+  "live": {
+    "model": "deepseek-ai/DeepSeek-V3.2",
+    "apiPath": "/v1/messages",
+    "contextWindowTokens": 128000,
+    "database": "mojie_ds32_audit_20261001",
+    "cases": [
+      {
+        "name": "无需修改",
+        "projectId": "01a0f315-7a44-7917-a36c-d8e01c39407e",
+        "runId": "01a0f315-7aa7-71a3-af70-b99951f741ef",
+        "targetChapterId": "01a0f315-7a78-76be-ba57-c5be065051da",
+        "inputCodePoints": 23,
+        "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+        "elapsedSeconds": 61.0,
+        "run": {
+          "id": "01a0f315-7aa7-71a3-af70-b99951f741ef",
+          "projectId": "01a0f315-7a44-7917-a36c-d8e01c39407e",
+          "targetChapterId": "01a0f315-7a78-76be-ba57-c5be065051da",
+          "baseVersion": 2,
+          "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+          "status": "FAILED",
+          "cancelRequested": false,
+          "queuedAt": "2026-09-30T16:11:06.277130Z",
+          "startedAt": "2026-09-30T16:11:06.288556Z",
+          "finishedAt": "2026-09-30T16:12:04.705809Z",
+          "analysis": null,
+          "errorCode": "MODEL_TIMEOUT",
+          "errorDetail": "Model connection failed",
+          "modelCallCount": 1,
+          "toolCallCount": 0,
+          "toolTextCodepoints": 0,
+          "lastEventSeq": 5,
+          "proposalId": null,
+          "steps": [],
+          "sources": []
+        },
+        "unchangedBeforeAdoption": true,
+        "targetFullReadProvided": false,
+        "modelCalls": [
+          {
+            "callIndex": 1,
+            "status": "FAILED",
+            "finishReason": null,
+            "rawFinishReason": null,
+            "usage": null,
+            "errorCode": "MODEL_TIMEOUT",
+            "errorDetail": "Model connection failed"
+          }
+        ],
+        "sseReplay": {
+          "count": 3,
+          "firstSeq": 3,
+          "lastType": "run.failed",
+          "continuous": true
+        }
+      },
+      {
+        "name": "矛盾与采纳",
+        "projectId": "01a0f316-6170-7fb3-8606-26b07a50d97b",
+        "runId": "01a0f316-61ae-7db5-9695-694ea32995b2",
+        "targetChapterId": "01a0f316-618f-7b7a-9a65-5f0cd3729aec",
+        "inputCodePoints": 39,
+        "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+        "elapsedSeconds": 1.0,
+        "run": {
+          "id": "01a0f316-61ae-7db5-9695-694ea32995b2",
+          "projectId": "01a0f316-6170-7fb3-8606-26b07a50d97b",
+          "targetChapterId": "01a0f316-618f-7b7a-9a65-5f0cd3729aec",
+          "baseVersion": 2,
+          "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+          "status": "FAILED",
+          "cancelRequested": false,
+          "queuedAt": "2026-09-30T16:12:05.422136Z",
+          "startedAt": "2026-09-30T16:12:05.427608Z",
+          "finishedAt": "2026-09-30T16:12:05.513773Z",
+          "analysis": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached",
+          "modelCallCount": 1,
+          "toolCallCount": 0,
+          "toolTextCodepoints": 0,
+          "lastEventSeq": 5,
+          "proposalId": null,
+          "steps": [],
+          "sources": []
+        },
+        "unchangedBeforeAdoption": true,
+        "targetFullReadProvided": false,
+        "modelCalls": [
+          {
+            "callIndex": 1,
+            "status": "FAILED",
+            "finishReason": null,
+            "rawFinishReason": null,
+            "usage": null,
+            "errorCode": "MODEL_RATE_LIMITED",
+            "errorDetail": "Model rate limit reached"
+          }
+        ],
+        "sseReplay": {
+          "count": 3,
+          "firstSeq": 3,
+          "lastType": "run.failed",
+          "continuous": true
+        }
+      },
+      {
+        "name": "5900码点完整候选",
+        "projectId": "01a0f316-61bd-7c81-a3f3-85f9d51d2939",
+        "runId": "01a0f316-61bd-7c8c-91d2-ec298df41cfe",
+        "targetChapterId": "01a0f316-61bd-7c87-b999-31b798c094ab",
+        "inputCodePoints": 5900,
+        "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+        "elapsedSeconds": 1.1,
+        "run": {
+          "id": "01a0f316-61bd-7c8c-91d2-ec298df41cfe",
+          "projectId": "01a0f316-61bd-7c81-a3f3-85f9d51d2939",
+          "targetChapterId": "01a0f316-61bd-7c87-b999-31b798c094ab",
+          "baseVersion": 2,
+          "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+          "status": "FAILED",
+          "cancelRequested": false,
+          "queuedAt": "2026-09-30T16:12:04.742315Z",
+          "startedAt": "2026-09-30T16:12:04.747676Z",
+          "finishedAt": "2026-09-30T16:12:04.838144Z",
+          "analysis": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached",
+          "modelCallCount": 1,
+          "toolCallCount": 0,
+          "toolTextCodepoints": 0,
+          "lastEventSeq": 5,
+          "proposalId": null,
+          "steps": [],
+          "sources": []
+        },
+        "unchangedBeforeAdoption": true,
+        "targetFullReadProvided": false,
+        "modelCalls": [
+          {
+            "callIndex": 1,
+            "status": "FAILED",
+            "finishReason": null,
+            "rawFinishReason": null,
+            "usage": null,
+            "errorCode": "MODEL_RATE_LIMITED",
+            "errorDetail": "Model rate limit reached"
+          }
+        ],
+        "sseReplay": {
+          "count": 3,
+          "firstSeq": 3,
+          "lastType": "run.failed",
+          "continuous": true
+        }
+      },
+      {
+        "name": "字面无命中有同义证据",
+        "projectId": "01a0f316-6342-7aa9-ae88-29ac64c33910",
+        "runId": "01a0f316-637e-70a6-939b-0ac7f5fd5880",
+        "targetChapterId": "01a0f316-635f-7514-a9e2-59a391a4a9ba",
+        "inputCodePoints": 29,
+        "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+        "elapsedSeconds": 1.0,
+        "run": {
+          "id": "01a0f316-637e-70a6-939b-0ac7f5fd5880",
+          "projectId": "01a0f316-6342-7aa9-ae88-29ac64c33910",
+          "targetChapterId": "01a0f316-635f-7514-a9e2-59a391a4a9ba",
+          "baseVersion": 2,
+          "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+          "status": "FAILED",
+          "cancelRequested": false,
+          "queuedAt": "2026-09-30T16:12:05.885640Z",
+          "startedAt": "2026-09-30T16:12:05.890429Z",
+          "finishedAt": "2026-09-30T16:12:05.976910Z",
+          "analysis": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached",
+          "modelCallCount": 1,
+          "toolCallCount": 0,
+          "toolTextCodepoints": 0,
+          "lastEventSeq": 5,
+          "proposalId": null,
+          "steps": [],
+          "sources": []
+        },
+        "unchangedBeforeAdoption": true,
+        "targetFullReadProvided": false,
+        "modelCalls": [
+          {
+            "callIndex": 1,
+            "status": "FAILED",
+            "finishReason": null,
+            "rawFinishReason": null,
+            "usage": null,
+            "errorCode": "MODEL_RATE_LIMITED",
+            "errorDetail": "Model rate limit reached"
+          }
+        ],
+        "sseReplay": {
+          "count": 3,
+          "firstSeq": 3,
+          "lastType": "run.failed",
+          "continuous": true
+        }
+      },
+      {
+        "name": "信息不足",
+        "projectId": "01a0f316-678f-7c73-a29f-489fe5ea5413",
+        "runId": "01a0f316-67c5-7e00-a6b0-a0cadd758925",
+        "targetChapterId": "01a0f316-67ab-773d-9b56-c29888606883",
+        "inputCodePoints": 27,
+        "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+        "elapsedSeconds": 60.2,
+        "run": {
+          "id": "01a0f316-67c5-7e00-a6b0-a0cadd758925",
+          "projectId": "01a0f316-678f-7c73-a29f-489fe5ea5413",
+          "targetChapterId": "01a0f316-67ab-773d-9b56-c29888606883",
+          "baseVersion": 2,
+          "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+          "status": "FAILED",
+          "cancelRequested": false,
+          "queuedAt": "2026-09-30T16:12:06.981327Z",
+          "startedAt": "2026-09-30T16:12:06.986016Z",
+          "finishedAt": "2026-09-30T16:13:05.094282Z",
+          "analysis": null,
+          "errorCode": "MODEL_TIMEOUT",
+          "errorDetail": "Model connection failed",
+          "modelCallCount": 1,
+          "toolCallCount": 0,
+          "toolTextCodepoints": 0,
+          "lastEventSeq": 5,
+          "proposalId": null,
+          "steps": [],
+          "sources": []
+        },
+        "unchangedBeforeAdoption": true,
+        "targetFullReadProvided": false,
+        "modelCalls": [
+          {
+            "callIndex": 1,
+            "status": "FAILED",
+            "finishReason": null,
+            "rawFinishReason": null,
+            "usage": null,
+            "errorCode": "MODEL_TIMEOUT",
+            "errorDetail": "Model connection failed"
+          }
+        ],
+        "sseReplay": {
+          "count": 3,
+          "firstSeq": 3,
+          "lastType": "run.failed",
+          "continuous": true
+        }
+      }
+    ]
+  },
+  "liveSummary": {
+    "submitted": 5,
+    "succeeded": 0,
+    "modelTimeout": 2,
+    "modelRateLimited": 3,
+    "executedTools": 0,
+    "proposals": 0,
+    "activeProjectSlotsAfterRuns": 0,
+    "chaptersUnchanged": true,
+    "terminalSseReplayContinuous": true,
+    "limitation": "All failures occurred before the first tool execution; neither literary quality nor whole-chapter proposal generation was exercised. This is a provider/account/time-specific observation, not proof that the model never works."
+  },
+  "sseCapacityProbe": {
+    "runId": "01a0f316-67c5-7e00-a6b0-a0cadd758925",
+    "before": "RUNNING",
+    "after": "RUNNING",
+    "requested": 21,
+    "http200": 21,
+    "statuses": [
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200,
+      200
+    ]
+  },
+  "remainingAcceptance": {
+    "agentLoopPartialItems": [
+      15,
+      19,
+      21,
+      22,
+      25,
+      28
+    ],
+    "source": "docs/verification/agent-loop-al-ac-audit-2026-09-30.md",
+    "newConfirmedGap": "PRD section 9.2 requires at most 20 global SSE connections. 21 simultaneous connections to an active run all returned HTTP 200; AgentController contains no connection admission limit.",
+    "mvp": "AC-01 through AC-41 have not all been signed off."
+  },
+  "historicalRealModelEvidence": {
+    "model": "deepseek-ai/DeepSeek-V4-Flash",
+    "source": "docs/verification/agent-loop-real-model-2026-09-30.md",
+    "note": "Prior successful model runs must not be attributed to DeepSeek-V3.2."
+  },
+  "directDiagnostics": [
+    {
+      "mode": "messages",
+      "error": "The read operation timed out",
+      "elapsedSeconds": 65.41
+    },
+    {
+      "mode": "chat",
+      "error": "The read operation timed out",
+      "elapsedSeconds": 65.34
+    }
+  ]
+}
