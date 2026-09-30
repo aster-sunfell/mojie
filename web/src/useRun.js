@@ -69,7 +69,7 @@ export function useRun(runId, onChange) {
               if (current && terminal.has(current.status)) {
                 source?.close(); window.clearInterval(fallback); setConnection('closed')
               }
-            }).catch(() => {}), 5000)
+            }).catch(() => {}), 2000)
           }, 10000)
         }
       } catch (failure) { if (!disposed) { setError(failure.message); setConnection('error') } }
