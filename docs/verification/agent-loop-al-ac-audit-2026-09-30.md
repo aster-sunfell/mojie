@@ -2,6 +2,8 @@
 
 依据 [Agent Tool Loop PRD](../prd/Agent_Tool_Loop_PRD_v0.1.md) 第 9 节逐项核对。`自动覆盖`表示该条的主要确定性断言有可重复测试或真实运行记录；`部分`表示已有实现与证据，但所列竞争、边界或人工检查尚未覆盖。此表是 Agent Loop 专项核查，不代替总 PRD 的 AC-01–41 发布验收。
 
+2026-10-01 补充：浏览器已实际断线重连，并将事先捕获的 RUNNING 快照延迟到 SUCCEEDED 后交付；页面终态与分析没有回退，AL-AC-22 更新为自动覆盖。另修复 SSE 全局 20 条连接上限，并验证第 21 条请求为 429、完成后名额恢复；前端降级轮询已对齐 2 秒。真实 V3.2 的提供方繁忙与余额不足记录单列，不以浏览器模拟模型结果代替真实模型完成。
+
 证据简称：Loop = `AgentLoopTest`；Scheduler = `RunSchedulerIT`；DB = `JdbcContentRepositoryIT` / `JdbcContentServiceIT`；Adapter = Messages 和 Chat Completions 适配器测试；Web = `App.test.jsx` / `useRun.test.jsx`；Browser = [Chromium 记录](browser-agent-loop-2026-09-30.md)；Live = [真实模型记录](agent-loop-real-model-2026-09-30.md)；Recovery = [数据库恢复记录](agent-loop-db-recovery-2026-09-30.md)。
 
 | AL-AC | 状态 | 证据与剩余边界 |
@@ -27,7 +29,7 @@
 | 19 | 部分 | Scheduler 排队/运行取消、晚到 Worker 和新任务活动槽；Browser 运行取消；成功提交与取消请求的精确并发竞态尚未专门注入 |
 | 20 | 自动覆盖 | Scheduler 阻塞模型、排队/运行截止与容量释放；单次适配器请求超时 |
 | 21 | 部分 | Loop 落库失败停止请求；Recovery 断库重试与已提交成功回读；真实 PostgreSQL 进程故障尚未注入 |
-| 22 | 部分 | Browser 刷新、断 SSE 后恢复；Web 重复事件/旧快照；真实 Java 进程重启回归；浏览器重连中旧快照迟到组合未测 |
+| 22 | 自动覆盖 | Browser 刷新、断 SSE 后恢复；Web 重复事件；真实 Java 进程重启回归；2026-10-01 浏览器实际断网重连，并在终态后交付旧 RUNNING 快照，终态与分析保持不变 |
 | 23 | 自动覆盖 | Loop 工具完成后取消不再发模型请求；Scheduler 在 PostgreSQL 中保存工具执行、TOOL 回复和来源后取消，断言来源 `providedToModel=false` |
 | 24 | 自动覆盖 | DB 旧版本采纳冲突；Browser 草稿保护、采纳及双标签页保存冲突 |
 | 25 | 部分 | DB 可沿 runId 查询消息、步骤、来源和预算；配置快照与适配器错误脱敏已核对；PostgreSQL 测试确认推理协议块保留供续轮使用，但开发 trace、任务详情和事件均不展示其内容；意外提供方异常的消息中即使含伪密钥，也不进入这些响应；真实密钥与日志的全路径检查仍需复核 |
@@ -35,4 +37,4 @@
 | 27 | 自动覆盖 | Recovery 通过 PostgreSQL trigger 注入工具完成与成功事件事务中途异常，断言无部分提交；DB 另测终态提交回执丢失 |
 | 28 | 部分 | DB 持久化链路、候选与采纳历史可关联；未送达来源判定有实现；异常取消下全部关联键组合尚未逐一核对 |
 
-本次 `mvn verify` 在 PostgreSQL 18.6 的独立测试 schema 上通过：Loop 33 项、Scheduler 22 项，DB 集成测试通过。浏览器 4 项、Live 固定样本另见上述记录。当前可以判断显式 Agent Loop 的核心业务链路已完成并可用；AL-AC-15、19、21、22、25、28 仍需补足证据后才可逐项签收，完整 MVP 发布验收还需对照总 PRD。
+本次 `mvn verify` 在 PostgreSQL 18.6 的独立测试 schema 上通过：Loop 33 项、Scheduler 22 项，DB 集成测试通过。原浏览器 4 项、Live 固定样本另见上述记录；2026-10-01 新增 SSE 容量及重连旧快照两项浏览器/HTTP 回归通过。当前可以判断显式 Agent Loop 的核心业务链路已完成并可用；AL-AC-15、19、21、25、28 仍需补足证据后才可逐项签收，完整 MVP 发布验收还需对照总 PRD。此处的核心实现判断不等于任何指定提供方或模型当前都可正常运行。

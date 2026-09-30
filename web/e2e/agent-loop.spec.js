@@ -138,3 +138,44 @@ test('SSE rejects the 21st subscription and releases capacity after completion',
     for (const stream of streams) stream.socket.destroy()
   }
 })
+
+test('reconnection does not let a delayed running snapshot replace the terminal result', async ({ page, request }) => {
+  await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
+  await page.locator('#instruction').fill('E2E_SLOW 检查目标章节。')
+  await page.getByRole('button', { name: '开始检查' }).click()
+  await expect(page.locator('.runDetail')).toContainText('运行中')
+  const runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}&chapterId=${chapterId}`)).json()).data.items
+  const path = `${api}/agent/runs/${runs[0].id}`
+  const oldSnapshot = await (await request.get(path)).json()
+  expect(oldSnapshot.data.status).toBe('RUNNING')
+  let heldRoute
+  let heldOnce = false
+  await page.route(`**${path}`, async route => {
+    if (!heldOnce && route.request().method() === 'GET') {
+      heldOnce = true
+      heldRoute = route
+      return
+    }
+    await route.continue()
+  })
+  try {
+    await page.context().setOffline(true)
+    await expect(page.locator('.runDetail')).toContainText('事件连接中断')
+    await page.context().setOffline(false)
+    await expect(page.locator('.runDetail')).toContainText('已完成', { timeout: 30_000 })
+    expect(heldRoute).toBeTruthy()
+    const analysis = await page.locator('.analysis').textContent()
+    const heldRequest = heldRoute.request()
+    const delivered = page.waitForResponse(response => response.request() === heldRequest)
+    await heldRoute.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(oldSnapshot) })
+    heldRoute = null
+    await (await delivered).finished()
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    await expect(page.locator('.analysis')).toHaveText(analysis)
+    await expect(page.locator('.runDetail')).toContainText('已完成')
+    await expect(page.locator('.runDetail')).not.toContainText('运行中')
+  } finally {
+    await page.context().setOffline(false)
+    if (heldRoute) await heldRoute.abort()
+  }
+})
