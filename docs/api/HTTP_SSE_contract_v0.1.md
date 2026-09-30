@@ -4,6 +4,8 @@
 
 任务内模型调用的 HTTP 402 记录为 `FAILED / MODEL_PAYMENT_REQUIRED`，提示检查模型账户余额或付费权限。消息采用后端固定文案，不展示提供方原始响应；不自动重试，也不发布候选稿。任务详情查询本身仍正常返回 HTTP 200。
 
+`GET /system/capabilities` 的 `modelId` 表示服务端当前选用的模型；实测客户端应在提交前核对它。受控的 `GET /agent/runs/{id}/trace` 另返回该任务持久化的 `modelId` 和 `modelConfig`，后者仅包含 `apiPath`、`maxOutputTokens`、`contextWindowTokens`，不会把其他配置字段或密钥带出。当前服务配置和历史任务配置可能不同，以任务快照核对该次实测。
+
 ## 列表分页
 
 `GET /projects`、`GET /projects/{id}/chapters`、`GET /projects/{id}/settings`、`GET /chapters/{id}/revisions` 和 `GET /agent/runs` 的 `data` 为 `{ "items": [...], "nextCursor": string | null }`。`limit` 默认 20、最大 50。传回 `nextCursor` 作为下一次请求的 `cursor`，末页为 `null`；游标绑定当前作者、资源及筛选条件，改条件后从第一页重新请求。无效或篡改游标返回 400 `VALIDATION_ERROR`。游标是已读位置，不是整个列表的时间点快照；翻页期间新增或更改内容可能改变列表。

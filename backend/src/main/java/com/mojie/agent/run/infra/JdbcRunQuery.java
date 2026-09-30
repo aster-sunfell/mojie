@@ -106,6 +106,15 @@ public final class JdbcRunQuery {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false); c.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
             Map<String,Object> result = scoped(c, owner, runId);
+            Map<String,Object> selection = first(c,
+                    "SELECT model_id, config_snapshot FROM tb_agent_run WHERE id = ?::uuid", runId);
+            result.put("modelId", selection.get("modelId"));
+            JsonNode snapshot = (JsonNode) decode(selection.get("configSnapshot").toString());
+            Map<String,Object> modelConfig = new LinkedHashMap<>();
+            for (String name : List.of("apiPath", "maxOutputTokens", "contextWindowTokens")) {
+                if (snapshot.has(name)) modelConfig.put(name, snapshot.get(name));
+            }
+            result.put("modelConfig", modelConfig);
             result.put("modelCalls", query(c, "SELECT id, call_index, input_message_seqs, status, finish_reason, raw_finish_reason, provider_request_id, error_code, error_detail, usage, started_at, finished_at FROM tb_agent_model_call WHERE run_id = ?::uuid ORDER BY call_index", runId));
             List<Map<String,Object>> messages = query(c, "SELECT message_seq, role, content, model_call_id, tool_call_id, tool_execution_id, created_at FROM tb_agent_message WHERE run_id = ?::uuid ORDER BY message_seq", runId);
             for (Map<String,Object> message : messages) redactOpaqueBlocks(message.get("content"));

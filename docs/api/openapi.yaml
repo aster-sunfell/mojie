@@ -15,6 +15,7 @@ paths:
   /system/capabilities:
     get:
       operationId: capabilities
+      description: Includes agentConfigured and the server's selected modelId, allowing clients to verify the expected model before submitting a run.
       responses:
         '200': { $ref: '#/components/responses/Data' }
   /projects:
@@ -215,7 +216,7 @@ paths:
       - { $ref: '#/components/parameters/Id' }
     get:
       operationId: getDevelopmentTrace
-      description: Available only when MOJIE_DEV_TRACE=true.
+      description: Available only when MOJIE_DEV_TRACE=true. Includes the run's persisted modelId and an allowlisted modelConfig (apiPath, maxOutputTokens, contextWindowTokens); no API key or opaque reasoning content.
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }

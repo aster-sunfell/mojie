@@ -124,6 +124,9 @@ class Audit:
                                                 and s["providedToModel"] for s in run["sources"]),
                       expectedProposalPresence=bool(run.get("proposalId")) == ("expected" in fixture))
         trace = self.api("/agent/runs/" + run_id + "/trace")
+        entry["modelId"] = trace.get("modelId")
+        entry["modelConfig"] = trace.get("modelConfig")
+        checks["expectedPersistedModel"] = trace.get("modelId") == self.report["expectedModel"]
         entry["modelCalls"] = [{k: call.get(k) for k in
                                ["callIndex", "status", "finishReason", "rawFinishReason", "usage", "errorCode", "errorDetail"]}
                               for call in trace["modelCalls"]]
@@ -161,7 +164,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True, help="Isolated Java API, including /api/v1; enable MOJIE_DEV_TRACE=true")
     parser.add_argument("--output", required=True, type=Path, help="New JSON evidence file; existing files are never overwritten")
-    parser.add_argument("--model", required=True, help="Expected model for the record; verify against the run's DB configuration")
+    parser.add_argument("--model", required=True, help="Required model ID; mismatch stops before creating fixtures or submitting tasks")
     parser.add_argument("--cases", nargs="+", choices=[f["id"] for f in fixtures()], help="Run selected cases only")
     args = parser.parse_args()
     if args.output.exists():
@@ -170,8 +173,12 @@ def main():
     audit = Audit(args)
     if audit.api("/health")["status"] != "UP":
         parser.error("Backend is not healthy")
-    if not audit.api("/system/capabilities")["agentConfigured"]:
+    capabilities = audit.api("/system/capabilities")
+    if not capabilities["agentConfigured"]:
         parser.error("Backend has no configured model")
+    if capabilities.get("modelId") != args.model:
+        parser.error(f"Expected model {args.model}, but backend reports {capabilities.get('modelId')!r}; no tasks submitted")
+    audit.report["configuredModel"] = capabilities["modelId"]
     selected = [f for f in fixtures() if not args.cases or f["id"] in args.cases]
     for fixture in selected:
         try:

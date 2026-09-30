@@ -24,12 +24,14 @@ public final class AgentController {
     private final DataSource dataSource;
     private final String owner = System.getenv().getOrDefault("MOJIE_OWNER_ID", "local-author");
     private final boolean modelConfigured;
+    private final String modelId;
     private final boolean traceEnabled = "true".equalsIgnoreCase(System.getenv("MOJIE_DEV_TRACE"));
     private final RunEventStream eventStream;
     public AgentController(RunScheduler scheduler, JdbcRunQuery query, JdbcEditProposalService proposals,
                            DataSource dataSource, ModelApiConfig modelConfig) {
         this.scheduler = scheduler; this.query = query; this.proposals = proposals; this.dataSource = dataSource;
         this.modelConfigured = modelConfig.configured();
+        this.modelId = modelConfig.modelId();
         this.eventStream = new RunEventStream(query);
     }
     @PreDestroy public void closeEventPoller() { eventStream.close(); }
@@ -47,6 +49,7 @@ public final class AgentController {
     }
     @GetMapping("/system/capabilities") public Map<String,Object> capabilities() {
         return data(Map.of("agentConfigured", modelConfigured && scheduler.healthy(),
+                "modelId", modelId,
                 "maxInstructionCodePoints", 2000, "maxChapterCodePoints", 6000,
                 "maxSettingCodePoints", 2000, "maxModelCalls", 8, "maxToolCalls", 12));
     }

@@ -347,8 +347,17 @@ class RunSchedulerIT {
                 assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_message WHERE run_id='" + runId
                         + "' AND content::text LIKE '%" + hidden + "%'"));
                 JdbcRunQuery query = new JdbcRunQuery(source);
+                try (Connection connection = source.getConnection(); Statement statement = connection.createStatement()) {
+                    statement.executeUpdate("UPDATE tb_agent_run SET config_snapshot=config_snapshot || "
+                            + "'{\"apiKey\":\"config-secret-canary\"}'::jsonb WHERE id='" + runId + "'");
+                }
                 Map<String,Object> trace = query.trace("owner", runId);
                 assertFalse(trace.toString().contains(hidden));
+                assertEquals("scripted", trace.get("modelId"));
+                Map<?,?> modelConfig = (Map<?,?>) trace.get("modelConfig");
+                assertEquals(Set.of("apiPath", "maxOutputTokens", "contextWindowTokens"), modelConfig.keySet());
+                assertEquals(100, ((com.fasterxml.jackson.databind.JsonNode) modelConfig.get("maxOutputTokens")).asInt());
+                assertFalse(trace.toString().contains("config-secret-canary"));
                 List<?> messages = (List<?>) trace.get("messages");
                 Map<?,?> assistant = (Map<?,?>) messages.get(1);
                 var block = ((com.fasterxml.jackson.databind.JsonNode) assistant.get("content")).get(0).path("block");

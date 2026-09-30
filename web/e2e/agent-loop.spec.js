@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test'
 import http from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 
 const api = '/api/v1'
 let projectId
@@ -178,4 +182,22 @@ test('reconnection does not let a delayed running snapshot replace the terminal 
     await page.context().setOffline(false)
     if (heldRoute) await heldRoute.abort()
   }
+})
+
+test('live audit rejects a different server model before creating data or calling it', async ({ request }) => {
+  const capabilities = (await (await request.get(`${api}/system/capabilities`)).json()).data
+  expect(capabilities.modelId).toBe('browser-test')
+  const before = await (await request.get(`${api}/projects`)).json()
+  const directory = mkdtempSync(path.join(tmpdir(), 'mojie-model-check-'))
+  const output = path.join(directory, 'audit.json')
+  try {
+    const result = spawnSync('python3', ['../scripts/check-agent-loop-live.py',
+      '--base-url', 'http://127.0.0.1:18080/api/v1', '--model', 'deepseek-ai/DeepSeek-V3.2',
+      '--output', output, '--cases', 'readonly'], { encoding: 'utf8', timeout: 10_000 })
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('Expected model deepseek-ai/DeepSeek-V3.2')
+    expect(result.stderr).toContain('no tasks submitted')
+    expect(existsSync(output)).toBe(false)
+    expect(await (await request.get(`${api}/projects`)).json()).toEqual(before)
+  } finally { rmSync(directory, { recursive: true, force: true }) }
 })
