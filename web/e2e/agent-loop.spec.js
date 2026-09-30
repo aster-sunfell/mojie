@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import http from 'node:http'
+import { randomUUID } from 'node:crypto'
 
 const api = '/api/v1'
 let projectId
@@ -87,4 +89,52 @@ test('two tabs keep the losing draft when the chapter version changes', async ({
     await expect(second.locator('.editorHeader')).toContainText('版本冲突')
     await expect(second.locator('.editor')).toHaveValue('第二个标签页保留的草稿。')
   } finally { await second.close() }
+})
+
+test('SSE rejects the 21st subscription and releases capacity after completion', async ({ request }) => {
+  const run = (await (await request.post(`${api}/agent/runs`, { data: {
+    projectId, targetChapterId: chapterId, expectedVersion: 2,
+    instruction: 'E2E_SLOW 检查目标章节。', clientRequestId: randomUUID(),
+  } })).json()).data
+  const path = `${api}/agent/runs/${run.runId}/events`
+  const streams = []
+  const open = () => new Promise((resolve, reject) => {
+    const socket = http.get(`http://127.0.0.1:18080${path}`, response => {
+      let text = ''
+      response.setEncoding('utf8')
+      response.on('data', chunk => { text += chunk })
+      const done = new Promise((end, fail) => {
+        response.on('end', () => end(text))
+        response.on('error', fail)
+      })
+      // Attach immediately, including when a later assertion fails and sockets are closed.
+      done.catch(() => {})
+      resolve({ response, socket, done })
+    })
+    socket.on('error', reject)
+  })
+  try {
+    // Invalid cursors must not consume a subscription slot.
+    for (let i = 0; i < 3; i++) expect((await request.get(`${path}?afterSeq=-1`)).status()).toBe(400)
+    for (let i = 0; i < 20; i++) {
+      const stream = await open()
+      streams.push(stream)
+      expect(stream.response.statusCode).toBe(200)
+    }
+    const excess = await request.get(path)
+    expect(excess.status()).toBe(429)
+    expect((await excess.json()).code).toBe('STREAM_CAPACITY_EXCEEDED')
+    expect((await request.get(`${api}/health`)).status()).toBe(200)
+    const replay = await Promise.all(streams.map(stream => stream.done))
+    for (const events of replay) expect(events).toContain('event:run.succeeded')
+
+    // Completion and servlet callbacks may both run; repeated replay must not leak permits.
+    for (let i = 0; i < 25; i++) {
+      const replayed = await request.get(path)
+      expect(replayed.status()).toBe(200)
+      expect(await replayed.text()).toContain('event:run.succeeded')
+    }
+  } finally {
+    for (const stream of streams) stream.socket.destroy()
+  }
 })

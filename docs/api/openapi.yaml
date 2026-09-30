@@ -198,6 +198,7 @@ paths:
       - { $ref: '#/components/parameters/Id' }
     get:
       operationId: streamRunEvents
+      description: At most 20 active subscriptions globally; excess connections receive STREAM_CAPACITY_EXCEEDED.
       parameters:
         - { name: afterSeq, in: query, schema: { type: integer, format: int64, minimum: 0 } }
         - { name: Last-Event-ID, in: header, schema: { type: string, pattern: '^[0-9]+$' } }
@@ -208,6 +209,7 @@ paths:
             text/event-stream:
               schema: { type: string }
         '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
   /agent/runs/{id}/trace:
     parameters:
       - { $ref: '#/components/parameters/Id' }
