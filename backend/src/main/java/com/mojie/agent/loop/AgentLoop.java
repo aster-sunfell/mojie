@@ -129,12 +129,12 @@ public final class AgentLoop {
                     toolCalls++;
                     String executionId = trace.toolStarted(runId, callIndex, call);
                     ToolResult result = execute(call, context);
-                    Map<String, Object> payload = result.wire();
+                    Map<String, Object> payload = wireResult(result, modelCalls, toolCalls);
                     String wire = json.writeValueAsString(payload);
                     // A single complete read that cannot fit is returned as an explicit tool error.
                     if (result.success() && call.name().startsWith("read_") && codePoints(wire) > limits.maxToolTextCodePoints()) {
                         result = ToolResult.error("RESULT_TOO_LARGE", "Complete result exceeds the tool text limit", false);
-                        payload = result.wire();
+                        payload = wireResult(result, modelCalls, toolCalls);
                         wire = json.writeValueAsString(payload);
                     }
                     int resultSize = codePoints(wire);
@@ -160,6 +160,18 @@ public final class AgentLoop {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return new LoopOutcome.Failed("PERSISTENCE_ERROR", "Cannot serialize tool result");
         }
+    }
+
+    private Map<String, Object> wireResult(ToolResult result, int modelCalls, int toolCalls) {
+        Map<String, Object> payload = result.wire();
+        Map<String, Object> budget = new LinkedHashMap<>();
+        budget.put("modelCallsUsed", modelCalls);
+        budget.put("modelCallsRemaining", limits.maxModelCalls() - modelCalls);
+        budget.put("toolCallsUsed", toolCalls);
+        budget.put("toolCallsRemaining", limits.maxToolCalls() - toolCalls);
+        budget.put("finalResponseRequired", modelCalls + 1 == limits.maxModelCalls() || toolCalls == limits.maxToolCalls());
+        payload.put("budget", budget);
+        return payload;
     }
 
     private ToolResult execute(ToolCall call, ToolContext context) {

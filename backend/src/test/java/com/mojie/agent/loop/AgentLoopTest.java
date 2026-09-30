@@ -212,6 +212,28 @@ class AgentLoopTest {
                 LoopLimits.defaults(), Clock.systemUTC(), cancelled::get).run(input()));
     }
 
+    @Test void remainingBudgetIsPersistedAndDeliveredAfterErrorsAndBatches() throws Exception {
+        Script model = new Script(List.of(
+                response("", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}"),
+                        call("unknown", "missing_tool", "{}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("p", "propose_edit", "{\"proposedContent\":\"新版\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("最终分析", List.of(), FinishReason.FINAL)));
+        LoopOutcome.Completed done = (LoopOutcome.Completed) loop(model,
+                new LoopLimits(3, 3, 30_000, 200_000, 60_000)).run(input());
+        assertEquals(3, done.modelCalls());
+        assertEquals(3, done.toolCalls());
+        JsonNode first = JSON.readTree(trace.wireResults.get(0));
+        JsonNode error = JSON.readTree(trace.wireResults.get(1));
+        JsonNode candidate = JSON.readTree(trace.wireResults.get(2));
+        assertEquals(node("{\"modelCallsUsed\":1,\"modelCallsRemaining\":2,\"toolCallsUsed\":1,\"toolCallsRemaining\":2,\"finalResponseRequired\":false}"), first.path("budget"));
+        assertEquals(node("{\"modelCallsUsed\":1,\"modelCallsRemaining\":2,\"toolCallsUsed\":2,\"toolCallsRemaining\":1,\"finalResponseRequired\":false}"), error.path("budget"));
+        assertEquals("UNKNOWN_TOOL", error.path("error").path("code").asText());
+        assertEquals(node("{\"modelCallsUsed\":2,\"modelCallsRemaining\":1,\"toolCallsUsed\":3,\"toolCallsRemaining\":0,\"finalResponseRequired\":true}"), candidate.path("budget"));
+        assertEquals(error, JSON.readTree(JSON.writeValueAsString(model.requests.get(1).messages().getLast().replies().getLast().result())));
+        assertEquals(candidate, JSON.readTree(JSON.writeValueAsString(model.requests.get(2).messages().getLast().replies().getLast().result())));
+        assertEquals(trace.wireResults.stream().mapToInt(w -> w.codePointCount(0, w.length())).sum(), done.toolTextCodePoints());
+    }
+
     @Test void interruptedProviderCallCancelsTheRun() {
         ModelGateway model = request -> { throw new java.util.concurrent.CancellationException("interrupted"); };
         assertInstanceOf(LoopOutcome.Cancelled.class, loop(model, LoopLimits.defaults()).run(input()));

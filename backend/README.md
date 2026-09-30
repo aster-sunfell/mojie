@@ -30,6 +30,8 @@ Set `MOJIE_MODEL_ID` explicitly when using the generic API key. The default cont
 
 The system prompt tells the model the default request/tool budgets, asks it to reserve a final response after any candidate submission, and allows independent calls with known arguments in one response. Tool execution remains sequential and the runtime enforces the same limits. This addresses the [V3.2 recovery audit](../docs/verification/agent-loop-deepseek-v3.2-recovered-2026-10-01.json), where three of five runs requested more tools on the last allowed model turn; it does not guarantee completion or remove the separate long-output timeout risk.
 
+Each actual tool reply also contains a `budget` snapshot with used/remaining model and tool calls and `finalResponseRequired`. The last reply of a batch has the latest counts; failed tools consume budget too. This metadata is stored with the identical step result and tool message and counts toward the tool-text cap. The model still chooses its tools; requesting more tools on the last allowed response remains a run failure.
+
 The repository includes 13 PostgreSQL tables, JDBC adapters and `RunScheduler`. The scheduler applies migrations, fails old-process tasks before readiness, admits runs with idempotency and a 2+8 capacity limit, and scans timeouts every two seconds. `JdbcEditProposalService` accepts or rejects a published proposal in a separate transaction, with version conflict and single-history protection. The Messages and Chat Completions gateways map complete provider responses into the same loop protocol. Opaque provider blocks remain in the stored assistant message for accurate continuation, while the local developer trace redacts their contents before returning them over HTTP.
 
 ## HTTP service

@@ -97,6 +97,9 @@ class RunSchedulerIT {
                 assertTrue(data(request, "read-prior").toString().contains("不会游泳"));
                 assertEquals(true, request.messages().getLast().replies().stream()
                         .filter(reply -> reply.callId().equals("candidate")).findFirst().orElseThrow().result().get("success"));
+                assertEquals(Map.of("modelCallsUsed", 4, "modelCallsRemaining", 4, "toolCallsUsed", 11,
+                        "toolCallsRemaining", 1, "finalResponseRequired", false),
+                        request.messages().getLast().replies().getLast().result().get("budget"));
                 return new Response("建议补充过河方式，以保持人物设定和前文一致。", List.of(),
                         FinishReason.FINAL, "review-5", "end_turn", null);
             };
@@ -108,6 +111,10 @@ class RunSchedulerIT {
                 Map<String,Object> detail = new JdbcRunQuery(dataSource).detail("owner", runId);
                 assertEquals(5, detail.get("modelCallCount"));
                 assertEquals(11, detail.get("toolCallCount"));
+                assertEquals(11, count(dataSource, "SELECT count(*) FROM tb_agent_step s JOIN tb_agent_message m "
+                        + "ON m.run_id=s.run_id AND m.tool_execution_id=s.tool_execution_id "
+                        + "WHERE s.run_id='" + runId + "' AND m.role='TOOL' AND m.content=s.result "
+                        + "AND s.result ? 'budget'"));
                 List<?> steps = (List<?>) detail.get("steps");
                 assertEquals(List.of("read_chapter", "list_chapters", "list_settings", "list_settings", "search_settings",
                         "search_settings", "read_settings", "search_chapters", "search_chapters",

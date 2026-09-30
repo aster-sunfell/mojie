@@ -399,7 +399,7 @@ Java 工具默认采用无运行状态的实现，通过 `execute(args, context)
 
 Agent 必须先通过 read_chapter 成功读取目标章节完整正文，才允许提交候选稿；搜索命中目标章或只读取片段不满足此条件。候选稿不能为空、不得超过章节长度上限、不得与基准正文完全相同；已有一份有效候选稿时不再接受第二份。无修改必要时直接返回分析，不调用建议工具。修改理由必填且不超过 2,000 个 Unicode 码点。
 
-工具输出使用统一结构 `{success, data, error}`；错误至少包含 `code`、可读 `message` 和 `retryableByModel`。其中 `retryableByModel` 只表示可修正参数后再调用，不表示执行层自动重试。每次调用生成本地 `toolExecutionId`；用 `modelCallId + toolCallId` 定位模型批次，不能仅假设提供方 ID 在所有任务中全局唯一。
+工具业务结果使用统一结构 `{success, data, error}`；循环回填时附加 `budget`，记录当前已消耗/剩余模型与工具次数，以及是否必须以无工具的最终分析收尾，详见 Agent Tool Loop PRD 6.1。预算元数据和业务结果一并持久化并计入工具文本预算。错误至少包含 `code`、可读 `message` 和 `retryableByModel`。其中 `retryableByModel` 只表示可修正参数后再调用，不表示执行层自动重试。每次调用生成本地 `toolExecutionId`；用 `modelCallId + toolCallId` 定位模型批次，不能仅假设提供方 ID 在所有任务中全局唯一。
 
 list_settings 默认 20 条、最多 50 条，按设定 ID 稳定排序。search_settings 的 keyword 与 5.9 采用同一字面规则（1–128 码点、区分大小写、逐字匹配、不跨行）；结果单位是设定条目，每条命中设定只返回一次，摘录取该条目第一个命中处（先标题后正文），标明命中字段 TITLE/CONTENT，摘录规则同 5.9；默认 5 条、最多 20 条，按设定 ID 稳定排序，以 hasMore、nextCursor 分页，不返回总数。设定游标由后端产生，绑定 runId、keyword、type 和最后设定 ID，违规返回 `INVALID_SEARCH_CURSOR`。活动任务期间设定不可增删改（4.4），设定工具因此不需要版本视图。空关键词返回参数错误，无命中返回空集合而不是工具故障。设定摘录只用于定位，引用设定内容前应通过 read_settings 读取完整条目。工具参数错误、未知工具或跨作品请求返回结构化错误，可供模型修正，但仍消耗调用预算。越权结果不包含被拒绝资源的标题或正文。
 
