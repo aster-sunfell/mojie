@@ -1,0 +1,429 @@
+{
+  "model": "Pro/deepseek-ai/DeepSeek-V3.2",
+  "apiPath": "/v1/chat/completions",
+  "contextWindowTokens": 163840,
+  "database": "mojie_ds32_audit_20261001",
+  "cases": [
+    {
+      "name": "无需修改",
+      "projectId": "01a0f322-cb26-7737-804a-22d15e161859",
+      "runId": "01a0f322-cb8c-7f75-b0ee-3e104508fbe3",
+      "targetChapterId": "01a0f322-cb5b-76c8-9ae1-1e05e4392e15",
+      "inputCodePoints": 23,
+      "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+      "elapsedSeconds": 1.0,
+      "run": {
+        "id": "01a0f322-cb8c-7f75-b0ee-3e104508fbe3",
+        "projectId": "01a0f322-cb26-7737-804a-22d15e161859",
+        "targetChapterId": "01a0f322-cb5b-76c8-9ae1-1e05e4392e15",
+        "baseVersion": 2,
+        "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:25:38.955304Z",
+        "startedAt": "2026-09-30T16:25:38.967138Z",
+        "finishedAt": "2026-09-30T16:25:39.530532Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "矛盾与采纳",
+      "projectId": "01a0f322-cfcb-7fb3-93c7-954c21a3e742",
+      "runId": "01a0f322-d013-74b3-b138-c8b64ba1c223",
+      "targetChapterId": "01a0f322-cfef-7622-9f17-7a006c7a4bd1",
+      "inputCodePoints": 39,
+      "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+      "elapsedSeconds": 1.0,
+      "run": {
+        "id": "01a0f322-d013-74b3-b138-c8b64ba1c223",
+        "projectId": "01a0f322-cfcb-7fb3-93c7-954c21a3e742",
+        "targetChapterId": "01a0f322-cfef-7622-9f17-7a006c7a4bd1",
+        "baseVersion": 2,
+        "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:25:40.114728Z",
+        "startedAt": "2026-09-30T16:25:40.120585Z",
+        "finishedAt": "2026-09-30T16:25:40.208285Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "5900码点完整候选",
+      "projectId": "01a0f322-d449-7c8f-adf4-e74cfbec05d1",
+      "runId": "01a0f322-d491-78c8-a680-f0bf84c59c9f",
+      "targetChapterId": "01a0f322-d46c-7283-9622-cae4c523395f",
+      "inputCodePoints": 5900,
+      "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+      "elapsedSeconds": 1.1,
+      "run": {
+        "id": "01a0f322-d491-78c8-a680-f0bf84c59c9f",
+        "projectId": "01a0f322-d449-7c8f-adf4-e74cfbec05d1",
+        "targetChapterId": "01a0f322-d46c-7283-9622-cae4c523395f",
+        "baseVersion": 2,
+        "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:25:41.264545Z",
+        "startedAt": "2026-09-30T16:25:41.270100Z",
+        "finishedAt": "2026-09-30T16:25:41.362066Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "字面无命中有同义证据",
+      "projectId": "01a0f322-d8f5-79fa-a60d-cd5abf9a1f53",
+      "runId": "01a0f322-d934-7191-a454-d1d840756ff5",
+      "targetChapterId": "01a0f322-d912-7f67-9d67-45d7b513fedb",
+      "inputCodePoints": 29,
+      "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+      "elapsedSeconds": 58.5,
+      "run": {
+        "id": "01a0f322-d934-7191-a454-d1d840756ff5",
+        "projectId": "01a0f322-d8f5-79fa-a60d-cd5abf9a1f53",
+        "targetChapterId": "01a0f322-d912-7f67-9d67-45d7b513fedb",
+        "baseVersion": 2,
+        "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:25:42.451633Z",
+        "startedAt": "2026-09-30T16:25:42.457796Z",
+        "finishedAt": "2026-09-30T16:26:36.650281Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 5,
+        "toolCallCount": 4,
+        "toolTextCodepoints": 693,
+        "lastEventSeq": 21,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "948c488c-bdb2-4180-ad27-5e1125508093",
+            "toolCallId": "01a0f32200769461bf5bc661c717301a",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f322-d912-7f67-9d67-45d7b513fedb"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "林舟纵身跃入深水，独自泅渡到了对岸。他此前没有学过新本领。",
+                "version": 2,
+                "chapterId": "01a0f322-d912-7f67-9d67-45d7b513fedb",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T16:25:48.296834Z",
+            "finishedAt": "2026-09-30T16:25:48.304217Z",
+            "modelCallIndex": 1
+          },
+          {
+            "toolExecutionId": "c9173a64-2dfb-4e0e-bd19-4debe41931db",
+            "toolCallId": "01a0f323484612b4baa99c922592745f",
+            "toolName": "search_chapters",
+            "args": {
+              "limit": 20,
+              "scope": "BEFORE_TARGET",
+              "keyword": "游泳"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "6d2b4038-d0fb-410a-89f0-055bb2cdbf74",
+                "hasMore": false,
+                "keyword": "游泳",
+                "matches": [],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T16:26:18.347357Z",
+            "finishedAt": "2026-09-30T16:26:18.375037Z",
+            "modelCallIndex": 2
+          },
+          {
+            "toolExecutionId": "67e4c344-055c-4562-99a5-fe3c909c1725",
+            "toolCallId": "01a0f3229cee0d8824a76485d25a24a5",
+            "toolName": "search_chapters",
+            "args": {
+              "limit": 20,
+              "scope": "BEFORE_TARGET",
+              "keyword": "泅渡"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "6d2b4038-d0fb-410a-89f0-055bb2cdbf74",
+                "hasMore": false,
+                "keyword": "泅渡",
+                "matches": [],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T16:26:26.297222Z",
+            "finishedAt": "2026-09-30T16:26:26.306737Z",
+            "modelCallIndex": 3
+          },
+          {
+            "toolExecutionId": "9f224a9d-acc8-4bd0-ae46-387beb788266",
+            "toolCallId": "01a0f322c039e7ac6c8741b6ad6e515b",
+            "toolName": "search_chapters",
+            "args": {
+              "limit": 20,
+              "scope": "BEFORE_TARGET",
+              "keyword": "跃入"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "6d2b4038-d0fb-410a-89f0-055bb2cdbf74",
+                "hasMore": false,
+                "keyword": "跃入",
+                "matches": [],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T16:26:36.536973Z",
+            "finishedAt": "2026-09-30T16:26:36.544019Z",
+            "modelCallIndex": 4
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f322-f012-774d-ab9a-4b7374c5576c",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f322-d912-7f67-9d67-45d7b513fedb",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "948c488c-bdb2-4180-ad27-5e1125508093",
+            "providedToModel": true
+          }
+        ]
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": true,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1079,
+            "outputTokens": 78
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1254,
+            "outputTokens": 94
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 3,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1428,
+            "outputTokens": 113
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 4,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1623,
+            "outputTokens": 80
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 5,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 19,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "信息不足",
+      "projectId": "01a0f323-adcf-7ea3-b4ba-65fda7dbf20b",
+      "runId": "01a0f323-ae10-7363-80d3-6b30870d46f7",
+      "targetChapterId": "01a0f323-adf0-7e4e-99b8-f6cd7ed09cfc",
+      "inputCodePoints": 27,
+      "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+      "elapsedSeconds": 1.0,
+      "run": {
+        "id": "01a0f323-ae10-7363-80d3-6b30870d46f7",
+        "projectId": "01a0f323-adcf-7ea3-b4ba-65fda7dbf20b",
+        "targetChapterId": "01a0f323-adf0-7e4e-99b8-f6cd7ed09cfc",
+        "baseVersion": 2,
+        "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:26:36.943696Z",
+        "startedAt": "2026-09-30T16:26:36.949531Z",
+        "finishedAt": "2026-09-30T16:26:37.034248Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    }
+  ]
+}

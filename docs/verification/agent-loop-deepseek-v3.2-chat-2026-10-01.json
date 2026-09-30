@@ -1,0 +1,449 @@
+{
+  "model": "deepseek-ai/DeepSeek-V3.2",
+  "apiPath": "/v1/chat/completions",
+  "contextWindowTokens": 163840,
+  "database": "mojie_ds32_audit_20261001",
+  "cases": [
+    {
+      "name": "无需修改",
+      "projectId": "01a0f31f-6011-779b-be84-d1a97d59f103",
+      "runId": "01a0f31f-6073-753e-834b-31bd7d6de6ab",
+      "targetChapterId": "01a0f31f-6045-7ec0-a4f1-d2efb6c7360f",
+      "inputCodePoints": 23,
+      "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+      "elapsedSeconds": 15.3,
+      "run": {
+        "id": "01a0f31f-6073-753e-834b-31bd7d6de6ab",
+        "projectId": "01a0f31f-6011-779b-be84-d1a97d59f103",
+        "targetChapterId": "01a0f31f-6045-7ec0-a4f1-d2efb6c7360f",
+        "baseVersion": 2,
+        "instruction": "请结合前文和人物设定，检查目标章中林舟的行为是否矛盾。只做分析，不提交修改建议；说明实际查阅范围。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:21:54.929651Z",
+        "startedAt": "2026-09-30T16:21:54.941165Z",
+        "finishedAt": "2026-09-30T16:22:09.704619Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 2,
+        "toolCallCount": 1,
+        "toolTextCodepoints": 171,
+        "lastEventSeq": 9,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "68d0b417-3f15-42b0-ae0f-886844acedc2",
+            "toolCallId": "01a0f31f62d80790124c8d6883120155",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f31f-6045-7ec0-a4f1-d2efb6c7360f"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "林舟望着深水，决定不上水。他沿石桥走到了对岸。",
+                "version": 2,
+                "chapterId": "01a0f31f-6045-7ec0-a4f1-d2efb6c7360f",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T16:22:09.632508Z",
+            "finishedAt": "2026-09-30T16:22:09.641458Z",
+            "modelCallIndex": 1
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f31f-99eb-7124-a3ad-24a12ad466f7",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f31f-6045-7ec0-a4f1-d2efb6c7360f",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "68d0b417-3f15-42b0-ae0f-886844acedc2",
+            "providedToModel": false
+          }
+        ]
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1071,
+            "outputTokens": 91
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 7,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "矛盾与采纳",
+      "projectId": "01a0f31f-9c8c-7d0a-9bcd-3575c5507074",
+      "runId": "01a0f31f-9cd2-770e-9533-a395486d446a",
+      "targetChapterId": "01a0f31f-9cb2-7bd8-af1d-4255fa0e1588",
+      "inputCodePoints": 39,
+      "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+      "elapsedSeconds": 1.0,
+      "run": {
+        "id": "01a0f31f-9cd2-770e-9533-a395486d446a",
+        "projectId": "01a0f31f-9c8c-7d0a-9bcd-3575c5507074",
+        "targetChapterId": "01a0f31f-9cb2-7bd8-af1d-4255fa0e1588",
+        "baseVersion": 2,
+        "instruction": "检查林舟是否与前文、人物设定矛盾。请分别搜索章节和设定里的“游泳”，读取完整证据；如有矛盾，只将“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其他文字原样保留，并提交完整目标章候选稿。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:22:10.385922Z",
+        "startedAt": "2026-09-30T16:22:10.391673Z",
+        "finishedAt": "2026-09-30T16:22:10.467572Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "5900码点完整候选",
+      "projectId": "01a0f31f-a0f7-7bb4-a624-ec4ad3d01fa8",
+      "runId": "01a0f31f-a190-7e3f-ba40-4ad61b9317be",
+      "targetChapterId": "01a0f31f-a15a-7ab0-97d5-947dc5d2708b",
+      "inputCodePoints": 5900,
+      "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+      "elapsedSeconds": 1.0,
+      "run": {
+        "id": "01a0f31f-a190-7e3f-ba40-4ad61b9317be",
+        "projectId": "01a0f31f-a0f7-7bb4-a624-ec4ad3d01fa8",
+        "targetChapterId": "01a0f31f-a15a-7ab0-97d5-947dc5d2708b",
+        "baseVersion": 2,
+        "instruction": "核对人物行为与前文、设定是否矛盾。若发现不会游泳却下水的矛盾，只把目标正文中的“林舟游到了对岸。”替换为“林舟沿桥走到了对岸。”，其余全部段落逐字保留，提交完整章节候选稿，不能省略、概括或使用占位符。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:22:11.599379Z",
+        "startedAt": "2026-09-30T16:22:11.607406Z",
+        "finishedAt": "2026-09-30T16:22:11.680264Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "字面无命中有同义证据",
+      "projectId": "01a0f31f-a5bb-7bc7-94c2-d47b8372b082",
+      "runId": "01a0f31f-a5f9-7726-8b45-b4975a6f3bff",
+      "targetChapterId": "01a0f31f-a5d7-76f6-82dc-1e3be3a93d7d",
+      "inputCodePoints": 29,
+      "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+      "elapsedSeconds": 1.0,
+      "run": {
+        "id": "01a0f31f-a5f9-7726-8b45-b4975a6f3bff",
+        "projectId": "01a0f31f-a5bb-7bc7-94c2-d47b8372b082",
+        "targetChapterId": "01a0f31f-a5d7-76f6-82dc-1e3be3a93d7d",
+        "baseVersion": 2,
+        "instruction": "先在前文章节中搜索“游泳”。无命中时请继续查阅前文与设定，判断目标章行为是否矛盾，并说明字面搜索的局限。只分析，不提交修改建议。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:22:12.728980Z",
+        "startedAt": "2026-09-30T16:22:12.733775Z",
+        "finishedAt": "2026-09-30T16:22:12.797446Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 1,
+        "toolCallCount": 0,
+        "toolTextCodepoints": 0,
+        "lastEventSeq": 5,
+        "proposalId": null,
+        "steps": [],
+        "sources": []
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": false,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 3,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    },
+    {
+      "name": "信息不足",
+      "projectId": "01a0f31f-aa0c-75d6-af86-e89ffe07d3b9",
+      "runId": "01a0f31f-aa54-7ac1-837c-fb5d8d17bb6e",
+      "targetChapterId": "01a0f31f-aa2a-7f6b-9155-173426726b4c",
+      "inputCodePoints": 27,
+      "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+      "elapsedSeconds": 17.4,
+      "run": {
+        "id": "01a0f31f-aa54-7ac1-837c-fb5d8d17bb6e",
+        "projectId": "01a0f31f-aa0c-75d6-af86-e89ffe07d3b9",
+        "targetChapterId": "01a0f31f-aa2a-7f6b-9155-173426726b4c",
+        "baseVersion": 2,
+        "instruction": "检查是否有充分证据证明匿名信的寄信人是林舟失散多年的哥哥。请查看前文和设定，只分析，不提交候选稿，明确区分推测和文本证据。",
+        "status": "FAILED",
+        "cancelRequested": false,
+        "queuedAt": "2026-09-30T16:22:13.843791Z",
+        "startedAt": "2026-09-30T16:22:13.851411Z",
+        "finishedAt": "2026-09-30T16:22:29.351991Z",
+        "analysis": null,
+        "errorCode": "MODEL_RATE_LIMITED",
+        "errorDetail": "Model rate limit reached",
+        "modelCallCount": 3,
+        "toolCallCount": 2,
+        "toolTextCodepoints": 793,
+        "lastEventSeq": 13,
+        "proposalId": null,
+        "steps": [
+          {
+            "toolExecutionId": "d86a2db5-d91b-4fae-b94b-d4e61688e4b3",
+            "toolCallId": "01a0f31fc695c52b6c64e687a827323f",
+            "toolName": "read_chapter",
+            "args": {
+              "chapterId": "01a0f31f-aa2a-7f6b-9155-173426726b4c"
+            },
+            "result": {
+              "data": {
+                "title": "第三章·目标",
+                "content": "林舟收到一封没有署名的信。信上只写着：今晚到旧桥相见。",
+                "version": 2,
+                "chapterId": "01a0f31f-aa2a-7f6b-9155-173426726b4c",
+                "chapterOrder": 3
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T16:22:21.390374Z",
+            "finishedAt": "2026-09-30T16:22:21.396761Z",
+            "modelCallIndex": 1
+          },
+          {
+            "toolExecutionId": "3c4d98a3-8155-4b04-a280-c215cd034bdc",
+            "toolCallId": "01a0f31ef22a3bbad7cbf95a92f16f40",
+            "toolName": "search_chapters",
+            "args": {
+              "limit": 20,
+              "scope": "BEFORE_TARGET",
+              "keyword": "林舟"
+            },
+            "result": {
+              "data": {
+                "scope": "BEFORE_TARGET",
+                "viewId": "62c25800-23e0-429a-bb57-5d692a83629e",
+                "hasMore": false,
+                "keyword": "林舟",
+                "matches": [
+                  {
+                    "title": "第一章·旧事",
+                    "snippet": "林舟明确说自己不会游泳，遇到深水只能绕行或走桥。",
+                    "version": 2,
+                    "matchEnd": 2,
+                    "chapterId": "01a0f31f-aa12-72c0-98f9-7e204902cd2a",
+                    "lineNumber": 1,
+                    "matchStart": 0,
+                    "chapterOrder": 1,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  },
+                  {
+                    "title": "第二章·出发",
+                    "snippet": "林舟查看地图，发现河上有一座安全的石桥。他尚未学习新技能。",
+                    "version": 2,
+                    "matchEnd": 2,
+                    "chapterId": "01a0f31f-aa1f-7081-93af-df600842d885",
+                    "lineNumber": 1,
+                    "matchStart": 0,
+                    "chapterOrder": 2,
+                    "snippetStart": 0,
+                    "snippetTruncated": false
+                  }
+                ],
+                "nextCursor": null
+              },
+              "error": null,
+              "success": true
+            },
+            "summary": null,
+            "status": "SUCCEEDED",
+            "errorCode": null,
+            "startedAt": "2026-09-30T16:22:29.231405Z",
+            "finishedAt": "2026-09-30T16:22:29.251898Z",
+            "modelCallIndex": 2
+          }
+        ],
+        "sources": [
+          {
+            "id": "01a0f31f-c7d6-7290-ba83-dac4afe5e716",
+            "kind": "FULL_CHAPTER",
+            "chapterId": "01a0f31f-aa2a-7f6b-9155-173426726b4c",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": null,
+            "codepointOffset": null,
+            "contentHash": null,
+            "toolExecutionId": "d86a2db5-d91b-4fae-b94b-d4e61688e4b3",
+            "providedToModel": true
+          },
+          {
+            "id": "01a0f31f-e685-755d-9326-a3a35c764b1b",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f31f-aa12-72c0-98f9-7e204902cd2a",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 0,
+            "contentHash": null,
+            "toolExecutionId": "3c4d98a3-8155-4b04-a280-c215cd034bdc",
+            "providedToModel": false
+          },
+          {
+            "id": "01a0f31f-e686-7042-9ae9-797f9faa021c",
+            "kind": "SEARCH_SNIPPET",
+            "chapterId": "01a0f31f-aa1f-7081-93af-df600842d885",
+            "chapterVersion": 2,
+            "settingId": null,
+            "lineNumber": 1,
+            "codepointOffset": 0,
+            "contentHash": null,
+            "toolExecutionId": "3c4d98a3-8155-4b04-a280-c215cd034bdc",
+            "providedToModel": false
+          }
+        ]
+      },
+      "unchangedBeforeAdoption": true,
+      "targetFullReadProvided": true,
+      "modelCalls": [
+        {
+          "callIndex": 1,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1077,
+            "outputTokens": 96
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 2,
+          "status": "SUCCEEDED",
+          "finishReason": "TOOL_CALLS",
+          "rawFinishReason": "tool_calls",
+          "usage": {
+            "inputTokens": 1268,
+            "outputTokens": 96
+          },
+          "errorCode": null,
+          "errorDetail": null
+        },
+        {
+          "callIndex": 3,
+          "status": "FAILED",
+          "finishReason": null,
+          "rawFinishReason": null,
+          "usage": null,
+          "errorCode": "MODEL_RATE_LIMITED",
+          "errorDetail": "Model rate limit reached"
+        }
+      ],
+      "sseReplay": {
+        "count": 11,
+        "firstSeq": 3,
+        "lastType": "run.failed",
+        "continuous": true
+      }
+    }
+  ]
+}
