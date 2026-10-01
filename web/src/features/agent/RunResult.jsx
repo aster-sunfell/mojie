@@ -1,13 +1,14 @@
 import React from 'react'
 import { active, statusName } from './status.js'
 import { proposalStatusName } from '../proposals/Proposal.jsx'
+import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 
 export function RunResult({ task, review, onOpenReview, onSource }) {
   const { run, connection, refresh } = task
   return <div className="runDetail">
     <div className="sectionTitle"><h3>{statusName(run.status)}</h3></div>
     {run.instruction && <section className="requestMessage">
-      <h3>本次要求</h3><p>{run.instruction}</p>
+      <h3>本次要求</h3><ScrollArea as="p" tabIndex={0} aria-label="本次要求">{run.instruction}</ScrollArea>
     </section>}
     <p className="muted">基准版本 {run.baseVersion} · 模型 {run.modelCallCount ?? 0}/8 · 工具 {run.toolCallCount ?? 0}/12</p>
     {active(run.status) && <p className="hint">{connection === 'reconnecting'
@@ -31,8 +32,8 @@ export function RunResult({ task, review, onOpenReview, onSource }) {
       <summary>执行记录 · {run.steps?.length || 0} 步</summary>
       <div>{run.steps?.map(step => <details key={step.toolExecutionId}>
         <summary><span>{step.toolName}</span><small>{step.status}{step.errorCode ? ` · ${step.errorCode}` : ''}</small></summary>
-        <p>{step.summary}</p><pre>{JSON.stringify(step.args, null, 2)}</pre>
-        {step.result && <pre>{JSON.stringify(step.result, null, 2)}</pre>}
+        <p>{step.summary}</p><ScrollArea as="pre" tabIndex={0} aria-label={`${step.toolName} 参数`}>{JSON.stringify(step.args, null, 2)}</ScrollArea>
+        {step.result && <ScrollArea as="pre" tabIndex={0} aria-label={`${step.toolName} 结果`}>{JSON.stringify(step.result, null, 2)}</ScrollArea>}
       </details>)}</div>
     </details>
     <div className="sectionTitle"><h3>查阅来源</h3><small>{run.sources?.length || 0} 条</small></div>

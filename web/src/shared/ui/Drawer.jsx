@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from './Icon.jsx'
+import { ScrollArea } from './ScrollArea.jsx'
 import styles from './Drawer.module.css'
 
 export function Drawer({ title, onClose, children }) {
@@ -30,6 +31,6 @@ export function Drawer({ title, onClose, children }) {
         <Icon name="close" />
       </button>
     </header>
-    <div className={styles.content}>{children}</div>
+    <ScrollArea className={styles.content}>{children}</ScrollArea>
   </dialog>, document.body)
 }

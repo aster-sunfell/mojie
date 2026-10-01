@@ -15,4 +15,8 @@
   --space-4: 16px;
   --space-6: 24px;
   --shadow-card: 0 8px 25px #2443350b;
+  --scrollbar-size: 10px;
+  --color-scrollbar-thumb: #708d8359;
+  --color-scrollbar-thumb-hover: #708d838c;
+  --color-scrollbar-thumb-active: #245b50b3;
 }

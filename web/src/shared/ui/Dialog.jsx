@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react'
 import styles from './Dialog.module.css'
+import { ScrollArea } from './ScrollArea.jsx'
 
 export function Dialog({ title, busy = false, onCancel, children }) {
   const titleId = useId()
@@ -41,11 +42,11 @@ export function Dialog({ title, busy = false, onCancel, children }) {
   }, [])
 
   return <div className={styles.overlay} onClick={() => { if (!busy) onCancel() }}>
-    <div ref={dialog} className={styles.dialog} role="dialog" aria-modal="true"
+    <ScrollArea ref={dialog} className={styles.dialog} role="dialog" aria-modal="true"
       aria-labelledby={titleId} aria-busy={busy} tabIndex={-1}
       onClick={event => event.stopPropagation()}>
       <h2 id={titleId}>{title}</h2>
       {children}
-    </div>
+    </ScrollArea>
   </div>
 }

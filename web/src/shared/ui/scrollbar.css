@@ -1,0 +1,64 @@
+/* Shared by ScrollArea, native text fields and the page scrollbar. */
+:where(html, textarea, .scrollbar) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar-thumb, #708d8359) transparent;
+}
+
+:where(html:hover, textarea:hover, .scrollbar:hover) {
+  scrollbar-color: var(--color-scrollbar-thumb-hover, #708d838c) transparent;
+}
+
+:where(html, textarea:not(.inlineText)) {
+  scrollbar-gutter: stable;
+}
+
+/* Keep standard properties at auto in WebKit, including on hover, so they
+   cannot override the fixed geometry of the pseudo-element scrollbar. */
+@supports selector(::-webkit-scrollbar) {
+  @media (forced-colors: none) {
+    :where(html, textarea, .scrollbar) {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+
+    :where(html, textarea, .scrollbar)::-webkit-scrollbar {
+      width: var(--scrollbar-size, 10px);
+      height: var(--scrollbar-size, 10px);
+    }
+
+    :where(html, textarea, .scrollbar)::-webkit-scrollbar-track,
+    :where(html, textarea, .scrollbar)::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+
+    :where(html, textarea, .scrollbar)::-webkit-scrollbar-thumb {
+      min-height: 32px;
+      min-width: 32px;
+      border: 3px solid transparent;
+      border-radius: 999px;
+      background: var(--color-scrollbar-thumb, #708d8359);
+      background-clip: padding-box;
+    }
+
+    :where(html, textarea, .scrollbar)::-webkit-scrollbar-thumb:hover {
+      background-color: var(--color-scrollbar-thumb-hover, #708d838c);
+    }
+
+    :where(html, textarea, .scrollbar)::-webkit-scrollbar-thumb:active {
+      background-color: var(--color-scrollbar-thumb-active, #245b50b3);
+    }
+
+    :where(html, textarea, .scrollbar)::-webkit-scrollbar-button {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  :where(html, textarea, .scrollbar) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}

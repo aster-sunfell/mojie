@@ -4,6 +4,7 @@ import { SourceView } from '../history/SourceView.jsx'
 import { RunResult } from './RunResult.jsx'
 import { Icon } from '../../shared/ui/Icon.jsx'
 import { Tooltip } from '../../shared/ui/Tooltip.jsx'
+import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 
 export function AgentPanel({ task, chapter, review, onOpenReview, embedded = false }) {
   const [source, setSource] = useState(null)
@@ -15,7 +16,7 @@ export function AgentPanel({ task, chapter, review, onOpenReview, embedded = fal
       <span className="eyebrow">AGENT</span><h2>写作助手</h2>
       <p>分析与修改建议，由你决定是否采纳。</p>
     </div>}
-    <div className="agentBody">
+    <ScrollArea className="agentBody">
       <div className="runList">
         <label htmlFor="run-history">历史任务</label>
         <select id="run-history" aria-label="历史任务" value={runId || ''}
@@ -38,7 +39,7 @@ export function AgentPanel({ task, chapter, review, onOpenReview, embedded = fal
         <p>在正文下方输入要求，助手会查阅证据并给出分析或修改建议。</p>
       </div>}
       {run && <RunResult task={task} review={review} onOpenReview={onOpenReview} onSource={setSource} />}
-    </div>
+    </ScrollArea>
     {source && <SourceView key={source.id} source={source}
       step={run?.steps?.find(item => item.toolExecutionId === source.toolExecutionId)} close={() => setSource(null)} />}
   </aside>
