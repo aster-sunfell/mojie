@@ -134,14 +134,8 @@
   margin: 14px 0;
 }
 
-.analysis h3 {
+.analysis > h3 {
   margin-bottom: 6px;
-}
-
-.analysis p {
-  white-space: pre-wrap;
-  margin: 0;
-  font-size: 14px;
 }
 
 .steps details {
@@ -166,7 +160,7 @@
   margin: 9px 0;
 }
 
-.steps pre,.proposal pre {
+.steps pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 240px;

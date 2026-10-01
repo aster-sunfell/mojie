@@ -2,6 +2,7 @@ import React from 'react'
 import { active, statusName } from './status.js'
 import { proposalStatusName } from '../proposals/Proposal.jsx'
 import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
+import { Markdown } from '../../shared/ui/Markdown.jsx'
 
 export function RunResult({ task, review, onOpenReview, onSource }) {
   const { run, connection, refresh } = task
@@ -15,10 +16,10 @@ export function RunResult({ task, review, onOpenReview, onSource }) {
       ? '事件连接中断，正在重连并查询状态…'
       : task.cancelRequested ? '正在停止…' : '正在处理，页面关闭后任务继续运行。'}</p>}
     {run.status === 'FAILED' && <p className="error">{run.errorCode}：{run.errorDetail}</p>}
-    {run.analysis && <section className="analysis"><h3>最终分析</h3><p>{run.analysis}</p></section>}
+    {run.analysis && <section className="analysis"><h3>最终分析</h3><Markdown content={run.analysis} /></section>}
     {run.status === 'SUCCEEDED' && run.proposalId && <section className="proposal">
       <h3>修改建议 {review?.proposal && <span className="badge">{proposalStatusName(review.proposal.status)}</span>}</h3>
-      {review?.proposal && <><p>{review.proposal.reason}</p>
+      {review?.proposal && <><Markdown className="proposalReason" content={review.proposal.reason} />
         <p className="muted">共 {review.items.length} 处修改 · {review.items.filter(item => item.status === 'PENDING').length} 处待处理</p>
         <button onClick={() => onOpenReview()}>在正文区审阅修改</button>
         <div className="proposalIndex">{review.items.map((item, index) => <button key={item.id} className="secondary"

@@ -53,6 +53,9 @@ public class MojieApplication {
                 + "never claim an edit was applied. The final analysis is for the author: write it entirely in the "
                 + "author's language, including headings. Omit planning, tool-use narration and process prefaces "
                 + "such as 'Let me check'; report only the evidence, conclusion and any uncertainty. "
+                + "Use valid Markdown for the final analysis and edit rationale. Keep emphasis markers adjacent "
+                + "to the emphasized text, without spaces inside the markers; separate paragraphs and lists "
+                + "with blank lines. Do not wrap the entire response in a code fence or use raw HTML. "
                 + "For a Chinese request, begin the final response directly with '结论：', then give '依据：' "
                 + "and any '范围与不确定性：'. Do not start with '现在我' or '让我', and do not repeat the conclusion.";
         String cursorSecret = System.getenv().getOrDefault("MOJIE_CURSOR_KEY", "mojie-local-dev-cursor-key-change-me");

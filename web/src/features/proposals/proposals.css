@@ -1,6 +1,7 @@
 .proposal { border-top: 1px solid #e2e9df; margin-top: 20px; padding-top: 18px; }
-.proposal h3 { display: flex; align-items: center; gap: 8px; }
-.proposal p { font-size: 13px; }
+.proposal > h3 { display: flex; align-items: center; gap: 8px; }
+.proposal > p { font-size: 13px; }
+.proposalReason { margin-bottom: 12px; }
 .badge { font: 600 10px 'DM Sans',sans-serif; color: #25765d; background: #e0f2e6; padding: 4px 7px; border-radius: 20px; }
 .proposalIndex { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .proposalIndex button { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; text-align: left; }

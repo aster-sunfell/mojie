@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test'
 
-async function mockWorkspace(page, { history = true } = {}) {
+async function mockWorkspace(page, { history = true,
+  analysis = '已核对人物设定和前文章节。林舟的行动与已知经历相符，暂未发现明显矛盾。' } = {}) {
   const chapters = [
     { id: 'c', title: '第一章 · 雨夜', chapterOrder: 1, version: 3, content: ('林舟推开窗，看见雨落在街道上。\n\n').repeat(40) },
     { id: 'c2', title: '第二章 · 故人', chapterOrder: 2, version: 1, content: '次日，林舟与故人在桥边重逢。' },
   ]
   const runs = history ? [{ id: 'old', status: 'SUCCEEDED', baseVersion: 3, instruction: '检查人物设定与前文是否矛盾。',
-    analysis: '已核对人物设定和前文章节。林舟的行动与已知经历相符，暂未发现明显矛盾。',
+    analysis,
     queuedAt: '2026-10-01T00:00:00Z', lastEventSeq: 1, steps: [], sources: [], modelCallCount: 2, toolCallCount: 3 }] : []
   const writes = []
   const cancelled = []
@@ -70,6 +71,39 @@ test('desktop composer sits below the editor and stays in place while the chapte
   await input.fill('检查当前章节与人物设定、前文经历是否矛盾；如有必要，请给出修改建议。')
   await page.screenshot({ path: 'test-results/workspace-desktop.png' })
 })
+
+for (const mobile of [false, true]) {
+  test(`Markdown analysis renders and contains wide content on ${mobile ? 'mobile' : 'desktop'}`, async ({ page }) => {
+    if (mobile) await page.setViewportSize({ width: 390, height: 844 })
+    const longText = '核对人物经历与设定的一致性'.repeat(12)
+    const analysis = '**简要分析：**\n\n第二章末句与人物设定存在明确冲突。\n\n'
+      + '- **角色档案（林舟）**：林舟不会游泳。\n- 第一章设定：遇到急流会走桥。\n\n'
+      + '> 建议安全走到对岸。\n\n'
+      + `| 查阅来源 | 设定内容 |\n| --- | --- |\n| 人物档案 | ${longText} |\n\n`
+      + `\`\`\`text\n${longText}\n\`\`\`\n\n`
+      + `<https://example.com/${'long-path-'.repeat(30)}>`
+    await mockWorkspace(page, { analysis })
+    await page.goto('/projects/p/chapters/c')
+    if (mobile) await page.getByRole('button', { name: '助手结果', exact: true }).click()
+    const result = page.locator('.analysis')
+    await expect(result.locator('strong').first()).toHaveText('简要分析：')
+    await expect(result.getByRole('listitem')).toHaveCount(2)
+    await expect(result.locator('blockquote')).toContainText('安全走到对岸')
+    await expect(result.getByRole('table')).toHaveCount(1)
+    expect(await result.locator('p').first().evaluate(element => getComputedStyle(element).whiteSpace)).toBe('normal')
+    const table = result.getByLabel('表格内容')
+    const code = result.getByLabel('代码块')
+    for (const scroll of [table, code]) {
+      expect(await scroll.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
+      await scroll.evaluate(element => { element.scrollLeft = element.scrollWidth })
+      expect(await scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+    }
+    expect(await result.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(mobile ? 390 : 1280)
+    await result.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: `test-results/markdown-${mobile ? 'mobile' : 'desktop'}.png` })
+  })
+}
 
 test('keyboard sending uses an icon, accepts line breaks, and switches to stop until server completion', async ({ page }) => {
   const state = await mockWorkspace(page, { history: false })
