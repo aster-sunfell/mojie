@@ -4,41 +4,11 @@
   padding: 65px 24px;
 }
 
-.home header {
-  margin-bottom: 36px;
-}
-
-.home header h1 {
-  font-size: 34px;
-  margin: 18px 0 6px;
-}
-
-.home header p {
-  color: #78847e;
-}
-
-.card,.projectCard {
+.projectCard {
   background: var(--color-surface);
   border: 1px solid #e5e8df;
   border-radius: 15px;
   box-shadow: 0 8px 25px #2443350b;
-}
-
-.create {
-  padding: 20px;
-  margin-bottom: 24px;
-}
-
-.create label {
-  display: block;
-  font-weight: 700;
-  margin-bottom: 10px;
-}
-
-.projectGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill,minmax(230px,1fr));
-  gap: 14px;
 }
 
 .projectCard {

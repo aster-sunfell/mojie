@@ -38,6 +38,11 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button:focus-visible {
+  outline: 2px solid #3c806e;
+  outline-offset: 3px;
+}
+
 input,textarea,select {
   border: 1px solid #d7dcd5;
   border-radius: 8px;

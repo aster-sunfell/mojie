@@ -18,6 +18,35 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class JdbcContentServiceIT {
+    @Test void projectSearchCoversAllPagesAndBindsCursorsToItsKeyword() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            JdbcContentService content = new JdbcContentService(source);
+            String owner = "search-author";
+            String first = (String) content.createProject(owner, "林舟 First").get("id");
+            String second = (String) content.createProject(owner, "林舟 Second").get("id");
+            content.createProject(owner, "其他作品");
+            content.createProject("another-author", "林舟 Third");
+            String deleted = (String) content.createProject(owner, "林舟 Deleted").get("id");
+            content.deleteProject(owner, deleted);
+            Page<Map<String,Object>> page = content.projectPage(owner, "林舟", null, 1);
+            assertNotNull(page.nextCursor());
+            Page<Map<String,Object>> next = content.projectPage(owner, "林舟", page.nextCursor(), 1);
+            assertEquals(Set.of(first, second), Set.of(page.items().getFirst().get("id"), next.items().getFirst().get("id")));
+            assertNull(next.nextCursor());
+            assertThrows(IllegalArgumentException.class,
+                    () -> content.projectPage(owner, "其他", page.nextCursor(), 1));
+            assertThrows(IllegalArgumentException.class,
+                    () -> content.projectPage(owner, null, page.nextCursor(), 1));
+            assertEquals(first, content.projectPage(owner, " first ", null, 20).items().getFirst().get("id"));
+            assertTrue(content.projectPage(owner, "不存在", null, 20).items().isEmpty());
+            String literal = (String) content.createProject(owner, "完成 100%_初稿").get("id");
+            assertEquals(literal, content.projectPage(owner, "%_", null, 20).items().getFirst().get("id"));
+            assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.projectPage(owner, "墨".repeat(81), null, 20));
+        });
+    }
+
     @Test void authorWritesPreserveHistoryAndFreezeSettingsDuringRun() throws Exception {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();

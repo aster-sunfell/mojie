@@ -1,0 +1,142 @@
+.home {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 56px 32px 64px;
+}
+
+.header {
+  margin-bottom: 28px;
+}
+
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.heading h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+}
+
+.heading p {
+  margin: 0;
+  color: #78847e;
+  font-size: 14px;
+}
+
+.createButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 44px;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+  min-height: 44px;
+  padding: 0 12px;
+  margin-bottom: 24px;
+  border: 1px solid #d7dcd5;
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: #78847e;
+}
+
+.search:focus-within {
+  border-color: #3c806e;
+  box-shadow: 0 0 0 3px #3c806e22;
+}
+
+.search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 11px 0;
+  box-shadow: none;
+}
+
+.search input:focus {
+  box-shadow: none;
+}
+
+.search input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  color: #78847e;
+}
+
+.clear:hover:not(:disabled) {
+  background: #edf2ee;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  gap: 18px;
+}
+
+.empty {
+  text-align: center;
+  color: #78847e;
+  padding: 48px 16px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+.error {
+  margin-bottom: 20px;
+}
+
+.createField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.createField label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.createField input {
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .home {
+    padding: 32px 20px 48px;
+  }
+  .heading {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .heading h1 {
+    font-size: 28px;
+  }
+  .search {
+    max-width: none;
+  }
+}

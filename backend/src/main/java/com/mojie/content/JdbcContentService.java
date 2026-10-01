@@ -121,8 +121,12 @@ public final class JdbcContentService {
         return projectPage(owner, null, requestedLimit).items();
     }
     public Page<Map<String,Object>> projectPage(String owner, String cursor, Integer requestedLimit) {
+        return projectPage(owner, null, cursor, requestedLimit);
+    }
+    public Page<Map<String,Object>> projectPage(String owner, String keyword, String cursor, Integer requestedLimit) {
         int size = limit(requestedLimit);
-        String scope = "projects:" + owner;
+        String query = keyword == null ? "" : text(keyword.trim(), "keyword", 0, 80);
+        String scope = "projects:" + owner + (query.isEmpty() ? "" : ":keyword:" + query);
         String[] marker = pair(cursors.decode(scope, cursor));
         if (marker[0] != null) {
             try { OffsetDateTime.parse(marker[0]); UUID.fromString(marker[1]); }
@@ -131,9 +135,10 @@ public final class JdbcContentService {
         return db(false, c -> page(many(c, """
                 SELECT id, name AS title, updated_at FROM tb_project
                  WHERE owner_id = ? AND deleted_at IS NULL
+                   AND strpos(lower(name), lower(?)) > 0
                    AND (?::timestamptz IS NULL OR (updated_at, id) < (?::timestamptz, ?::uuid))
                  ORDER BY updated_at DESC, id DESC LIMIT ?
-                """, owner, marker[0], marker[0], marker[1], size + 1), size, scope,
+                """, owner, query, marker[0], marker[0], marker[1], size + 1), size, scope,
                 item -> item.get("updatedAt") + "|" + item.get("id")));
     }
     public Map<String,Object> project(String owner, String id) {

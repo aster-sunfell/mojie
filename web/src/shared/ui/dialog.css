@@ -1,72 +1,7 @@
-.modalOverlay {
-  position: fixed;
-  inset: 0;
-  background: #19352866;
-  backdrop-filter: blur(4px);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  animation: fadeIn .16s ease-out;
-}
-
-.confirmDialog {
-  background: var(--color-surface);
-  border: 1px solid #e5e8df;
-  border-radius: 16px;
-  box-shadow: 0 24px 64px #1935282e;
-  max-width: 400px;
-  width: 100%;
-  padding: 26px 26px 22px;
-  animation: dialogIn .18s ease-out;
-}
-
-.confirmDialog h2 {
-  margin: 0 0 10px;
-}
-
-.confirmDialog p {
-  margin: 0;
-  color: #41534a;
-  font-size: 14px;
-}
-
-.confirmDialog p+p {
-  margin-top: 8px;
-}
-
-.confirmActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 24px;
-}
-
 .dangerSolid {
   background: #b0473a;
 }
 
 .dangerSolid:hover:not(:disabled) {
   background: #93392e;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes dialogIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(.97);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }

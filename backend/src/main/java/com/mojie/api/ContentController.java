@@ -17,7 +17,9 @@ public final class ContentController {
     public record Setting(String type, String title, String content) {}
 
     @GetMapping("/projects") public Map<String,Object> projects(@RequestParam(required = false) String cursor,
-            @RequestParam(required = false) Integer limit) { return data(content.projectPage(owner, cursor, limit)); }
+            @RequestParam(required = false) Integer limit, @RequestParam(required = false) String keyword) {
+        return data(content.projectPage(owner, keyword, cursor, limit));
+    }
     @PostMapping("/projects") public ResponseEntity<Map<String,Object>> createProject(@RequestBody Title body) {
         return ResponseEntity.status(201).body(data(content.createProject(owner, body.title())));
     }
