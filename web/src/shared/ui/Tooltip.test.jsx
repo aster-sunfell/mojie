@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Tooltip, TOOLTIP_DELAY } from './Tooltip.jsx'
 
-afterEach(() => { cleanup(); vi.useRealTimers() })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks() })
 
 function renderTooltip() {
   render(<Tooltip label="删除"><button>图标</button></Tooltip>)
@@ -40,5 +40,28 @@ test('shows on keyboard focus and hides on blur', () => {
   act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY + 100) })
   expect(screen.getByRole('tooltip').textContent).toBe('删除')
   fireEvent.blur(trigger)
+  expect(screen.queryByRole('tooltip')).toBeNull()
+})
+
+test('associates the tooltip with its button, renders outside clipping parents, and dismisses on Escape', () => {
+  vi.useFakeTimers()
+  render(<div style={{ overflow: 'hidden' }}><Tooltip label="删除"><button>图标</button></Tooltip></div>)
+  const trigger = screen.getByRole('button', { name: '图标' })
+  fireEvent.focus(trigger)
+  act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY + 100) })
+  const tooltip = screen.getByRole('tooltip')
+  expect(tooltip.parentElement).toBe(document.body)
+  expect(trigger.getAttribute('aria-describedby')).toBe(tooltip.id)
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(screen.queryByRole('tooltip')).toBeNull()
+  expect(trigger.hasAttribute('aria-describedby')).toBe(false)
+})
+
+test('unmounting a hovered trigger cancels its pending tooltip', () => {
+  vi.useFakeTimers()
+  const { unmount } = render(<Tooltip label="删除"><button>图标</button></Tooltip>)
+  fireEvent.mouseEnter(screen.getByRole('button', { name: '图标' }))
+  unmount()
+  act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY * 2) })
   expect(screen.queryByRole('tooltip')).toBeNull()
 })
