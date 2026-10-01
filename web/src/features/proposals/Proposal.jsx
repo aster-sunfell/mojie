@@ -9,6 +9,7 @@ export function Proposal({ review, draft, busy, selection, onDraftChange }) {
   const { proposal, items, apply, ignore, notice } = review
   const [selected, setSelected] = useState(0)
   const changes = useRef({})
+  const editingText = useRef(null)
   useEffect(() => { setSelected(0) }, [proposal?.id])
   useEffect(() => {
     if (!selection) return
@@ -21,12 +22,15 @@ export function Proposal({ review, draft, busy, selection, onDraftChange }) {
   if (!proposal) return null
   const pending = items.filter(item => item.status === 'PENDING')
   const unsaved = items.filter(item => item.unsaved).length
-  const document = inlineDocument(proposal.baseContent, draft, items)
+  const document = inlineDocument(proposal.baseContent, draft, items,
+    { editingText: editingText.current?.proposalId === proposal.id ? editingText.current : null })
   function navigate(index) {
     const next = Math.max(0, Math.min(items.length - 1, index))
     setSelected(next); changes.current[items[next]?.id]?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
   }
   function editRange(range, text) {
+    if (range.type === 'text' && editingText.current?.key === range.key)
+      editingText.current = { ...editingText.current, start: range.start, end: range.start + text.length }
     onDraftChange(draft.slice(0, range.start) + text + draft.slice(range.end))
   }
   return <section className="proposalReview" aria-label="正文行内修改">
@@ -52,7 +56,11 @@ export function Proposal({ review, draft, busy, selection, onDraftChange }) {
       {document.segments.map(segment => {
         if (segment.type === 'text') return <div className="documentText" key={segment.key}>
           <span className="lineNumber" aria-hidden="true">{draft.slice(0, segment.start).split('\n').length}</span>
-          <InlineText label="章节正文" value={segment.text} onChange={text => editRange(segment, text)} />
+          <InlineText label="章节正文" value={segment.text} onChange={text => editRange(segment, text)}
+            onFocus={() => { editingText.current = { proposalId: proposal.id, key: segment.key, start: segment.start, end: segment.end,
+              beforeIds: document.segments.slice(0, document.segments.indexOf(segment))
+                .filter(value => value.type === 'change').map(value => value.item.id) } }}
+            onBlur={() => { if (editingText.current?.key === segment.key) editingText.current = null }} />
         </div>
         const { item, range, original, current, preview, conflict } = segment
         const index = items.findIndex(value => value.id === item.id)

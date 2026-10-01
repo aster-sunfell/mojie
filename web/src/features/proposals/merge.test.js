@@ -78,3 +78,29 @@ test('line ranges preserve empty leading lines and deletion separators', () => {
   expect(lineRange('删除\n保留', 0, 3)).toEqual({ start: 0, end: 3 })
   expect(lineRange('', 0, 0)).toEqual({ start: 0, end: 0 })
 })
+
+test('cleared and joined active text segments keep their key and preserve the complete draft', () => {
+  for (const text of ['', '新段落😀', '\n新的段落\n']) {
+    const editing = [
+      { key: 'before-0', start: 0, end: text.length, beforeIds: [], draft: text + base },
+      { key: 'tail', start: base.length - 1, end: base.length - 1 + text.length,
+        beforeIds: [0, 1], draft: base.slice(0, -1) + text },
+    ]
+    for (const { draft, ...editingText } of editing) {
+      const { segments } = inlineDocument(base, draft, changes, { editingText })
+      const active = segments.find(segment => segment.key === editingText.key)
+      expect(active.text).toBe(text)
+      expect(active.start).toBe(editingText.start)
+      expect(new Set(segments.map(segment => segment.key)).size).toBe(segments.length)
+      expect(segments.map(segment => segment.type === 'text' ? segment.text : segment.range ? segment.current : '').join('')).toBe(draft)
+    }
+  }
+})
+
+test('a focused text range remains intact when all nearby suggestions lose their anchors', () => {
+  const draft = '完全重写的段落\n新尾声😀'
+  const editingText = { key: 'tail', start: draft.indexOf('新尾声'), end: draft.length, beforeIds: [0, 1] }
+  const { segments } = inlineDocument(base, draft, changes, { editingText })
+  expect(segments.find(segment => segment.key === 'tail').text).toBe('新尾声😀')
+  expect(segments.map(segment => segment.type === 'text' ? segment.text : segment.range ? segment.current : '').join('')).toBe(draft)
+})

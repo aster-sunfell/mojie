@@ -171,10 +171,10 @@ test('late proposal detail from a previously selected task cannot appear under a
   render(<App />)
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/edit-proposals/q-r1', expect.any(Object)))
   fireEvent.change(screen.getByRole('combobox', { name: '历史任务' }), { target: { value: 'r2' } })
-  await screen.findByText('第二份建议')
+  await screen.findByText('第二份理由')
   await act(async () => { finishOldProposal(reply({ id: 'q-r1', status: 'PENDING', baseVersion: 1, baseContent: '原文', proposedContent: '第一份旧建议', reason: '旧理由', items: [] })) })
-  expect(screen.getByText('第二份建议')).toBeTruthy()
-  expect(screen.queryByText('第一份旧建议')).toBeNull()
+  expect(screen.getByText('第二份理由')).toBeTruthy()
+  expect(screen.queryByText('旧理由')).toBeNull()
 })
 
 test('chapter navigation loads the next page without losing the first page', async () => {

@@ -103,7 +103,7 @@ function anchoredRange(text, left, right) {
   return { start: from, end }
 }
 
-export function inlineDocument(base, draft, items) {
+export function inlineDocument(base, draft, items, { editingText } = {}) {
   const reference = reviewReference(base, items)
   const locations = locateChanges(reference.base, draft, reference.items.filter(item => item.status === 'PENDING'))
   const frames = items.map(item => {
@@ -120,7 +120,16 @@ export function inlineDocument(base, draft, items) {
       span = anchoredRange(draft, Array.from(reference.base.slice(0, range.start)).slice(-40).join(''),
         Array.from(reference.base.slice(range.end)).slice(0, 40).join(''))
     }
-    const range = span ? lineRange(draft, span.start, span.end) : null
+    let range = span ? lineRange(draft, span.start, span.end) : null
+    // A deleted separator can join the active plain-text segment to a diff line.
+    // Keep that text in its existing input until editing ends, rather than moving
+    // it into a read-only original row or replacing the focused textarea's value.
+    if (range && editingText) {
+      range = editingText.beforeIds.includes(item.id)
+        ? { ...range, end: Math.min(range.end, editingText.start) }
+        : { ...range, start: Math.max(range.start, editingText.end) }
+      if (range.end < range.start) range = null
+    }
     const current = range ? draft.slice(range.start, range.end) : null
     let preview = suggested
     if (range && item.status === 'PENDING' && location?.status === 'READY')
@@ -139,14 +148,28 @@ export function inlineDocument(base, draft, items) {
     overlaps.add(located[i].item.id); overlaps.add(located[j].item.id)
   }
   const segments = []
+  const blocks = located.filter(value => !overlaps.has(value.item.id))
+    .map(frame => ({ type: 'change', key: `change-${frame.item.id}`, ...frame }))
+  // Keep the focused input and its exact range even if deleting context makes
+  // nearby suggestions unlocatable. Other draft text can regroup around it.
+  const active = editingText ? { type: 'text', key: editingText.key,
+    range: { start: editingText.start, end: editingText.end }, start: editingText.start,
+    end: editingText.end, text: draft.slice(editingText.start, editingText.end) } : null
+  if (active) blocks.push(active)
+  blocks.sort((a, b) => a.range.start - b.range.start
+    || (a === active ? editingText.beforeIds.includes(b.item.id) ? 1 : -1
+      : b === active ? editingText.beforeIds.includes(a.item.id) ? -1 : 1 : 0))
   let cursor = 0
-  for (const frame of located.filter(value => !overlaps.has(value.item.id))) {
-    if (frame.range.start > cursor) segments.push({ type: 'text', key: `before-${frame.item.id}`, start: cursor,
-      end: frame.range.start, text: draft.slice(cursor, frame.range.start) })
-    segments.push({ type: 'change', key: `change-${frame.item.id}`, ...frame })
-    cursor = frame.range.end
+  for (const block of blocks) {
+    if (block.range.start > cursor) {
+      const key = block.type === 'change' ? `before-${block.item.id}` : `before-edit-${block.key}`
+      segments.push({ type: 'text', key: key === active?.key ? `after-edit-${key}` : key, start: cursor,
+        end: block.range.start, text: draft.slice(cursor, block.range.start) })
+    }
+    segments.push(block)
+    cursor = block.range.end
   }
-  if (cursor < draft.length || !segments.length) segments.push({ type: 'text', key: 'tail', start: cursor,
+  if (cursor < draft.length || !segments.length) segments.push({ type: 'text', key: active?.key === 'tail' ? 'after-edit-tail' : 'tail', start: cursor,
     end: draft.length, text: draft.slice(cursor) })
   for (const frame of frames.filter(value => !value.range || overlaps.has(value.item.id)))
     segments.push({ type: 'change', key: `change-${frame.item.id}`, ...frame, range: null, current: null,

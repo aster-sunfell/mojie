@@ -181,3 +181,67 @@ test('continuous typing and manual resolution preserve text and clear discarded 
   await page.reload()
   await expect(page.getByRole('textbox', { name: '修改 2 后的正文' })).toHaveValue('他拿起紫灯。 manual')
 })
+
+for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+  test(`deleting inside a long paragraph keeps the viewport and caret stable at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await mockReview(page, { currentContent: base + Array.from({ length: 70 }, (_, i) => `第${i}行正文内容。`).join('\n') })
+    await page.goto('/projects/p/chapters/c')
+    await expect(page.locator('.inlineDocument')).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    const tail = page.getByRole('textbox', { name: '章节正文', exact: true }).last()
+    await tail.evaluate(element => {
+      element.focus({ preventScroll: true })
+      const position = element.value.indexOf('第30行') + 5
+      element.setSelectionRange(position, position)
+      const line = element.value.slice(0, position).split('\n').length - 1
+      const lineHeight = parseFloat(getComputedStyle(element).lineHeight)
+      const area = element.closest('.editorArea')
+      area.scrollTop += element.getBoundingClientRect().top - area.getBoundingClientRect().top + line * lineHeight - 180
+    })
+    const capture = () => tail.evaluate(element => ({
+      scrollTop: element.closest('.editorArea').scrollTop, selection: element.selectionStart,
+      height: element.clientHeight, scrollHeight: element.scrollHeight, value: element.value,
+    }))
+    const before = await capture()
+    expect(before.scrollTop).toBeGreaterThan(500)
+    await page.keyboard.press('Backspace')
+    await expect(tail).toBeFocused()
+    const after = await capture()
+    expect(after.selection).toBe(before.selection - 1)
+    expect(after.value).toBe(before.value.slice(0, before.selection - 1) + before.value.slice(before.selection))
+    expect(Math.abs(after.scrollTop - before.scrollTop)).toBeLessThanOrEqual(1)
+    expect(after.height).toBe(before.height)
+    expect(after.scrollHeight).toBeLessThanOrEqual(after.height + 1)
+
+    // Deleting a real line should shrink naturally, without a temporary collapse.
+    await tail.evaluate(element => element.setSelectionRange(element.selectionStart, element.value.indexOf('\n', element.selectionStart) + 1))
+    await page.keyboard.press('Backspace')
+    await expect(tail).toBeFocused()
+    const shortened = await capture()
+    expect(shortened.height).toBeLessThan(after.height)
+    expect(Math.abs(shortened.scrollTop - after.scrollTop)).toBeLessThanOrEqual(40)
+    expect(shortened.scrollHeight).toBeLessThanOrEqual(shortened.height + 1)
+  })
+}
+
+test('clearing a text segment keeps its input focused and allows continued typing', async ({ page }) => {
+  const state = await mockReview(page)
+  await page.goto('/projects/p/chapters/c')
+  await expect(page.locator('.inlineDocument')).toBeVisible()
+  for (const position of ['first', 'last']) {
+    const inputs = page.getByRole('textbox', { name: '章节正文', exact: true })
+    const input = position === 'first' ? inputs.first() : inputs.last()
+    await input.focus()
+    await input.press('ControlOrMeta+A')
+    await input.press('Backspace')
+    await expect(input).toHaveValue('')
+    await expect(input).toBeFocused()
+    await input.pressSequentially('new paragraph\n')
+    await expect(input).toBeFocused()
+    await expect(input).toHaveValue('new paragraph\n')
+  }
+  await page.getByRole('button', { name: '保存正文', exact: true }).click()
+  await expect(page.locator('.editorHeader')).toContainText('已保存')
+  expect(state.chapter.content).toBe('new paragraph\n林舟游过河。\n\n两人在桥边整理工具。\n\n他拿起红灯。new paragraph\n')
+})
