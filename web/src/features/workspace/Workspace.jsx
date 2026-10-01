@@ -1,8 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api, readableError } from '../../shared/api/client.js'
 import { AgentPanel } from '../agent/AgentPanel.jsx'
+import { AgentComposer } from '../agent/AgentComposer.jsx'
+import { useAgentTask } from '../agent/useAgentTask.js'
 import { ChapterEditor } from '../editor/ChapterEditor.jsx'
 import { active } from '../agent/status.js'
+import { ChapterSidebar } from './ChapterSidebar.jsx'
+import { useMediaQuery } from '../../shared/useMediaQuery.js'
+import { Drawer } from '../../shared/ui/Drawer.jsx'
+import { Icon } from '../../shared/ui/Icon.jsx'
 
 export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [project, setProject] = useState(null)
@@ -16,6 +22,10 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
   const [accepting, setAccepting] = useState(false)
+  const [showAssistant, setShowAssistant] = useState(false)
+  const [showChapters, setShowChapters] = useState(false)
+  const compact = useMediaQuery('(max-width: 1100px)')
+  const mobile = useMediaQuery('(max-width: 640px)')
   const selectedRef = useRef(selectedChapterId)
   const chapterRef = useRef(chapter)
   const draftRef = useRef(draft)
@@ -23,6 +33,8 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   selectedRef.current = selectedChapterId
   chapterRef.current = chapter
   const dirty = chapter && draft !== chapter.content
+  const task = useAgentTask({ projectId, chapterId: selectedChapterId, chapter,
+    dirty, accepting, projectBusy: runBusy })
   const loadChapters = useCallback((after = null) => api(`/projects/${projectId}/chapters?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
     .then(page => {
       setChapters(current => after
@@ -50,6 +62,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     chapterRef.current = null; draftRef.current = ''
     setChapter(null); setDraft('')
     if (selectedChapterId) refreshChapter().catch(e => setError(readableError(e)))
+    setShowChapters(false)
   }, [selectedChapterId, refreshChapter])
   useEffect(() => {
     const check = event => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
@@ -116,15 +129,35 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     return () => window.clearInterval(timer)
   }, [projectId])
   if (error && !project) return <main className="home"><p className="error">{error}</p><button onClick={() => navigate('/')}>返回作品列表</button></main>
-  return <div className="workspace"><nav className="sidebar"><button className="back" onClick={() => leave('/')}>← 全部作品</button><h1>{project?.title || '加载中…'}</h1><div className="sectionTitle"><h2>章节</h2><button className="iconButton" title="新增章节" onClick={addChapter} disabled={runBusy}>＋</button></div>
-    <div className="chapterList">{chapters.map(item => <button key={item.id} className={selectedChapterId === item.id ? 'selected' : ''} onClick={() => leave(`/projects/${projectId}/chapters/${item.id}`)}><small>{String(item.chapterOrder).padStart(2, '0')}</small><strong>{item.title}</strong><small>v{item.version}</small></button>)}</div>
-    {chapterCursor && <button className="secondary" onClick={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}>加载更多章节</button>}
-    <button className="settingsToggle" onClick={() => setShowSettings(!showSettings)}>{showSettings ? '关闭设定' : '管理设定'}</button>
-  </nav><ChapterEditor projectId={projectId} chapter={chapter} draft={draft}
+  const sidebar = <ChapterSidebar projectId={projectId} project={project} chapters={chapters} selectedChapterId={selectedChapterId}
+    busy={runBusy || task.taskActive} cursor={chapterCursor} showSettings={showSettings}
+    onLeave={leave} onAddChapter={addChapter}
+    onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}
+    onSettingsToggle={() => { setShowSettings(!showSettings); setShowChapters(false) }} />
+  const panel = <AgentPanel task={task} chapter={chapter} dirty={dirty}
+    refreshChapter={refreshChapter} onAcceptanceBusy={setAccepting} embedded={compact} />
+
+  return <div className="workspace">
+    {!mobile && sidebar}
+    <div className="writingColumn">
+      {compact && <div className="workspaceToolbar">
+        {mobile && <button className="secondary" onClick={() => setShowChapters(true)}>
+          <Icon name="menu" size={16} />章节
+        </button>}
+        <button className="secondary assistantToggle" onClick={() => setShowAssistant(true)}>
+          <Icon name="message" size={16} />{task.taskActive ? '查看进度' : '助手结果'}
+        </button>
+      </div>}
+      <ChapterEditor projectId={projectId} chapter={chapter} draft={draft}
     saveStatus={saveStatus} dirty={dirty} accepting={accepting} error={error}
     showSettings={showSettings} runBusy={runBusy} showHistory={showHistory}
     onHistoryChange={setShowHistory} onSave={save}
     onDraftChange={value => { draftRef.current = value; setDraft(value); setSaveStatus('未保存') }} />
-    <AgentPanel key={`${projectId}:${chapter?.id || ''}`} projectId={projectId} chapter={chapter} dirty={dirty} refreshChapter={refreshChapter} onAcceptanceBusy={setAccepting} />
+      {chapter && chapter.id === selectedChapterId && !showSettings && <AgentComposer
+        chapter={chapter} task={task} dirty={dirty} onSave={save} saveStatus={saveStatus} />}
+    </div>
+    {!compact && panel}
+    {compact && showAssistant && <Drawer title="写作助手" onClose={() => setShowAssistant(false)}>{panel}</Drawer>}
+    {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}
   </div>
 }

@@ -1,4 +1,6 @@
 .editorArea {
+  flex: 1;
+  min-height: 0;
   background: var(--color-surface);
   min-width: 0;
   display: flex;
@@ -11,6 +13,9 @@
   display: flex;
   justify-content: space-between;
   align-items: start;
+  gap: 14px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
   border-bottom: 1px solid #edf0e9;
   padding-bottom: 20px;
 }
@@ -34,7 +39,8 @@
   box-shadow: none !important;
   font: 18px/2 'Noto Serif SC',serif;
   padding: 4px;
-  min-height: 350px;
+  min-height: 180px;
+  resize: none;
 }
 
 .emptyEditor {

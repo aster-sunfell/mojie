@@ -1,4 +1,7 @@
 .agentPanel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   border-left: 1px solid #e1e7df;
   background: #fafbf8;
   display: flex;
@@ -22,62 +25,96 @@
 }
 
 .agentBody {
+  flex: 1;
+  min-height: 0;
   padding: 16px 22px 32px;
   overflow: auto;
 }
 
-.target {
-  background: #ecf3ed;
-  border-radius: 9px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: space-between;
-}
-
-.target strong {
-  font-size: 14px;
-}
-
-.agentBody label {
-  display: block;
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
-.instruction {
-  width: 100%;
-  min-height: 100px;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.agentBody>.row {
-  margin: 10px 0;
-}
-
 .runList {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
-.runList button {
-  background: #edf1eb;
-  color: #516358;
-  min-width: 98px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: start;
-  padding: 9px;
+.runList label {
+  grid-column: 1 / -1;
+  color: #7b8981;
+  font-size: 11px;
+}
+
+.runList select {
+  width: 100%;
+  min-width: 0;
   font-size: 12px;
 }
 
-.runList button.selected,.runList button:hover {
-  background: #d5e7d9;
+.runList p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+
+.refreshRuns {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  color: #526f63;
+}
+
+.refreshRuns:hover:not(:disabled) {
+  background: #edf2ee;
+}
+
+.assistantEmpty {
+  padding: 44px 10px;
+  text-align: center;
+  color: #8b988f;
+}
+
+.assistantEmpty h3 {
+  margin: 16px 0 8px;
+  color: #526f63;
+}
+
+.assistantEmpty p {
+  font-size: 13px;
+}
+
+.requestMessage {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #e4eae3;
+  border-radius: 12px;
+  background: var(--color-surface);
+}
+
+.requestMessage h3 {
+  margin: 0 0 6px;
+  color: #7b8981;
+  font-size: 11px;
+}
+
+.requestMessage p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.steps > summary {
+  cursor: pointer;
+  padding: 10px 0;
+  color: #526f63;
+  font-size: 12px;
 }
 
 .runDetail {

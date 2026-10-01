@@ -29,7 +29,7 @@ test('reload and broken event stream recover the completed run', async ({ page, 
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
   await page.locator('#instruction').fill('E2E_SLOW 检查目标章节。')
-  await page.getByRole('button', { name: '开始检查' }).click()
+  await page.getByRole('button', { name: '发送要求' }).click()
   await expect(page.locator('.runDetail')).toContainText('运行中')
   await page.reload()
   await expect(page.locator('.runDetail')).toContainText('已完成', { timeout: 30_000 })
@@ -44,7 +44,7 @@ test('source view keeps a draft and proposal acceptance writes once', async ({ p
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
   await page.locator('#instruction').fill('E2E_EDIT 检查设定并提交候选稿。')
-  await page.getByRole('button', { name: '开始检查' }).click()
+  await page.getByRole('button', { name: '发送要求' }).click()
   await expect(page.locator('.proposal')).toContainText('PENDING')
   const original = await page.locator('.editor').inputValue()
   await page.locator('.editor').fill(`${original}草稿`)
@@ -68,9 +68,9 @@ test('browser cancellation reaches a terminal state without a proposal', async (
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
   await page.locator('#instruction').fill('E2E_BLOCK 等待取消。')
-  await page.getByRole('button', { name: '开始检查' }).click()
+  await page.getByRole('button', { name: '发送要求' }).click()
   await expect(page.locator('.runDetail')).toContainText('运行中')
-  await page.getByRole('button', { name: '停止', exact: true }).click()
+  await page.getByRole('button', { name: '停止任务', exact: true }).click()
   await expect(page.locator('.runDetail')).toContainText('正在停止')
   await expect(page.locator('.runDetail')).toContainText('已停止', { timeout: 40_000 })
   const runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}&chapterId=${chapterId}`)).json()).data.items
@@ -87,9 +87,9 @@ test('two tabs keep the losing draft when the chapter version changes', async ({
     await expect(second.locator('.editor')).toHaveValue(/林舟游到了对岸/)
     await page.locator('.editor').fill('第一个标签页的新正文。')
     await second.locator('.editor').fill('第二个标签页保留的草稿。')
-    await page.getByRole('button', { name: '保存正文' }).click()
+    await page.getByRole('button', { name: '保存正文', exact: true }).click()
     await expect(page.locator('.editorHeader')).toContainText('版本 3')
-    await second.getByRole('button', { name: '保存正文' }).click()
+    await second.getByRole('button', { name: '保存正文', exact: true }).click()
     await expect(second.locator('.editorHeader')).toContainText('版本冲突')
     await expect(second.locator('.editor')).toHaveValue('第二个标签页保留的草稿。')
   } finally { await second.close() }
@@ -146,7 +146,7 @@ test('SSE rejects the 21st subscription and releases capacity after completion',
 test('reconnection does not let a delayed running snapshot replace the terminal result', async ({ page, request }) => {
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await page.locator('#instruction').fill('E2E_SLOW 检查目标章节。')
-  await page.getByRole('button', { name: '开始检查' }).click()
+  await page.getByRole('button', { name: '发送要求' }).click()
   await expect(page.locator('.runDetail')).toContainText('运行中')
   const runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}&chapterId=${chapterId}`)).json()).data.items
   const path = `${api}/agent/runs/${runs[0].id}`
