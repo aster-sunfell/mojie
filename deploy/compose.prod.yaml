@@ -15,9 +15,7 @@ services:
       retries: 20
 
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    image: "${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-backend:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG to a successful CI commit SHA in deploy/.env.prod}"
     restart: always
     depends_on:
       postgres:
@@ -44,9 +42,7 @@ services:
       start_period: 30s
 
   nginx:
-    build:
-      context: ..
-      dockerfile: web/Dockerfile
+    image: "${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-web:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG to a successful CI commit SHA in deploy/.env.prod}"
     restart: always
     depends_on:
       backend:

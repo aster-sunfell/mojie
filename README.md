@@ -37,15 +37,18 @@ MOJIE_TEST_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/mojie_browser_e2e \
 
 ## 远程部署
 
-远程主机只需 Docker 和 Compose。首次拉取仓库后，复制同一份 `deploy/.env.example` 为 `deploy/.env.prod`，取消注释并填写数据库密码与稳定的 `MOJIE_CURSOR_KEY`，按需填写 `MOJIE_MODEL_API_KEY`。从仓库根目录启动：
+采用 GitHub Actions 构建镜像 → GHCR 发布 → 服务器拉取运行。推送 `main` 后，[镜像工作流](.github/workflows/images.yml) 执行后端单元 / PostgreSQL 集成 / 本地模拟模型测试、前端测试与静态构建，通过后发布 `ghcr.io/aster-sunfell/mojie-backend:<完整提交SHA>` 和 `ghcr.io/aster-sunfell/mojie-web:<完整提交SHA>`。PR 只测试，不发布镜像；手动运行工作流时也只发布 `main`。当前镜像平台是 `linux/amd64`。
+
+远程主机只需 Docker 和 Compose，无需安装 Maven、Java 或 Node，也不在服务器构建镜像。首次部署选择 Actions 全部成功的提交，服务器检出同一提交后，复制 `deploy/.env.example` 为 `deploy/.env.prod`，填写数据库密码、稳定的 `MOJIE_CURSOR_KEY` 和 `MOJIE_IMAGE_TAG`（该提交的完整 SHA），按需填写 `MOJIE_MODEL_API_KEY`。GHCR 包默认可能为私有；私有包先执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有 `read:packages` 权限的 PAT。公开包无需登录。从仓库根目录启动：
 
 ```bash
 cp deploy/.env.example deploy/.env.prod
 # 编辑 deploy/.env.prod，填写真实配置
-docker compose --env-file deploy/.env.prod -f deploy/compose.prod.yaml -p mojie-prod up -d --build
+docker compose --env-file deploy/.env.prod -f deploy/compose.prod.yaml -p mojie-prod pull
+docker compose --env-file deploy/.env.prod -f deploy/compose.prod.yaml -p mojie-prod up -d --no-build --wait --wait-timeout 180
 ```
 
-生产配置让 PostgreSQL、Java 后端和 Nginx 持续运行，并默认只把 Nginx 发布到服务器的 `127.0.0.1:8088`。公开访问前须配置受保护的 HTTPS 入口；当前 API 没有完整鉴权。推送新提交后的更新命令、数据库备份及单实例发布约束见 [环境与部署方案](docs/design/development-deployment-environment.md)。
+CI 使用仓库自带的 `GITHUB_TOKEN` 发布镜像，不需要配置服务器 SSH 或生产模型密钥。推送不会自动更新服务器；后续选择新的成功提交，更新服务器配置文件和 `MOJIE_IMAGE_TAG` 后再次执行上述两条 Compose 命令。生产配置让 PostgreSQL、Java 后端和 Nginx 持续运行，并默认只把 Nginx 发布到服务器的 `127.0.0.1:8088`。公开访问前须配置受保护的 HTTPS 入口；当前 API 没有完整鉴权。首次部署、更新、回退及数据库备份约束见 [环境与部署方案](docs/design/development-deployment-environment.md)。
 
 实际进程重启回归可运行 `node scripts/check-active-run-restart.mjs`：先构建 Java 可执行 JAR，并将 `MOJIE_TEST_JDBC_URL` 指向专用可丢弃的 PostgreSQL 数据库；使用 Java 21。脚本会启动和强制中断它自己的 Java 进程，验证活动任务标为 `SERVICE_RESTARTED`，并核对已成功任务、建议及 SSE 事件；不会调用真实模型。
 

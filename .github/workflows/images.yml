@@ -1,0 +1,129 @@
+name: Build images
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+        env:
+          POSTGRES_DB: mojie_ci
+          POSTGRES_USER: mojie
+          POSTGRES_PASSWORD: ci_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mojie -d mojie_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Unit and integration tests
+        working-directory: backend
+        env:
+          MOJIE_TEST_JDBC_URL: jdbc:postgresql://127.0.0.1:5432/mojie_ci
+          MOJIE_TEST_DB_USER: mojie
+          MOJIE_TEST_DB_PASSWORD: ci_test_only
+          MOJIE_TEST_LOCAL_HTTP: '1'
+        run: mvn -B -ntp verify
+
+  web-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+
+  build:
+    needs: [backend-test, web-test]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            dockerfile: backend/Dockerfile
+          - name: web
+            context: .
+            dockerfile: web/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - name: Normalize image name
+        id: image
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish
+        id: publish
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.image.outputs.prefix }}-${{ matrix.name }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+      - name: Deployment details
+        env:
+          IMAGE_PREFIX: ${{ steps.image.outputs.prefix }}
+          IMAGE_NAME: ${{ matrix.name }}
+          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          {
+            echo "Image: \`$IMAGE_PREFIX-$IMAGE_NAME:$IMAGE_TAG\`"
+            echo
+            echo "Digest: \`$IMAGE_DIGEST\`"
+            echo
+            echo "Deploy after both image builds succeed:"
+            echo '```dotenv'
+            echo "MOJIE_IMAGE_PREFIX=$IMAGE_PREFIX"
+            echo "MOJIE_IMAGE_TAG=$IMAGE_TAG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
