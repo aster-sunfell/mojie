@@ -4,7 +4,7 @@ import { proposalStatusName } from '../proposals/Proposal.jsx'
 import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 import { Markdown } from '../../shared/ui/Markdown.jsx'
 
-export function RunResult({ task, review, onOpenReview, onSource }) {
+export function RunResult({ task, review, onSource }) {
   const { run, connection, refresh } = task
   return <div className="runDetail">
     <div className="sectionTitle"><h3>{statusName(run.status)}</h3></div>
@@ -21,11 +21,7 @@ export function RunResult({ task, review, onOpenReview, onSource }) {
       <h3>修改建议 {review?.proposal && <span className="badge">{proposalStatusName(review.proposal.status)}</span>}</h3>
       {review?.proposal && <><Markdown className="proposalReason" content={review.proposal.reason} />
         <p className="muted">共 {review.items.length} 处修改 · {review.items.filter(item => item.status === 'PENDING').length} 处待处理</p>
-        <button onClick={() => onOpenReview()}>在正文区审阅修改</button>
-        <div className="proposalIndex">{review.items.map((item, index) => <button key={item.id} className="secondary"
-          onClick={() => onOpenReview(item.id)}>修改 {index + 1} · 第 {item.lineNumber} 行
-          <small>{item.status === 'PENDING' ? '待处理' : item.unsaved ? '未保存' : item.status === 'APPLIED' ? '已保存' : '已忽略'}</small>
-        </button>)}</div></>}
+      </>}
       {review?.loading && <p className="muted">正在加载修改建议…</p>}
       {review?.error && <><p className="error" role="alert">{review.error}</p><button className="secondary" onClick={review.retry}>重试加载建议</button></>}
     </section>}

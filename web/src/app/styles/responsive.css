@@ -3,7 +3,8 @@
     grid-template-columns: 190px minmax(0,1fr);
   }
   .editorArea {
-    padding: 24px;
+    --editor-block-padding: 24px;
+    --editor-inline-padding: 24px;
   }
   .agentBody {
     padding: 15px;
@@ -18,7 +19,8 @@
     grid-template-columns: minmax(0,1fr);
   }
   .editorArea {
-    padding: 18px 16px;
+    --editor-block-padding: 18px;
+    --editor-inline-padding: 16px;
   }
   .comparison {
     grid-template-columns: 1fr;

@@ -7,7 +7,7 @@ import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 
 export function ChapterEditor({ projectId, chapter, draft, saveStatus, dirty, accepting,
   error, showSettings, runBusy, showHistory, onHistoryChange, onSave, onDraftChange,
-  review, reviewSelection }) {
+  review }) {
   return <ScrollArea as="main" className="editorArea">
     {showSettings ? <Settings projectId={projectId} disabled={runBusy} /> : chapter ? <>
       <div className="editorHeader">
@@ -23,7 +23,7 @@ export function ChapterEditor({ projectId, chapter, draft, saveStatus, dirty, ac
       </div>
       {error && <p className="error">{error}</p>}
       {review?.proposal ? <Proposal review={review} draft={draft}
-        busy={saveStatus === '保存中'} onDraftChange={onDraftChange} selection={reviewSelection} />
+        busy={saveStatus === '保存中'} onDraftChange={onDraftChange} />
         : <textarea className="editor" aria-label="章节正文" value={draft} disabled={accepting}
           onChange={event => onDraftChange(event.target.value)} placeholder="从这里开始写作…" />}
       {showHistory && <History chapterId={chapter.id} close={() => onHistoryChange(false)} />}

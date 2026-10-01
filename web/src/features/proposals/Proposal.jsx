@@ -1,32 +1,35 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { inlineDocument } from './merge.js'
 import { InlineText } from './InlineText.jsx'
+import { ReviewToolbar } from './ReviewToolbar.jsx'
 
 export const proposalStatusName = status => ({ PENDING: '待处理', PARTIALLY_APPLIED: '部分已保存',
   APPLIED: '处理完成', REJECTED: '已忽略', CONFLICTED: '需要重新核对' }[status] || status)
 
-export function Proposal({ review, draft, busy, selection, onDraftChange }) {
+export function Proposal({ review, draft, busy, onDraftChange }) {
   const { proposal, items, apply, ignore, notice } = review
-  const [selected, setSelected] = useState(0)
+  const [selected, setSelected] = useState(null)
   const changes = useRef({})
   const editingText = useRef(null)
-  useEffect(() => { setSelected(0) }, [proposal?.id])
-  useEffect(() => {
-    if (!selection) return
-    const index = items.findIndex(item => item.id === selection.itemId)
-    if (index >= 0) {
-      setSelected(index)
-      changes.current[selection.itemId]?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
-    }
-  }, [selection])
+  useEffect(() => { setSelected(null) }, [proposal?.id])
   if (!proposal) return null
-  const pending = items.filter(item => item.status === 'PENDING')
-  const unsaved = items.filter(item => item.unsaved).length
   const document = inlineDocument(proposal.baseContent, draft, items,
     { editingText: editingText.current?.proposalId === proposal.id ? editingText.current : null })
   function navigate(index) {
-    const next = Math.max(0, Math.min(items.length - 1, index))
-    setSelected(next); changes.current[items[next]?.id]?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    const element = changes.current[items[index]?.id]
+    if (!element) return
+    setSelected(index)
+    element.focus({ preventScroll: true })
+    // Focus may release a plain-text segment's editing boundary. Scroll after
+    // React renders it, keeping the target header below the sticky toolbar.
+    requestAnimationFrame(() => {
+      const target = changes.current[items[index]?.id]
+      const area = target?.closest('.editorArea')
+      if (!area) return
+      const toolbarHeight = area.querySelector('.reviewToolbar')?.offsetHeight || 0
+      area.scrollTo({ top: Math.max(0, area.scrollTop + target.getBoundingClientRect().top
+        - area.getBoundingClientRect().top - toolbarHeight - 16), behavior: 'smooth' })
+    })
   }
   function editRange(range, text) {
     if (range.type === 'text' && editingText.current?.key === range.key)
@@ -34,21 +37,7 @@ export function Proposal({ review, draft, busy, selection, onDraftChange }) {
     onDraftChange(draft.slice(0, range.start) + text + draft.slice(range.end))
   }
   return <section className="proposalReview" aria-label="正文行内修改">
-    <div className="reviewToolbar">
-      <span className="reviewCount">待处理 {pending.length} / {items.length} 处{unsaved ? ` · ${unsaved} 处未保存` : ''}</span>
-      <div className="reviewGlobalActions">
-        <button disabled={busy || review.loading || !pending.length} onClick={() => apply(pending.map(item => item.id))}>
-          {pending.length === items.length ? '应用全部' : '应用剩余'}</button>
-        <button className="secondary" disabled={busy || review.loading || !pending.length} onClick={() => ignore(pending.map(item => item.id))}>忽略剩余</button>
-        <button className="link" disabled={busy || review.loading} onClick={review.retry}>刷新状态</button>
-      </div>
-      {items.length > 1 && <div className="reviewNavigation">
-        <button className="secondary" disabled={selected === 0} onClick={() => navigate(selected - 1)}>上一处</button>
-        <span>{selected + 1} / {items.length}</span>
-        <button className="secondary" disabled={selected === items.length - 1} onClick={() => navigate(selected + 1)}>下一处</button>
-      </div>}
-    </div>
-    <p className="reviewHint">正文可直接编辑；绿色建议可先调整再应用。保存正文时，只保存已应用的修改和你的正文编辑。</p>
+    <ReviewToolbar items={items} frames={document.frames} selected={selected} busy={busy} review={review} onNavigate={navigate} />
     {notice && <p className="hint" role="status">{notice}</p>}
     {review.error && <p className="error" role="alert">{review.error}</p>}
     {!items.length && proposal.status === 'PENDING' && <button className="secondary" disabled={busy || review.loading} onClick={review.dismiss}>关闭无修改建议</button>}
@@ -70,7 +59,7 @@ export function Proposal({ review, draft, busy, selection, onDraftChange }) {
           : !pending ? item.unsaved ? '已忽略 · 未保存' : '已忽略'
             : conflict ? '需要手动确认' : item.preview ? '已调整 · 待应用' : '待处理'
         return <div className={`inlineChange ${selected === index ? 'selectedChange' : ''}`} key={segment.key}
-          ref={element => { changes.current[item.id] = element }} onFocus={() => setSelected(index)}>
+          ref={element => { changes.current[item.id] = element }} tabIndex={-1} onFocus={() => setSelected(index)}>
           <div className="changeHeader">
             <span>修改 {index + 1} · 第 {item.lineNumber} 行</span><span className={`changeState ${conflict ? 'conflictState' : ''}`}>{status}</span>
             <div className="changeActions">

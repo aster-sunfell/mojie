@@ -1,11 +1,13 @@
 .editorArea {
+  --editor-block-padding: 35px;
+  --editor-inline-padding: max(26px,5vw);
   flex: 1;
   min-height: 0;
   background: var(--color-surface);
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 35px max(26px,5vw);
+  padding: var(--editor-block-padding) var(--editor-inline-padding);
   overflow: auto;
 }
 

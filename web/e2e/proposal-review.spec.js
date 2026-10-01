@@ -1,20 +1,19 @@
 import { expect, test } from '@playwright/test'
 
 const base = '开头：雨还在下。\n\n林舟游过河。\n\n两人在桥边整理工具。\n\n他拿起红灯。\n\n尾声：他们继续赶路。\n'
-const proposed = base.replace('游过河', '走过桥').replace('红', '蓝')
-
-async function mockReview(page, { currentContent = base } = {}) {
+async function mockReview(page, { currentContent = base, changes = [['游过河', '走过桥'], ['红', '蓝']] } = {}) {
   const chapter = { id: 'c', projectId: 'p', title: '第二章 · 暴雨', chapterOrder: 2, version: 1, content: currentContent }
   const run = { id: 'r', projectId: 'p', targetChapterId: 'c', status: 'SUCCEEDED', proposalId: 'q',
     baseVersion: 1, queuedAt: '2026-10-01T00:00:00Z', lastEventSeq: 1, steps: [], sources: [],
     analysis: '人物设定中林舟不会游泳，建议改为过桥；灯笼颜色应与前文一致。' }
-  const items = [['游过河', '走过桥'], ['红', '蓝']].map(([before, after], id) => {
+  const items = changes.map(([before, after], id) => {
     const start = base.indexOf(before), end = start + before.length
     return { id, before, after, start, end, lineNumber: base.slice(0, start).split('\n').length,
       contextBefore: base.slice(0, start), contextAfter: base.slice(end), status: 'PENDING', savedVersion: null }
   })
   const proposal = { id: 'q', runId: 'r', targetChapterId: 'c', baseVersion: 1, baseContent: base,
-    proposedContent: proposed, reason: '修正游泳设定与灯笼颜色。', status: 'PENDING', items }
+    proposedContent: changes.reduce((text, [before, after]) => text.replace(before, after), base),
+    reason: '修正游泳设定与灯笼颜色。', status: 'PENDING', items }
   const writes = []
   await page.route('**/api/v1/**', async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname.replace('/api/v1', '')
@@ -111,6 +110,7 @@ test('apply all preserves a same-position manual change and allows direct confli
   const current = page.getByRole('textbox', { name: '修改 2 当前正文' })
   await expect(current).toHaveValue('他拿起紫灯。')
   await current.fill('他拿起墨色灯。')
+  await page.getByText('更多', { exact: true }).click()
   await page.getByRole('button', { name: '忽略剩余', exact: true }).click()
   await page.getByRole('button', { name: '保存正文', exact: true }).click()
   await expect(page.locator('.editorHeader')).toContainText('已保存')
@@ -131,8 +131,13 @@ test('mobile inline diff allows editing and navigation without tabs or overflow'
   expect(await proposal.evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true)
   await page.screenshot({ path: 'test-results/proposal-inline-mobile.png' })
   await page.getByRole('button', { name: '助手结果', exact: true }).click()
-  await page.getByRole('button', { name: /修改 2 · 第 7 行/ }).click()
-  await expect(page.locator('.overlay')).toHaveCount(0)
+  const assistant = page.getByRole('dialog', { name: '写作助手', exact: true })
+  await expect(assistant).toContainText('共 2 处修改 · 2 处待处理')
+  await expect(page.getByRole('button', { name: '在正文区审阅修改' })).toHaveCount(0)
+  await expect(page.locator('.proposalIndex')).toHaveCount(0)
+  await assistant.getByRole('button', { name: '关闭写作助手', exact: true }).click()
+  await expect(assistant).toHaveCount(0)
+  await page.getByRole('button', { name: '下一处待处理修改' }).click()
   await expect(page.locator('.inlineChange').last()).toHaveClass(/selectedChange/)
 })
 
@@ -144,6 +149,7 @@ test('refreshing server review choices keeps the current manual draft', async ({
   const applied = page.getByRole('textbox', { name: '修改 1 后的正文' })
   await applied.fill('林舟走过桥。我的新内容。')
   Object.assign(state.proposal.items[0], { status: 'IGNORED', savedVersion: 1 })
+  await page.getByText('更多', { exact: true }).click()
   await page.getByRole('button', { name: '刷新状态', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('已同步建议处理状态')
   await expect(page.locator('.inlineChange').first().locator('.changeState')).toHaveText('已忽略')
@@ -245,3 +251,80 @@ test('clearing a text segment keeps its input focused and allows continued typin
   await expect(page.locator('.editorHeader')).toContainText('已保存')
   expect(state.chapter.content).toBe('new paragraph\n林舟游过河。\n\n两人在桥边整理工具。\n\n他拿起红灯。new paragraph\n')
 })
+
+test('the document toolbar skips processed changes, includes conflicts and never advances automatically', async ({ page }) => {
+  const state = await mockReview(page, { currentContent: base.replace('红', '紫'),
+    changes: [['雨', '雪'], ['游过河', '走过桥'], ['红', '蓝']] })
+  Object.assign(state.proposal.items[1], { status: 'IGNORED', savedVersion: 1 })
+  await page.goto('/projects/p/chapters/c')
+  const toolbar = page.getByRole('region', { name: '修改导航工具栏' })
+  const changes = page.locator('.inlineChange')
+  await expect(toolbar).toContainText('待处理 2 处')
+  await expect(toolbar).toContainText('待确认 1 处')
+  await expect(toolbar.getByRole('combobox')).toHaveCount(0)
+  await expect(page.locator('.reviewHint')).toHaveCount(0)
+  await expect(page.locator('.agentPanel .proposal button')).toHaveCount(0)
+  await expect(page.locator('.agentPanel .proposal')).toContainText('共 3 处修改 · 2 处待处理')
+  await toolbar.getByRole('button', { name: '下一处待处理修改' }).click()
+  await expect(changes.nth(0)).toBeFocused()
+  await toolbar.getByRole('button', { name: '下一处待处理修改' }).click()
+  await expect(changes.nth(2)).toBeFocused()
+  await expect(toolbar.getByLabel('待处理修改位置')).toHaveText('2 / 2')
+  await toolbar.getByRole('button', { name: '上一处待处理修改' }).click()
+  await expect(changes.nth(0)).toBeFocused()
+  await changes.nth(0).getByRole('button', { name: '应用', exact: true }).click()
+  await expect(toolbar).toContainText('待处理 1 处')
+  await expect(changes.nth(0)).toHaveClass(/selectedChange/)
+  await expect(changes.nth(2)).not.toHaveClass(/selectedChange/)
+  await toolbar.getByRole('button', { name: '下一处待处理修改' }).click()
+  await expect(changes.nth(2)).toBeFocused()
+  await expect(toolbar.getByRole('button', { name: '上一处待处理修改' })).toBeEnabled()
+  await expect(changes.nth(2).getByRole('button', { name: '应用', exact: true })).toBeDisabled()
+  await toolbar.getByText('更多', { exact: true }).click()
+  await toolbar.getByRole('button', { name: '忽略剩余', exact: true }).press('Escape')
+  await expect(toolbar.locator('details')).not.toHaveAttribute('open', '')
+  await expect(toolbar.locator('summary')).toBeFocused()
+  await toolbar.getByText('更多', { exact: true }).click()
+  await toolbar.getByRole('button', { name: '忽略剩余', exact: true }).click()
+  await expect(toolbar).toContainText('已全部处理')
+  await expect(toolbar).toContainText('待保存 2 处')
+  await expect(toolbar.getByRole('button', { name: '上一处待处理修改' })).toBeDisabled()
+  await expect(toolbar.getByRole('button', { name: '下一处待处理修改' })).toBeDisabled()
+  await expect(toolbar.locator('details')).not.toHaveAttribute('open', '')
+  await page.getByRole('button', { name: '保存正文', exact: true }).click()
+  await expect(page.locator('.editorHeader')).toContainText('已保存')
+  await expect(toolbar).not.toContainText('待保存')
+})
+
+for (const width of [1280, 390]) {
+  test(`a single pending change can be located repeatedly below the sticky toolbar at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 })
+    await mockReview(page, { currentContent: Array.from({ length: 40 }, (_, i) => `前文第 ${i} 行。`).join('\n') + '\n' + base,
+      changes: [['红', '蓝']] })
+    await page.goto('/projects/p/chapters/c')
+    const toolbar = page.getByRole('region', { name: '修改导航工具栏' })
+    const next = toolbar.getByRole('button', { name: '下一处待处理修改' })
+    const change = page.locator('.inlineChange')
+    await expect(toolbar).toContainText('待处理 1 处')
+    await next.click()
+    await expect(change).toBeFocused()
+    await expect(toolbar.getByRole('combobox')).toHaveCount(0)
+    const arrows = await toolbar.locator('.reviewNavigation').boundingBox()
+    const apply = await toolbar.getByRole('button', { name: '应用全部', exact: true }).boundingBox()
+    expect(arrows.x + arrows.width).toBeLessThanOrEqual(apply.x)
+    expect(Math.abs(arrows.y - apply.y)).toBeLessThanOrEqual(2)
+    const geometry = () => page.evaluate(() => {
+      const area = document.querySelector('.editorArea').getBoundingClientRect()
+      const toolbar = document.querySelector('.reviewToolbar').getBoundingClientRect()
+      const change = document.querySelector('.changeHeader').getBoundingClientRect()
+      return { pinned: Math.abs(toolbar.top - area.top) < 2,
+        visible: change.top >= toolbar.bottom && change.bottom <= area.bottom,
+        overflow: document.documentElement.scrollWidth > window.innerWidth }
+    })
+    await expect.poll(geometry).toEqual({ pinned: true, visible: true, overflow: false })
+    await page.screenshot({ path: `test-results/proposal-toolbar-${width}.png` })
+    await page.locator('.editorArea').evaluate(element => { element.scrollTop = 0 })
+    await next.click()
+    await expect.poll(geometry).toEqual({ pinned: true, visible: true, overflow: false })
+  })
+}

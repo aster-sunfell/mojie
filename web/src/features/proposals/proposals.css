@@ -3,19 +3,24 @@
 .proposal > p { font-size: 13px; }
 .proposalReason { margin-bottom: 12px; }
 .badge { font: 600 10px 'DM Sans',sans-serif; color: #25765d; background: #e0f2e6; padding: 4px 7px; border-radius: 20px; }
-.proposalIndex { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-.proposalIndex button { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; text-align: left; }
 
 .reviewFooter { border-top: 1px solid #e1e8df; padding: 8px 16px; background: var(--color-surface); display: flex; justify-content: flex-end; flex-shrink: 0; }
 .reviewFooter button { font-size: 12px; }
 .proposalReview { min-width: 0; padding-bottom: 24px; }
-.reviewToolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 0; }
-.reviewCount { color: #617568; font-size: 12px; }
-.reviewGlobalActions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.reviewToolbar { position: sticky; top: calc(-1 * var(--editor-block-padding)); z-index: 3; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: 'count controls'; align-items: center; gap: 10px; margin-inline: calc(-1 * var(--editor-inline-padding)); padding: 12px var(--editor-inline-padding); background: var(--color-surface); border-bottom: 1px solid #e1e8df; }
+.reviewToolbarControls { grid-area: controls; display: flex; align-items: center; gap: 12px; }
+.reviewCount { grid-area: count; color: #617568; font-size: 12px; line-height: 1.7; }
+.reviewGlobalActions { display: flex; align-items: center; gap: 8px; }
 .reviewGlobalActions button { font-size: 12px; padding: 7px 10px; }
-.reviewHint { font-size: 12px; color: #7a887f; line-height: 1.7; margin: 0 0 16px; }
-.reviewNavigation { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-.reviewNavigation button { padding: 5px 8px; font-size: 11px; }
+.reviewNavigation { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; }
+.reviewNavigation button { width: 32px; min-height: 32px; padding: 5px; font-size: 15px; flex-shrink: 0; }
+.reviewPosition { white-space: nowrap; color: #617568; }
+.reviewMore { position: relative; font-size: 12px; }
+.reviewMore summary { list-style: none; cursor: pointer; border-radius: 6px; padding: 8px 10px; background: #edf2ee; color: #315248; }
+.reviewMore summary::-webkit-details-marker { display: none; }
+.reviewMore summary:focus-visible { outline: 2px solid #3c806e; outline-offset: 2px; }
+.reviewMoreActions { position: absolute; right: 0; top: calc(100% + 6px); z-index: 4; display: flex; flex-direction: column; gap: 6px; width: 138px; padding: 8px; background: var(--color-surface); border: 1px solid #d7dcd5; border-radius: 8px; box-shadow: 0 6px 20px #22312d1a; }
+.reviewMoreActions button { text-align: left; }
 
 .inlineDocument { margin-top: 12px; border-top: 1px solid #edf0e9; padding: 12px 0; }
 .documentText,.diffLine { display: grid; grid-template-columns: 32px minmax(0,1fr); align-items: start; min-width: 0; }
@@ -24,6 +29,7 @@
 .inlineText:focus-visible { outline: 1px solid #86b19b; outline-offset: -1px; }
 .inlineChange { min-width: 0; border-left: 2px solid transparent; margin: 3px 0; }
 .selectedChange { border-left-color: #6b9680; }
+.inlineChange:focus-visible { outline: 1px solid #86b19b; outline-offset: 2px; }
 .changeHeader { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 10px 6px 32px; background: #f6f8f4; font-size: 11px; color: #768579; }
 .changeState { color: #4f7663; font-size: 11px; }
 .conflictState { color: #956b25; }
@@ -42,8 +48,7 @@
 @media (max-width: 640px) {
   .editorHeader h1 { font-size: 24px; }
   .editorHeader { padding-bottom: 12px; }
-  .reviewToolbar { gap: 8px; padding: 10px 0; }
-  .reviewGlobalActions { margin-left: 0; }
+  .reviewToolbar { gap: 8px; padding-block: 10px; }
   .inlineText,.diffLine pre { font-size: 16px; }
   .changeHeader { padding-left: 10px; }
   .changeActions { margin-left: 0; }

@@ -26,7 +26,6 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [showAssistant, setShowAssistant] = useState(false)
   const [showChapters, setShowChapters] = useState(false)
   const [showComposer, setShowComposer] = useState(false)
-  const [reviewSelection, setReviewSelection] = useState(null)
   const compact = useMediaQuery('(max-width: 1100px)')
   const mobile = useMediaQuery('(max-width: 640px)')
   const selectedRef = useRef(selectedChapterId)
@@ -155,11 +154,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onLeave={leave} onAddChapter={addChapter}
     onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}
     onSettingsToggle={() => { setShowSettings(!showSettings); setShowChapters(false) }} />
-  const panel = <AgentPanel task={task} chapter={chapter}
-    review={review} onOpenReview={itemId => {
-      setShowSettings(false); setShowAssistant(false)
-      setReviewSelection({ itemId: typeof itemId === 'number' ? itemId : 0, request: Date.now() })
-    }} embedded={compact} />
+  const panel = <AgentPanel task={task} chapter={chapter} review={review} embedded={compact} />
 
   return <div className="workspace">
     {!mobile && sidebar}
@@ -177,7 +172,6 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     showSettings={showSettings} runBusy={runBusy} showHistory={showHistory}
     onHistoryChange={setShowHistory} onSave={save}
     review={review}
-    reviewSelection={reviewSelection}
     onDraftChange={changeDraft} />
       {chapter && chapter.id === selectedChapterId && !showSettings && (review.proposal && !showComposer
         ? <div className="reviewFooter"><button className="secondary" onClick={() => setShowComposer(true)}>向助手提要求</button></div>
