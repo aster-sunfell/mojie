@@ -45,6 +45,40 @@ async function mockWorkspace(page, { history = true,
   return { writes, cancelled }
 }
 
+test('normal editing numbers real newlines and highlights the same number on wrapped continuations', async ({ page }) => {
+  await mockWorkspace(page)
+  await page.goto('/projects/p/chapters/c')
+  const input = page.getByRole('textbox', { name: '章节正文', exact: true })
+  await expect(input).toBeVisible()
+  await page.evaluate(() => document.fonts.ready)
+  const longLine = '林舟沿着山谷记录道路气候与树木的变化。'.repeat(7)
+  await input.fill(`${longLine}\n第二行正文。`)
+  const numbers = page.locator('.editorDocument .lineNumber')
+  await expect(numbers).toHaveText(['1', '2'])
+  const box = await input.boundingBox()
+  const metrics = await input.evaluate(element => ({
+    padding: parseFloat(getComputedStyle(element).paddingTop),
+    lineHeight: parseFloat(getComputedStyle(element).lineHeight),
+  }))
+  await page.mouse.move(box.x + 40, box.y + metrics.padding + metrics.lineHeight * 1.5)
+  await expect(page.locator('.hoveredLineNumber')).toHaveText('1')
+  const second = await numbers.nth(1).boundingBox()
+  expect(second.y - box.y).toBeGreaterThan(metrics.lineHeight * 2)
+  await page.mouse.move(box.x + 40, second.y + second.height / 2)
+  await expect(page.locator('.hoveredLineNumber')).toHaveText('2')
+  await input.focus()
+  await input.press('ControlOrMeta+End')
+  await input.press('Enter')
+  await input.pressSequentially('third line')
+  await expect(numbers).toHaveText(['1', '2', '3'])
+  await expect(input).toHaveValue(`${longLine}\n第二行正文。\nthird line`)
+  await page.getByRole('button', { name: '保存正文', exact: true }).click()
+  await expect(page.locator('.editorHeader')).toContainText('已保存')
+  await page.reload()
+  await expect(input).toHaveValue(`${longLine}\n第二行正文。\nthird line`)
+  await expect(numbers).toHaveText(['1', '2', '3'])
+})
+
 test('desktop composer sits below the editor and stays in place while the chapter scrolls', async ({ page }) => {
   await mockWorkspace(page)
   await page.goto('/projects/p/chapters/c')

@@ -36,16 +36,19 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
       editingText.current = { ...editingText.current, start: range.start, end: range.start + text.length }
     onDraftChange(draft.slice(0, range.start) + text + draft.slice(range.end))
   }
+  const lineAt = offset => draft.slice(0, offset).split('\n').length
   return <section className="proposalReview" aria-label="正文行内修改">
-    <ReviewToolbar items={items} frames={document.frames} selected={selected} busy={busy} review={review} onNavigate={navigate} />
+    {items.some(item => item.status === 'PENDING') && <ReviewToolbar items={items} frames={document.frames}
+      selected={selected} busy={busy} review={review} onNavigate={navigate} />}
     {notice && <p className="hint" role="status">{notice}</p>}
     {review.error && <p className="error" role="alert">{review.error}</p>}
     {!items.length && proposal.status === 'PENDING' && <button className="secondary" disabled={busy || review.loading} onClick={review.dismiss}>关闭无修改建议</button>}
     <div className="inlineDocument" aria-label="完整正文与修改建议">
       {document.segments.map(segment => {
         if (segment.type === 'text') return <div className="documentText" key={segment.key}>
-          <span className="lineNumber" aria-hidden="true">{draft.slice(0, segment.start).split('\n').length}</span>
-          <InlineText label="章节正文" value={segment.text} onChange={text => editRange(segment, text)}
+          <InlineText startLine={lineAt(segment.start)}
+            hideFirstNumber={segment.start > 0 && segment.text.startsWith('\n')}
+            hideLastNumber={segment.end < draft.length && segment.text.endsWith('\n')} label="章节正文" value={segment.text} onChange={text => editRange(segment, text)}
             onFocus={() => { editingText.current = { proposalId: proposal.id, key: segment.key, start: segment.start, end: segment.end,
               beforeIds: document.segments.slice(0, document.segments.indexOf(segment))
                 .filter(value => value.type === 'change').map(value => value.item.id) } }}
@@ -61,7 +64,7 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
         return <div className={`inlineChange ${selected === index ? 'selectedChange' : ''}`} key={segment.key}
           ref={element => { changes.current[item.id] = element }} tabIndex={-1} onFocus={() => setSelected(index)}>
           <div className="changeHeader">
-            <span>修改 {index + 1} · 第 {item.lineNumber} 行</span><span className={`changeState ${conflict ? 'conflictState' : ''}`}>{status}</span>
+            <span>修改 {index + 1} · 原文第 {item.lineNumber} 行</span><span className={`changeState ${conflict ? 'conflictState' : ''}`}>{status}</span>
             <div className="changeActions">
               {pending && <><button disabled={busy || review.loading || conflict} onClick={() => apply([item.id])}>应用</button>
                 <button className="secondary" disabled={busy || review.loading} onClick={() => ignore([item.id])}>忽略</button></>}
@@ -70,16 +73,17 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
             </div>
           </div>
           {(pending || applied) && <div className="diffLine diffBefore" aria-label={`修改 ${index + 1} 前（只读）`}>
-            <span className="diffGutter" aria-hidden="true">−</span><pre>{original || '（原无文字）'}</pre>
+            <span className="diffGutter" aria-hidden="true">−</span>
+            <InlineText startLine={item.lineNumber} readOnly value={original || '（原无文字）'} />
           </div>}
           {range && (applied || !pending || conflict) && <div className={`diffLine ${applied ? 'diffAfter' : conflict ? 'diffCurrent' : 'diffUnchanged'}`}>
             <span className="diffGutter" aria-hidden="true">{applied ? '+' : '·'}</span>
-            <InlineText label={applied ? `修改 ${index + 1} 后的正文` : `修改 ${index + 1} 当前正文`}
+            <InlineText startLine={lineAt(range.start)} label={applied ? `修改 ${index + 1} 后的正文` : `修改 ${index + 1} 当前正文`}
               value={current} onChange={text => editRange(range, text)} />
           </div>}
           {pending && <div className="diffLine diffAfter">
             <span className="diffGutter" aria-hidden="true">+</span>
-            <InlineText label={`修改 ${index + 1} 建议（应用前可编辑）`} value={preview}
+            <InlineText startLine={range ? lineAt(range.start) : item.lineNumber} label={`修改 ${index + 1} 建议（应用前可编辑）`} value={preview}
               disabled={busy || review.loading} onChange={text => review.editSuggestion(item.id, text, current)} />
           </div>}
           {conflict && <div className="changeConflict">

@@ -1,18 +1,18 @@
 import { expect, test } from '@playwright/test'
 
 const base = '开头：雨还在下。\n\n林舟游过河。\n\n两人在桥边整理工具。\n\n他拿起红灯。\n\n尾声：他们继续赶路。\n'
-async function mockReview(page, { currentContent = base, changes = [['游过河', '走过桥'], ['红', '蓝']] } = {}) {
+async function mockReview(page, { baseContent = base, currentContent = baseContent, changes = [['游过河', '走过桥'], ['红', '蓝']] } = {}) {
   const chapter = { id: 'c', projectId: 'p', title: '第二章 · 暴雨', chapterOrder: 2, version: 1, content: currentContent }
   const run = { id: 'r', projectId: 'p', targetChapterId: 'c', status: 'SUCCEEDED', proposalId: 'q',
     baseVersion: 1, queuedAt: '2026-10-01T00:00:00Z', lastEventSeq: 1, steps: [], sources: [],
     analysis: '人物设定中林舟不会游泳，建议改为过桥；灯笼颜色应与前文一致。' }
   const items = changes.map(([before, after], id) => {
-    const start = base.indexOf(before), end = start + before.length
-    return { id, before, after, start, end, lineNumber: base.slice(0, start).split('\n').length,
-      contextBefore: base.slice(0, start), contextAfter: base.slice(end), status: 'PENDING', savedVersion: null }
+    const start = baseContent.indexOf(before), end = start + before.length
+    return { id, before, after, start, end, lineNumber: baseContent.slice(0, start).split('\n').length,
+      contextBefore: baseContent.slice(0, start), contextAfter: baseContent.slice(end), status: 'PENDING', savedVersion: null }
   })
-  const proposal = { id: 'q', runId: 'r', targetChapterId: 'c', baseVersion: 1, baseContent: base,
-    proposedContent: changes.reduce((text, [before, after]) => text.replace(before, after), base),
+  const proposal = { id: 'q', runId: 'r', targetChapterId: 'c', baseVersion: 1, baseContent,
+    proposedContent: changes.reduce((text, [before, after]) => text.replace(before, after), baseContent),
     reason: '修正游泳设定与灯笼颜色。', status: 'PENDING', items }
   const writes = []
   await page.route('**/api/v1/**', async route => {
@@ -39,6 +39,58 @@ async function mockReview(page, { currentContent = base, changes = [['游过河'
     return route.fulfill({ status: 404, json: { message: `Unexpected request ${path}` } })
   })
   return { chapter, proposal, writes }
+}
+
+for (const width of [1280, 390]) {
+  test(`wrapped Chinese text has no phantom whitespace and keeps logical line numbers at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 })
+    const paragraph = '林舟沿着山谷记录道路气候与树木的变化他把地图压在膝上对照昨天留下的标记确认小径仍通向北方'.repeat(3)
+    const prefix = Array.from({ length: 60 }, (_, index) => paragraph.slice(0, index === 0 ? 140 : 15 + index % 45)).join('\n')
+    const baseContent = `${prefix}\n\n傍晚，林舟游过河。`
+    await mockReview(page, { baseContent, changes: [['游过河', '走过桥']] })
+    await page.goto('/projects/p/chapters/c')
+    const input = page.getByRole('textbox', { name: '章节正文', exact: true }).first()
+    await expect(input).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    // An independently laid-out copy measures the actual text, including wraps,
+    // rather than accepting an oversized textarea's own scrollHeight as proof.
+    const surplusHeight = () => input.evaluate(element => {
+      const copy = element.cloneNode()
+      copy.value = element.value
+      copy.style.cssText = `position:fixed;left:-10000px;top:0;visibility:hidden;height:0;min-height:0;width:${element.getBoundingClientRect().width}px`
+      element.parentElement.appendChild(copy)
+      const surplus = Math.abs(element.clientHeight - copy.scrollHeight)
+      copy.remove()
+      return surplus
+    })
+    await expect.poll(surplusHeight).toBeLessThanOrEqual(1)
+    const numbers = page.locator('.documentText').first().locator('.lineNumber')
+    const consecutiveNumbers = () => numbers.evaluateAll(elements => elements.every((element, index) => Number(element.textContent) === index + 1))
+    await expect.poll(consecutiveNumbers).toBe(true)
+    await expect(numbers).toHaveCount(61)
+    await expect(page.locator('.diffBefore .lineNumber')).toHaveText('62')
+    await expect(page.locator('.diffAfter .lineNumber')).toHaveText('62')
+    const box = await input.boundingBox()
+    const lineHeight = await input.evaluate(element => parseFloat(getComputedStyle(element).lineHeight))
+    await page.mouse.move(box.x + 30, box.y + lineHeight * 1.5)
+    await expect(page.locator('.hoveredLineNumber')).toHaveText('1')
+    await page.mouse.move(box.x + 30, box.y + lineHeight * 2.5)
+    await expect(page.locator('.hoveredLineNumber')).toHaveText('1')
+    await input.click({ position: { x: 30, y: lineHeight * 2.5 } })
+    expect(await input.evaluate(element => getComputedStyle(element).backgroundImage)).toBe('none')
+    await page.mouse.move(0, 0)
+    await expect(page.locator('.hoveredLineNumber')).toHaveCount(0)
+    const spacing = () => numbers.evaluateAll(elements => elements[1].getBoundingClientRect().top - elements[0].getBoundingClientRect().top)
+    const previousSpacing = await spacing()
+    expect(previousSpacing).toBeGreaterThan(lineHeight * 2)
+    await page.setViewportSize({ width: width === 1280 ? 390 : 1280, height: 844 })
+    await expect.poll(surplusHeight).toBeLessThanOrEqual(1)
+    await expect.poll(spacing).not.toBe(previousSpacing)
+    await expect(numbers).toHaveCount(61)
+    await expect.poll(consecutiveNumbers).toBe(true)
+    await page.getByRole('button', { name: '下一处待处理修改' }).click()
+    await page.screenshot({ path: `test-results/proposal-numbered-${width}.png` })
+  })
 }
 
 test('one continuous document supports partial saves, manual editing and reload', async ({ page }) => {
@@ -70,6 +122,7 @@ test('one continuous document supports partial saves, manual editing and reload'
   await expect(page.locator('.editorHeader')).toContainText('已保存')
   expect(state.chapter.content).toBe(manual.replace('红', '蓝'))
   expect(state.proposal.status).toBe('APPLIED')
+  await expect(page.getByRole('region', { name: '修改导航工具栏' })).toHaveCount(0)
 })
 
 test('an edited suggestion only enters the draft when applied, and persists after saving', async ({ page }) => {
@@ -286,14 +339,11 @@ test('the document toolbar skips processed changes, includes conflicts and never
   await expect(toolbar.locator('summary')).toBeFocused()
   await toolbar.getByText('更多', { exact: true }).click()
   await toolbar.getByRole('button', { name: '忽略剩余', exact: true }).click()
-  await expect(toolbar).toContainText('已全部处理')
-  await expect(toolbar).toContainText('待保存 2 处')
-  await expect(toolbar.getByRole('button', { name: '上一处待处理修改' })).toBeDisabled()
-  await expect(toolbar.getByRole('button', { name: '下一处待处理修改' })).toBeDisabled()
-  await expect(toolbar.locator('details')).not.toHaveAttribute('open', '')
+  await expect(toolbar).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '保存正文', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '保存正文', exact: true }).click()
   await expect(page.locator('.editorHeader')).toContainText('已保存')
-  await expect(toolbar).not.toContainText('待保存')
+  await expect(toolbar).toHaveCount(0)
 })
 
 for (const width of [1280, 390]) {

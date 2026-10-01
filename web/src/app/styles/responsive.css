@@ -21,6 +21,7 @@
   .editorArea {
     --editor-block-padding: 18px;
     --editor-inline-padding: 16px;
+    --editor-font-size: 16px;
   }
   .comparison {
     grid-template-columns: 1fr;
