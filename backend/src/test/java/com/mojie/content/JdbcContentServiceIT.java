@@ -20,6 +20,41 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class JdbcContentServiceIT {
+    @Test void editedSuggestionTextIsPersistedWithoutChangingTheOriginalCandidate() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            JdbcContentService content = new JdbcContentService(source);
+            String owner = "inline-author";
+            String project = (String) content.createProject(owner, "行内编辑").get("id");
+            String chapter = (String) content.createChapter(owner, project, "第一章").get("id");
+            String base = "林舟游过河。\n\n他拿起红灯。\n";
+            content.saveChapter(owner, chapter, base, 1);
+            String candidate = base.replace("游过河", "走过桥").replace("红", "蓝");
+            String proposal = proposal(source, owner, project, chapter, 2, candidate);
+            String edited = "傍晚，林舟沿山路走到旧桥。";
+            var reviews = List.of(new JdbcProposalReview.Review(proposal,
+                    List.of(new JdbcProposalReview.Choice(0, "APPLIED", edited))));
+            String body = base.replace("林舟游过河。", edited + "他检查了桥板。");
+            content.saveChapter(owner, chapter, body, 2, reviews);
+            Map<String,Object> detail = new JdbcRunQuery(source).proposal(owner, proposal);
+            assertEquals(candidate, detail.get("proposedContent"));
+            assertEquals("PARTIALLY_APPLIED", detail.get("status"));
+            @SuppressWarnings("unchecked") var items = (List<Map<String,Object>>) detail.get("items");
+            assertEquals(edited, items.getFirst().get("editedContent"));
+            assertEquals("APPLIED", items.getFirst().get("status"));
+            assertEquals("PENDING", items.getLast().get("status"));
+            assertEquals(3, content.saveChapter(owner, chapter, body, 3, reviews).get("version"));
+            var changedReview = List.of(new JdbcProposalReview.Review(proposal,
+                    List.of(new JdbcProposalReview.Choice(0, "APPLIED", "改变已保存的确认稿"))));
+            assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.saveChapter(owner, chapter, "不得覆盖", 3, changedReview)).code());
+            assertEquals(body, content.chapter(owner, chapter).get("content"));
+            var invalid = List.of(new JdbcProposalReview.Review(proposal,
+                    List.of(new JdbcProposalReview.Choice(1, "IGNORED", "忽略不能提交确认稿"))));
+            assertEquals("VALIDATION_ERROR", assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.saveChapter(owner, chapter, body, 3, invalid)).code());
+        });
+    }
     @Test void partialReviewSavesSurviveManualEditsAndKeepEveryRelatedRevision() throws Exception {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();

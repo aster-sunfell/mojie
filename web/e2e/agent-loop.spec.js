@@ -40,33 +40,32 @@ test('reload and broken event stream recover the completed run', async ({ page, 
   expect(page.locator('.sources button')).toHaveCount(1)
 })
 
-test('source view preserves manual edits while review applies and saves once', async ({ page, request }) => {
+test('source view and inline diff preserve customized edits through saving and reload', async ({ page, request }) => {
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
   await page.locator('#instruction').fill('E2E_EDIT 检查设定并提交候选稿。')
   await page.getByRole('button', { name: '发送要求' }).click()
-  await expect(page.locator('.proposalReview')).toBeVisible()
-  await page.getByRole('button', { name: '编辑正文', exact: true }).click()
-  const original = await page.locator('.editor').inputValue()
-  await page.locator('.editor').fill(`${original}用户补写的细节。`)
+  const input = page.getByRole('textbox', { name: '修改 1 建议（应用前可编辑）' })
+  await expect(input).toBeVisible()
+  const customized = '林舟沿山路走到旧桥，安全到达对岸。但人物设定说他不会游泳。'
+  await input.fill(customized)
   await page.locator('.sources button').first().click()
   await expect(page.locator('.drawer')).toContainText('历史来源')
   await expect(page.locator('.drawer')).toContainText('林舟游到了对岸')
   await page.locator('.drawer').getByRole('button', { name: '关闭' }).click()
-  await expect(page.locator('.editor')).toHaveValue(`${original}用户补写的细节。`)
-  await page.getByRole('button', { name: /^审阅修改/ }).click()
+  await expect(input).toHaveValue(customized)
   await page.getByRole('button', { name: '应用全部', exact: true }).click()
-  await expect(page.locator('.proposalReview')).toContainText('已应用到草稿')
+  const current = page.getByRole('textbox', { name: '修改 1 后的正文' })
+  await current.fill(`${customized}用户补写的细节。`)
   await page.getByRole('button', { name: '保存正文', exact: true }).click()
   await expect(page.locator('.proposalReview')).toContainText('已保存 · 版本 3')
-  await page.getByRole('button', { name: '编辑正文', exact: true }).click()
-  await expect(page.locator('.editor')).toHaveValue(/林舟沿桥走到了对岸.*用户补写的细节。/)
   await page.reload()
-  await expect(page.locator('.proposalReview')).toContainText('已保存 · 版本 3')
-  await page.getByRole('button', { name: '编辑正文', exact: true }).click()
-  await expect(page.locator('.editor')).toHaveValue(/林舟沿桥走到了对岸.*用户补写的细节。/)
+  await expect(current).toHaveValue(`${customized}用户补写的细节。`)
   const revisions = (await (await request.get(`${api}/chapters/${chapterId}/revisions`)).json()).data.items
   expect(revisions.filter(revision => revision.source === 'MIXED')).toHaveLength(1)
+  const runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}&chapterId=${chapterId}`)).json()).data.items
+  const proposal = (await (await request.get(`${api}/edit-proposals/${runs[0].proposalId}`)).json()).data
+  expect(proposal.items[0].editedContent).toBe(customized)
 })
 
 test('browser cancellation reaches a terminal state without a proposal', async ({ page, request }) => {

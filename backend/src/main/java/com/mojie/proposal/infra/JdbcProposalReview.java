@@ -12,7 +12,9 @@ import java.util.*;
 public final class JdbcProposalReview {
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private JdbcProposalReview() {}
-    public record Choice(Integer itemId, String status) {}
+    public record Choice(Integer itemId, String status, String editedContent) {
+        public Choice(Integer itemId, String status) { this(itemId, status, null); }
+    }
     public record Review(String proposalId, List<Choice> decisions) {}
     public record Saved(String proposalId, String decisions, boolean applied) {}
 
@@ -29,6 +31,7 @@ public final class JdbcProposalReview {
                     : "APPLIED".equals(status) ? "APPLIED" : "REJECTED".equals(status) ? "IGNORED" : "PENDING");
             value.put("savedVersion", decision != null && decision.has("savedVersion")
                     ? Integer.valueOf(decision.path("savedVersion").asInt()) : appliedVersion);
+            if (decision != null && decision.has("editedContent")) value.put("editedContent", decision.path("editedContent").asText());
             items.add(value);
         }
         return items;
@@ -63,11 +66,17 @@ public final class JdbcProposalReview {
                                 || !ids.add(choice.itemId()) || !("APPLIED".equals(choice.status()) || "IGNORED".equals(choice.status())))
                             throw invalid();
                         String key = String.valueOf(choice.itemId());
+                        String edited = choice.editedContent() == null ? null
+                                : choice.editedContent().replace("\r\n", "\n").replace('\r', '\n');
+                        if (edited != null && (!"APPLIED".equals(choice.status())
+                                || edited.codePointCount(0, edited.length()) > 6000)) throw invalid();
                         JsonNode existing = decisions.get(key);
-                        if (existing != null && existing.path("status").asText().equals(choice.status())) continue;
+                        if (existing != null && existing.path("status").asText().equals(choice.status())
+                                && (edited == null || edited.equals(existing.path("editedContent").asText()))) continue;
                         if (existing != null || Set.of("APPLIED", "REJECTED").contains(rs.getString(3)))
                             throw new ContentException("PROPOSAL_STATE_CONFLICT", "Proposal choice changed");
                         ObjectNode value = JSON.createObjectNode().put("status", choice.status()).put("savedVersion", version);
+                        if (edited != null) value.put("editedContent", edited);
                         decisions.set(key, value); delta.set(key, value);
                         applied |= "APPLIED".equals(choice.status());
                     }

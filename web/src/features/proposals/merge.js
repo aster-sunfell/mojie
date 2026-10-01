@@ -70,6 +70,11 @@ export function reviewStatus(items) {
 }
 
 export function reviewReference(base, items) {
+  items = items.map(item => {
+    if (item.status !== 'APPLIED' || item.editedContent == null) return item
+    const range = lineRange(base, item.start, item.end)
+    return { ...item, ...range, before: base.slice(range.start, range.end), after: item.editedContent }
+  })
   const applied = items.filter(item => item.status === 'APPLIED').sort((a, b) => b.start - a.start)
   let reference = base
   for (const item of applied) reference = reference.slice(0, item.start) + item.after + reference.slice(item.end)
@@ -80,6 +85,73 @@ export function reviewReference(base, items) {
     return { ...item, start, end, contextBefore: Array.from(reference.slice(0, start)).slice(-40).join(''),
       contextAfter: Array.from(reference.slice(end)).slice(0, 40).join('') }
   }) }
+}
+
+// Include the complete affected lines, while preserving all separators exactly.
+export function lineRange(text, start, end) {
+  const lineStart = start === 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1
+  const nextBreak = text.indexOf('\n', Math.max(start, end - 1))
+  return { start: lineStart, end: nextBreak < 0 ? text.length : Math.max(end, nextBreak) }
+}
+
+function anchoredRange(text, left, right) {
+  const start = left ? text.indexOf(left) : 0
+  if (start < 0 || (left && text.indexOf(left, start + 1) >= 0)) return null
+  const from = start + left.length
+  const end = right ? text.indexOf(right, from) : text.length
+  if (end < from || (right && text.indexOf(right, end + 1) >= 0)) return null
+  return { start: from, end }
+}
+
+export function inlineDocument(base, draft, items) {
+  const reference = reviewReference(base, items)
+  const locations = locateChanges(reference.base, draft, reference.items.filter(item => item.status === 'PENDING'))
+  const frames = items.map(item => {
+    const adjusted = reference.items.find(value => value.id === item.id)
+    const location = item.status === 'PENDING' ? locations.get(item.id) : locateReviewedText(reference.base, draft, adjusted)
+    let span = location && location.status !== 'CONFLICT' ? location : null
+    if (!span) span = anchoredRange(draft, adjusted.contextBefore, adjusted.contextAfter)
+    const originalRange = lineRange(base, item.start, item.end)
+    const original = base.slice(originalRange.start, originalRange.end)
+    const suggested = base.slice(originalRange.start, item.start) + item.after + base.slice(item.end, originalRange.end)
+    // Full-line anchors can survive manual changes inside the line.
+    if (!span) {
+      const range = lineRange(reference.base, adjusted.start, adjusted.end)
+      span = anchoredRange(draft, Array.from(reference.base.slice(0, range.start)).slice(-40).join(''),
+        Array.from(reference.base.slice(range.end)).slice(0, 40).join(''))
+    }
+    const range = span ? lineRange(draft, span.start, span.end) : null
+    const current = range ? draft.slice(range.start, range.end) : null
+    let preview = suggested
+    if (range && item.status === 'PENDING' && location?.status === 'READY')
+      preview = draft.slice(range.start, location.start) + item.after + draft.slice(location.end, range.end)
+    else if (range && location?.status === 'INCLUDED') preview = current
+    const stalePreview = !!item.preview && item.preview.against !== current
+    return { item, range, original, current, preview: item.preview?.text ?? preview,
+      location, conflict: item.status === 'PENDING' && (location?.status === 'CONFLICT' || stalePreview) }
+  })
+  const located = frames.filter(frame => frame.range).sort((a, b) => a.range.start - b.range.start)
+  // A manual join can put separate edits on one line; render those suggestions below
+  // the draft instead of duplicating or hiding part of the author's text.
+  const overlaps = new Set()
+  for (let i = 0; i < located.length; i++) for (let j = i + 1; j < located.length; j++) {
+    if (located[j].range.start >= located[i].range.end && located[j].range.start !== located[i].range.start) break
+    overlaps.add(located[i].item.id); overlaps.add(located[j].item.id)
+  }
+  const segments = []
+  let cursor = 0
+  for (const frame of located.filter(value => !overlaps.has(value.item.id))) {
+    if (frame.range.start > cursor) segments.push({ type: 'text', key: `before-${frame.item.id}`, start: cursor,
+      end: frame.range.start, text: draft.slice(cursor, frame.range.start) })
+    segments.push({ type: 'change', key: `change-${frame.item.id}`, ...frame })
+    cursor = frame.range.end
+  }
+  if (cursor < draft.length || !segments.length) segments.push({ type: 'text', key: 'tail', start: cursor,
+    end: draft.length, text: draft.slice(cursor) })
+  for (const frame of frames.filter(value => !value.range || overlaps.has(value.item.id)))
+    segments.push({ type: 'change', key: `change-${frame.item.id}`, ...frame, range: null, current: null,
+      conflict: frame.item.status === 'PENDING' })
+  return { segments, frames }
 }
 
 export function locateReviewedText(base, draft, item) {

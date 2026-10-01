@@ -25,8 +25,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   const accepting = false
   const [showAssistant, setShowAssistant] = useState(false)
   const [showChapters, setShowChapters] = useState(false)
-  const [reviewOpen, setReviewOpen] = useState(true)
-  const [editorSelection, setEditorSelection] = useState(null)
+  const [showComposer, setShowComposer] = useState(false)
   const [reviewSelection, setReviewSelection] = useState(null)
   const compact = useMediaQuery('(max-width: 1100px)')
   const mobile = useMediaQuery('(max-width: 640px)')
@@ -50,7 +49,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
       else if (draftRef.current === chapterRef.current?.content)
         setSaveStatus(current => current === '保存中' ? current : '已保存')
     } })
-  useEffect(() => { setReviewOpen(true) }, [review.id])
+  useEffect(() => { setShowComposer(false) }, [review.id])
   const loadChapters = useCallback((after = null) => api(`/projects/${projectId}/chapters?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
     .then(page => {
       setChapters(current => after
@@ -81,10 +80,10 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     setShowChapters(false)
   }, [selectedChapterId, refreshChapter])
   useEffect(() => {
-    const check = event => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
+    const check = event => { if (dirty || review.hasPendingEdits) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', check)
     return () => window.removeEventListener('beforeunload', check)
-  }, [dirty])
+  }, [dirty, review.hasPendingEdits])
   const save = useCallback(() => {
     if (saveInFlight.current) return saveInFlight.current
     if (!chapter || accepting) return Promise.resolve(false)
@@ -121,8 +120,10 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   useEffect(() => { const key = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save])
   async function prepareLeave() {
     if (accepting) return
-    if (dirty) {
-      const decision = window.prompt('正文未保存。输入“保存”后离开、“放弃”直接离开，或“取消”继续编辑。', '取消')
+    if (dirty || review.hasPendingEdits) {
+      const decision = window.prompt(review.hasPendingEdits
+        ? '还有未应用的建议调整。输入“保存”保存正文后离开（未应用的建议调整会丢弃）、“放弃”直接离开，或“取消”继续编辑。'
+        : '正文未保存。输入“保存”后离开、“放弃”直接离开，或“取消”继续编辑。', '取消')
       if (decision === '保存') return await save()
       if (decision !== '放弃') return false
     }
@@ -156,7 +157,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onSettingsToggle={() => { setShowSettings(!showSettings); setShowChapters(false) }} />
   const panel = <AgentPanel task={task} chapter={chapter}
     review={review} onOpenReview={itemId => {
-      setReviewOpen(true); setShowSettings(false); setShowAssistant(false)
+      setShowSettings(false); setShowAssistant(false)
       setReviewSelection({ itemId: typeof itemId === 'number' ? itemId : 0, request: Date.now() })
     }} embedded={compact} />
 
@@ -175,13 +176,13 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     saveStatus={saveStatus} dirty={dirty} accepting={accepting} error={error}
     showSettings={showSettings} runBusy={runBusy} showHistory={showHistory}
     onHistoryChange={setShowHistory} onSave={save}
-    review={review} reviewOpen={reviewOpen} onReviewToggle={setReviewOpen}
+    review={review}
     reviewSelection={reviewSelection}
-    editorSelection={editorSelection} onEdit={location => { setReviewOpen(false); setEditorSelection({ ...location, request: Date.now() }) }}
     onDraftChange={changeDraft} />
-      {chapter && chapter.id === selectedChapterId && !showSettings && (review.proposal && reviewOpen
-        ? <div className="reviewFooter"><button className="secondary" onClick={() => setReviewOpen(false)}>继续编辑与提要求</button></div>
-        : <AgentComposer chapter={chapter} task={task} dirty={dirty} onSave={save} saveStatus={saveStatus} />)}
+      {chapter && chapter.id === selectedChapterId && !showSettings && (review.proposal && !showComposer
+        ? <div className="reviewFooter"><button className="secondary" onClick={() => setShowComposer(true)}>向助手提要求</button></div>
+        : <>{review.proposal && <div className="reviewFooter"><button className="link" onClick={() => setShowComposer(false)}>收起输入框</button></div>}
+          <AgentComposer chapter={chapter} task={task} dirty={dirty} onSave={save} saveStatus={saveStatus} /></>)}
     </div>
     {!compact && panel}
     {compact && showAssistant && <Drawer title="写作助手" onClose={() => setShowAssistant(false)}>{panel}</Drawer>}

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { applyChange, locateChange, locateChanges, reviewReference } from './merge.js'
+import { applyChange, inlineDocument, lineRange, locateChange, locateChanges, reviewReference } from './merge.js'
 
 const base = '林舟游过河。\n\n他拿起红灯。\n'
 const changes = [ ['游过河', '走过桥'], ['红', '蓝'] ].map(([before, after], id) => {
@@ -48,4 +48,33 @@ test('different edit blocks cannot be applied onto the same current span', () =>
   const locations = locateChanges('甲旧乙间隔丙旧丁', '甲旧丁', items)
   expect(locations.get(0).status).toBe('CONFLICT')
   expect(locations.get(1).status).toBe('CONFLICT')
+})
+
+test('inline document preserves all text, blank lines and manual edits between changes', () => {
+  for (const draft of [base, `序言😀\n${base}附记\n`, base.replace('游过河', '绕到旧桥'), base.replace('\n\n', ' '), '完全改写的正文😀']) {
+    const document = inlineDocument(base, draft, changes)
+    const reconstructed = document.segments.map(segment => segment.type === 'text' ? segment.text : segment.range ? segment.current : '').join('')
+    expect(reconstructed).toBe(draft)
+  }
+})
+test('a saved customized line remains editable and rebases later suggestions', () => {
+  const customized = '傍晚，林舟沿山路走到旧桥。'
+  const items = changes.map(item => item.id === 0 ? { ...item, status: 'APPLIED', editedContent: customized } : item)
+  const draft = base.replace('林舟游过河。', `${customized}他检查了桥板。`)
+  const document = inlineDocument(base, draft, items)
+  const first = document.frames.find(frame => frame.item.id === 0)
+  const remaining = document.frames.find(frame => frame.item.id === 1)
+  expect(first.current).toBe(`${customized}他检查了桥板。`)
+  expect(remaining.conflict).toBe(false)
+  expect(remaining.preview).toBe('他拿起蓝灯。')
+})
+test('stale edited suggestions cannot overwrite newer edits in their full line', () => {
+  const items = changes.map(item => item.id === 0 ? { ...item, preview: { text: '林舟走到旧桥。', against: '林舟游过河。' } } : item)
+  const document = inlineDocument(base, base.replace('林舟', '林舟与同伴'), items)
+  expect(document.frames[0].conflict).toBe(true)
+})
+test('line ranges preserve empty leading lines and deletion separators', () => {
+  expect(lineRange('\n第一段\n', 0, 0)).toEqual({ start: 0, end: 0 })
+  expect(lineRange('删除\n保留', 0, 3)).toEqual({ start: 0, end: 3 })
+  expect(lineRange('', 0, 0)).toEqual({ start: 0, end: 0 })
 })
