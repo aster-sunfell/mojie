@@ -1,0 +1,80 @@
+.workspace {
+  display: grid;
+  grid-template-columns: 250px minmax(380px,1fr) 390px;
+  height: 100vh;
+  min-height: 650px;
+}
+
+.sidebar {
+  background: #e9eee8;
+  border-right: 1px solid #d9e1d8;
+  padding: 24px 14px;
+  overflow: auto;
+}
+
+.sidebar h1 {
+  font-size: 21px;
+  padding: 16px 10px 20px;
+  border-bottom: 1px solid #d7dfd4;
+}
+
+.sidebar .sectionTitle {
+  padding: 0 10px;
+}
+
+.sidebar h2 {
+  font-size: 15px;
+}
+
+.back,.settingsToggle {
+  background: transparent;
+  color: #526f63;
+  text-align: left;
+}
+
+.back:hover,.settingsToggle:hover {
+  background: #dbe5d9;
+}
+
+.settingsToggle {
+  margin-top: 20px;
+  width: 100%;
+  border-top: 1px solid #d7dfd4;
+  border-radius: 0;
+  padding-top: 17px;
+}
+
+.iconButton {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 20px;
+}
+
+.chapterList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chapterList button {
+  background: transparent;
+  color: #33423b;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 10px;
+}
+
+.chapterList button strong {
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chapterList button.selected,.chapterList button:hover {
+  background: #d8e6dc;
+}

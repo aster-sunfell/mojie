@@ -1,0 +1,78 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: #19352875;
+  z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer {
+  width: min(720px,100vw);
+  height: 100vh;
+  background: var(--color-surface);
+  padding: 24px;
+  overflow: auto;
+  box-shadow: -9px 0 30px #19352825;
+}
+
+.drawer .sectionTitle {
+  margin: 0 0 20px;
+}
+
+.historyList {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+}
+
+.historyList button {
+  background: #edf1ec;
+  color: #425448;
+  white-space: nowrap;
+}
+
+.historyList button.selected {
+  background: #bcdcc8;
+}
+
+.historyList small {
+  display: block;
+}
+
+.historicalText {
+  white-space: pre-wrap;
+  font: 16px/1.9 'Noto Serif SC',serif;
+}
+
+.sourceLines {
+  border: 1px solid #e2e9df;
+  border-radius: 8px;
+  max-height: 75vh;
+  overflow: auto;
+}
+
+.sourceLines>div {
+  display: flex;
+  border-bottom: 1px solid #f0f2ee;
+}
+
+.sourceLines>div.hitLine {
+  background: #fff5d8;
+}
+
+.sourceLines span {
+  min-width: 48px;
+  text-align: right;
+  padding: 7px 12px;
+  color: #9aa69b;
+  border-right: 1px solid #e9eee8;
+}
+
+.sourceLines pre {
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 7px 12px;
+  font: 14px/1.7 'Noto Serif SC',serif;
+}

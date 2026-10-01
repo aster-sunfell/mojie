@@ -1,0 +1,48 @@
+.settings {
+  max-width: 850px;
+  width: 100%;
+  margin: auto;
+  align-self: flex-start;
+}
+
+.settings>input {
+  width: 100%;
+}
+
+.settingList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,minmax(240px,1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.setting {
+  border: 1px solid #e1e9df;
+  border-radius: 10px;
+  padding: 15px;
+}
+
+.setting small,.setting strong {
+  display: block;
+}
+
+.setting strong {
+  margin: 5px 0;
+}
+
+.setting p {
+  white-space: pre-wrap;
+  font-size: 14px;
+}
+
+.settingForm {
+  border-top: 1px solid #e6eee6;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settingForm textarea {
+  min-height: 105px;
+}

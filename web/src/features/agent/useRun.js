@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from './api.js'
+import { api } from '../../shared/api/client.js'
 
 const eventTypes = ['run.queued', 'run.started', 'model.started', 'model.finished', 'tool.started', 'tool.finished', 'run.succeeded', 'run.failed', 'run.cancelled']
 const terminal = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED'])

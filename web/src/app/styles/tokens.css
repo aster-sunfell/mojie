@@ -1,0 +1,18 @@
+:root {
+  --color-text: #21302c;
+  --color-background: #f5f4ef;
+  --color-surface: #fff;
+  --color-border: #e5e8df;
+  --color-primary: #245b50;
+  --color-primary-hover: #17463d;
+  --color-danger: #a84e43;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-heading: 'Noto Serif SC', serif;
+  --radius-control: 8px;
+  --radius-card: 15px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --shadow-card: 0 8px 25px #2443350b;
+}

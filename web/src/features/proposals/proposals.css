@@ -1,0 +1,37 @@
+.proposal {
+  border-top: 1px solid #e2e9df;
+  margin-top: 20px;
+  padding-top: 18px;
+}
+
+.proposal h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.proposal p {
+  font-size: 13px;
+}
+
+.badge {
+  font: 600 10px 'DM Sans',sans-serif;
+  color: #25765d;
+  background: #e0f2e6;
+  padding: 4px 7px;
+  border-radius: 20px;
+}
+
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.comparison>div {
+  min-width: 0;
+}
+
+.comparison strong {
+  font-size: 12px;
+}

@@ -332,3 +332,70 @@ test('accepted proposal stays applied when follow-up reads fail and retries only
   expect(screen.queryByText('建议已采纳，但正文刷新失败。请重试刷新正文。')).toBeNull()
   expect(acceptCalls).toBe(1)
 })
+
+test('home removes a project after confirming in the dialog', async () => {
+  const deleted = []
+  globalThis.fetch = vi.fn((url, options = {}) => {
+    if (url === '/api/v1/projects?limit=20')
+      return Promise.resolve(reply({ items: [{ id: 'p', title: '旧作', updatedAt: '2026-09-01T00:00:00Z' }], nextCursor: null }))
+    if (url === '/api/v1/projects/p' && options.method === 'DELETE') { deleted.push(url); return Promise.resolve({ ok: true, status: 204 }) }
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: '删除' }))
+  fireEvent.click(await screen.findByRole('button', { name: '确认删除' }))
+  await waitFor(() => expect(screen.queryByText('旧作')).toBeNull())
+  expect(deleted).toEqual(['/api/v1/projects/p'])
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('home keeps the project when the deletion dialog is cancelled', async () => {
+  let deleteCalled = false
+  globalThis.fetch = vi.fn((url, options = {}) => {
+    if (url === '/api/v1/projects?limit=20')
+      return Promise.resolve(reply({ items: [{ id: 'p', title: '旧作', updatedAt: '2026-09-01T00:00:00Z' }], nextCursor: null }))
+    if (options.method === 'DELETE') { deleteCalled = true; return Promise.resolve({ ok: true, status: 204 }) }
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: '删除' }))
+  fireEvent.click(screen.getByRole('button', { name: '取消' }))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: '删除' }))
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.getByText('旧作')).toBeTruthy()
+  expect(deleteCalled).toBe(false)
+})
+
+test('home shows the busy error and keeps the project when deletion is rejected', async () => {
+  globalThis.fetch = vi.fn((url, options = {}) => {
+    if (url === '/api/v1/projects?limit=20')
+      return Promise.resolve(reply({ items: [{ id: 'p', title: '旧作', updatedAt: '2026-09-01T00:00:00Z' }], nextCursor: null }))
+    if (url === '/api/v1/projects/p' && options.method === 'DELETE')
+      return Promise.resolve({ ok: false, status: 409, json: async () => ({ code: 'RESOURCE_BUSY', message: 'Project has an active run' }) })
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: '删除' }))
+  fireEvent.click(await screen.findByRole('button', { name: '确认删除' }))
+  await screen.findByText('作品有正在运行的任务或待确认建议。')
+  expect(screen.getByText('旧作')).toBeTruthy()
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('home loads the next project page', async () => {
+  globalThis.fetch = vi.fn((url) => {
+    if (url === '/api/v1/projects?limit=20')
+      return Promise.resolve(reply({ items: [{ id: 'p1', title: '第一卷', updatedAt: '2026-09-01T00:00:00Z' }], nextCursor: 'page-two' }))
+    if (url === '/api/v1/projects?limit=20&cursor=page-two')
+      return Promise.resolve(reply({ items: [{ id: 'p2', title: '第二卷', updatedAt: '2026-08-01T00:00:00Z' }], nextCursor: null }))
+    throw new Error(`Unexpected request ${url}`)
+  })
+  render(<App />)
+  await screen.findByText('第一卷')
+  fireEvent.click(screen.getByRole('button', { name: '加载更多作品' }))
+  await screen.findByText('第二卷')
+  expect(screen.getByText('第一卷')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '加载更多作品' })).toBeNull()
+})

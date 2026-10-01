@@ -1,0 +1,179 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
+
+:root {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-background);
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,input,textarea,select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-surface);
+  padding: 10px 15px;
+  font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+input,textarea,select {
+  border: 1px solid #d7dcd5;
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 10px 12px;
+  color: #22312d;
+  outline: none;
+}
+
+input:focus,textarea:focus,select:focus {
+  border-color: #3c806e;
+  box-shadow: 0 0 0 3px #3c806e22;
+}
+
+textarea {
+  resize: vertical;
+}
+
+h1,h2,h3,p {
+  margin-top: 0;
+}
+
+h1,h2 {
+  font-family: 'Noto Serif SC',serif;
+}
+
+h1 {
+  font-size: 25px;
+}
+
+h2 {
+  font-size: 19px;
+}
+
+h3 {
+  font-size: 15px;
+}
+
+small {
+  font-size: 12px;
+  color: #77847f;
+}
+
+p {
+  line-height: 1.65;
+}
+
+.muted {
+  color: #84918b;
+}
+
+.error {
+  color: #a33d37;
+  background: #fff0eb;
+  padding: 9px 12px;
+  border-radius: 7px;
+}
+
+.success {
+  color: #21694d;
+}
+
+.hint {
+  color: #6c674b;
+  background: #fff9df;
+  padding: 8px 11px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.row>* {
+  min-width: 0;
+}
+
+.row input {
+  flex: 1;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 10px;
+}
+
+.sectionTitle h2,.sectionTitle h3 {
+  margin: 0;
+}
+
+.secondary {
+  background: #edf2ee;
+  color: #315248;
+}
+
+.secondary:hover:not(:disabled) {
+  background: #dce9e0;
+}
+
+.link {
+  background: transparent;
+  padding: 3px 5px;
+  color: #326b5b;
+}
+
+.link:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.brand {
+  font-family: 'Noto Serif SC',serif;
+  font-size: 23px;
+  font-weight: 700;
+  color: #27584f;
+}
+
+.brand small {
+  font: 600 13px 'DM Sans',sans-serif;
+  color: #89a49b;
+  margin-left: 6px;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: .2em;
+  color: #708d83;
+  font-weight: 700;
+}

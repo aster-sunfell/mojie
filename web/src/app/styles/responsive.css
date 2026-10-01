@@ -1,0 +1,34 @@
+@media (max-width:1050px) {
+  .workspace {
+    grid-template-columns: 190px minmax(300px,1fr) 330px;
+  }
+  .editorArea {
+    padding: 24px;
+  }
+  .agentBody {
+    padding: 15px;
+  }
+  .panelHeader {
+    padding: 22px 15px;
+  }
+}
+
+@media (max-width:760px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+  }
+  .sidebar {
+    max-height: 230px;
+  }
+  .editorArea {
+    min-height: 550px;
+  }
+  .agentPanel {
+    min-height: 500px;
+  }
+  .comparison {
+    grid-template-columns: 1fr;
+  }
+}
