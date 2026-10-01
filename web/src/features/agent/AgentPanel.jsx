@@ -5,7 +5,7 @@ import { RunResult } from './RunResult.jsx'
 import { Icon } from '../../shared/ui/Icon.jsx'
 import { Tooltip } from '../../shared/ui/Tooltip.jsx'
 
-export function AgentPanel({ task, chapter, dirty, refreshChapter, onAcceptanceBusy, embedded = false }) {
+export function AgentPanel({ task, chapter, review, onOpenReview, embedded = false }) {
   const [source, setSource] = useState(null)
   const { runs, runCursor, runId, run, runError, loadRuns } = task
   useEffect(() => { setSource(null) }, [runId])
@@ -37,8 +37,7 @@ export function AgentPanel({ task, chapter, dirty, refreshChapter, onAcceptanceB
         <Icon name="message" size={28} /><h3>一起打磨这一章</h3>
         <p>在正文下方输入要求，助手会查阅证据并给出分析或修改建议。</p>
       </div>}
-      {run && <RunResult task={task} dirty={dirty} refreshChapter={refreshChapter}
-        onAcceptanceBusy={onAcceptanceBusy} onSource={setSource} />}
+      {run && <RunResult task={task} review={review} onOpenReview={onOpenReview} onSource={setSource} />}
     </div>
     {source && <SourceView key={source.id} source={source}
       step={run?.steps?.find(item => item.toolExecutionId === source.toolExecutionId)} close={() => setSource(null)} />}

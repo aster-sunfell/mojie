@@ -9,6 +9,7 @@ import { ChapterSidebar } from './ChapterSidebar.jsx'
 import { useMediaQuery } from '../../shared/useMediaQuery.js'
 import { Drawer } from '../../shared/ui/Drawer.jsx'
 import { Icon } from '../../shared/ui/Icon.jsx'
+import { useProposalReview } from '../proposals/useProposalReview.js'
 
 export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [project, setProject] = useState(null)
@@ -21,20 +22,35 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
-  const [accepting, setAccepting] = useState(false)
+  const accepting = false
   const [showAssistant, setShowAssistant] = useState(false)
   const [showChapters, setShowChapters] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(true)
+  const [editorSelection, setEditorSelection] = useState(null)
+  const [reviewSelection, setReviewSelection] = useState(null)
   const compact = useMediaQuery('(max-width: 1100px)')
   const mobile = useMediaQuery('(max-width: 640px)')
   const selectedRef = useRef(selectedChapterId)
   const chapterRef = useRef(chapter)
   const draftRef = useRef(draft)
   const saveInFlight = useRef(null)
+  const reviewDirtyRef = useRef(false)
   selectedRef.current = selectedChapterId
   chapterRef.current = chapter
-  const dirty = chapter && draft !== chapter.content
+  const dirty = chapter && (draft !== chapter.content || reviewDirtyRef.current)
   const task = useAgentTask({ projectId, chapterId: selectedChapterId, chapter,
     dirty, accepting, projectBusy: runBusy })
+  const changeDraft = useCallback(value => {
+    draftRef.current = value; setDraft(value); setSaveStatus('未保存')
+  }, [])
+  const review = useProposalReview({ chapterId: selectedChapterId, run: task.run, draftRef,
+    onDraftChange: changeDraft, onDirtyChange: value => {
+      reviewDirtyRef.current = value
+      if (value) setSaveStatus(current => current === '保存中' ? current : '未保存')
+      else if (draftRef.current === chapterRef.current?.content)
+        setSaveStatus(current => current === '保存中' ? current : '已保存')
+    } })
+  useEffect(() => { setReviewOpen(true) }, [review.id])
   const loadChapters = useCallback((after = null) => api(`/projects/${projectId}/chapters?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
     .then(page => {
       setChapters(current => after
@@ -74,18 +90,22 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     if (!chapter || accepting) return Promise.resolve(false)
     const chapterId = chapter.id
     const submitted = draftRef.current
+    const proposalReviews = review.snapshot()
     setSaveStatus('保存中')
     const pending = (async () => {
       try {
-        const value = await api(`/chapters/${chapterId}/content`, 'PUT', { content: submitted, expectedVersion: chapter.version })
+        const value = await api(`/chapters/${chapterId}/content`, 'PUT', { content: submitted, expectedVersion: chapter.version,
+          ...(proposalReviews.length ? { proposalReviews } : {}) })
         if (selectedRef.current !== chapterId) return false
         chapterRef.current = value; setChapter(value)
         setChapters(items => items.map(item => item.id === chapterId
           ? { ...item, title: value.title, version: value.version } : item))
-        const unchanged = draftRef.current === submitted
+        review.commit(proposalReviews, value.version)
+        const unchanged = draftRef.current === submitted && !reviewDirtyRef.current
         if (unchanged) { draftRef.current = value.content; setDraft(value.content) }
         setSaveStatus(unchanged ? '已保存' : '未保存')
-        return selectedRef.current === chapterId && draftRef.current === submitted
+        setError('')
+        return selectedRef.current === chapterId && draftRef.current === submitted && !reviewDirtyRef.current
       } catch (e) {
         if (selectedRef.current === chapterId) {
           setSaveStatus(e.code === 'VERSION_CONFLICT' ? '版本冲突' : '保存失败')
@@ -97,7 +117,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     saveInFlight.current = pending
     pending.finally(() => { if (saveInFlight.current === pending) saveInFlight.current = null })
     return pending
-  }, [chapter, accepting])
+  }, [chapter, accepting, review.snapshot, review.commit])
   useEffect(() => { const key = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save])
   async function prepareLeave() {
     if (accepting) return
@@ -134,8 +154,11 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onLeave={leave} onAddChapter={addChapter}
     onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}
     onSettingsToggle={() => { setShowSettings(!showSettings); setShowChapters(false) }} />
-  const panel = <AgentPanel task={task} chapter={chapter} dirty={dirty}
-    refreshChapter={refreshChapter} onAcceptanceBusy={setAccepting} embedded={compact} />
+  const panel = <AgentPanel task={task} chapter={chapter}
+    review={review} onOpenReview={itemId => {
+      setReviewOpen(true); setShowSettings(false); setShowAssistant(false)
+      setReviewSelection({ itemId: typeof itemId === 'number' ? itemId : 0, request: Date.now() })
+    }} embedded={compact} />
 
   return <div className="workspace">
     {!mobile && sidebar}
@@ -152,9 +175,13 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     saveStatus={saveStatus} dirty={dirty} accepting={accepting} error={error}
     showSettings={showSettings} runBusy={runBusy} showHistory={showHistory}
     onHistoryChange={setShowHistory} onSave={save}
-    onDraftChange={value => { draftRef.current = value; setDraft(value); setSaveStatus('未保存') }} />
-      {chapter && chapter.id === selectedChapterId && !showSettings && <AgentComposer
-        chapter={chapter} task={task} dirty={dirty} onSave={save} saveStatus={saveStatus} />}
+    review={review} reviewOpen={reviewOpen} onReviewToggle={setReviewOpen}
+    reviewSelection={reviewSelection}
+    editorSelection={editorSelection} onEdit={location => { setReviewOpen(false); setEditorSelection({ ...location, request: Date.now() }) }}
+    onDraftChange={changeDraft} />
+      {chapter && chapter.id === selectedChapterId && !showSettings && (review.proposal && reviewOpen
+        ? <div className="reviewFooter"><button className="secondary" onClick={() => setReviewOpen(false)}>继续编辑与提要求</button></div>
+        : <AgentComposer chapter={chapter} task={task} dirty={dirty} onSave={save} saveStatus={saveStatus} />)}
     </div>
     {!compact && panel}
     {compact && showAssistant && <Drawer title="写作助手" onClose={() => setShowAssistant(false)}>{panel}</Drawer>}

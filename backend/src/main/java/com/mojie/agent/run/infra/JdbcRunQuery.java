@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mojie.common.Page;
 import com.mojie.common.PageCursor;
+import com.mojie.proposal.infra.JdbcProposalReview;
 import java.sql.*;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -129,11 +130,14 @@ public final class JdbcRunQuery {
             Map<String,Object> value = first(c, """
                     SELECT p.id, p.run_id, p.project_id, p.target_chapter_id, p.base_version,
                            p.base_content, p.proposed_content, p.reason, p.status, p.applied_version,
-                           p.created_at, p.updated_at
+                           p.created_at, p.updated_at, p.review_decisions
                       FROM tb_edit_proposal p JOIN tb_agent_run r ON r.id = p.run_id
                      WHERE p.id = ?::uuid AND r.owner_id = ?
                     """, proposalId, owner);
             if (value == null) throw new NotFound();
+            value.put("items", JdbcProposalReview.items((String) value.get("baseContent"),
+                    (String) value.get("proposedContent"), (String) value.get("status"),
+                    (Integer) value.get("appliedVersion"), (JsonNode) decode(value.remove("reviewDecisions").toString())));
             return value;
         } catch (SQLException e) { throw new IllegalStateException("Proposal unavailable", e); }
     }

@@ -7,6 +7,8 @@ import com.mojie.agent.run.infra.JdbcRunTerminalStore;
 import com.mojie.agent.tool.*;
 import com.mojie.agent.tool.infra.JdbcContentRepository;
 import com.mojie.common.Page;
+import com.mojie.proposal.infra.JdbcProposalReview;
+import com.mojie.proposal.infra.JdbcEditProposalService;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,98 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class JdbcContentServiceIT {
+    @Test void partialReviewSavesSurviveManualEditsAndKeepEveryRelatedRevision() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            JdbcContentService content = new JdbcContentService(source);
+            String owner = "review-author";
+            String project = (String) content.createProject(owner, "修改审阅").get("id");
+            String chapter = (String) content.createChapter(owner, project, "第一章").get("id");
+            String base = "林舟游过河。\n\n他拿起红灯。\n";
+            content.saveChapter(owner, chapter, base, 1);
+            String proposal = proposal(source, owner, project, chapter, 2, base.replace("游过河", "走过桥").replace("红", "蓝"));
+            JdbcRunQuery query = new JdbcRunQuery(source);
+            assertEquals(2, ((List<?>) query.proposal(owner, proposal).get("items")).size());
+            var first = List.of(new JdbcProposalReview.Review(proposal, List.of(new JdbcProposalReview.Choice(0, "APPLIED"))));
+            String partial = base.replace("游过河", "走过桥") + "用户自己补写。";
+            assertEquals(3, content.saveChapter(owner, chapter, partial, 2, first).get("version"));
+            assertEquals("PARTIALLY_APPLIED", query.proposal(owner, proposal).get("status"));
+            assertEquals("MIXED", content.revision(owner, chapter, 3).get("source"));
+            assertEquals(proposal, content.revision(owner, chapter, 3).get("proposalId"));
+            // A retry cannot create another revision or reverse a saved decision.
+            assertEquals(3, content.saveChapter(owner, chapter, partial, 3, first).get("version"));
+            assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(JdbcEditProposalService.ProposalException.class,
+                    () -> new JdbcEditProposalService(source).accept(owner, proposal)).code());
+            String manual = partial + "继续手动完善。";
+            content.saveChapter(owner, chapter, manual, 3);
+            assertEquals("PARTIALLY_APPLIED", query.proposal(owner, proposal).get("status"));
+            var second = List.of(new JdbcProposalReview.Review(proposal, List.of(new JdbcProposalReview.Choice(1, "APPLIED"))));
+            assertEquals(5, content.saveChapter(owner, chapter, manual.replace("红", "蓝"), 4, second).get("version"));
+            assertEquals("APPLIED", query.proposal(owner, proposal).get("status"));
+            assertEquals(5, query.proposal(owner, proposal).get("appliedVersion"));
+            assertEquals("MIXED", content.revision(owner, chapter, 5).get("source"));
+            assertEquals(1, ((List<?>) content.revision(owner, chapter, 5).get("proposalReviews")).size());
+            assertTrue(content.chapter(owner, chapter).get("content").toString().endsWith("用户自己补写。继续手动完善。"));
+        });
+    }
+
+    @Test void reviewChoicesValidateScopeAndRollBackTogetherWithTextOnConflict() throws Exception {
+        withDatabase(source -> {
+            Flyway.configure().dataSource(source).load().migrate();
+            JdbcContentService content = new JdbcContentService(source);
+            String owner = "review-author";
+            String project = (String) content.createProject(owner, "修改审阅").get("id");
+            String chapter = (String) content.createChapter(owner, project, "第一章").get("id");
+            content.saveChapter(owner, chapter, "旧文", 1);
+            String proposal = proposal(source, owner, project, chapter, 2, "新文");
+            var accepted = List.of(new JdbcProposalReview.Review(proposal, List.of(new JdbcProposalReview.Choice(0, "APPLIED"))));
+            assertEquals("VERSION_CONFLICT", assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.saveChapter(owner, chapter, "不能覆盖", 1, accepted)).code());
+            assertEquals("VALIDATION_ERROR", assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.saveChapter(owner, chapter, "不能覆盖", 2,
+                            List.of(new JdbcProposalReview.Review(proposal, List.of(new JdbcProposalReview.Choice(99, "APPLIED")))))).code());
+            assertEquals("RESOURCE_NOT_FOUND", assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.saveChapter("another-author", chapter, "不能覆盖", 2, accepted)).code());
+            String other = (String) content.createChapter(owner, project, "第二章").get("id");
+            assertEquals("RESOURCE_NOT_FOUND", assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.saveChapter(owner, other, "不能覆盖", 1, accepted)).code());
+            assertEquals("旧文", content.chapter(owner, chapter).get("content"));
+            assertEquals("PENDING", new JdbcRunQuery(source).proposal(owner, proposal).get("status"));
+            var ignored = List.of(new JdbcProposalReview.Review(proposal, List.of(new JdbcProposalReview.Choice(0, "IGNORED"))));
+            // Ignoring a suggestion alone keeps the text and chapter version unchanged.
+            assertEquals(2, content.saveChapter(owner, chapter, "旧文", 2, ignored).get("version"));
+            assertEquals("REJECTED", new JdbcRunQuery(source).proposal(owner, proposal).get("status"));
+            assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(JdbcContentService.ContentException.class,
+                    () -> content.saveChapter(owner, chapter, "不能覆盖", 2, accepted)).code());
+            assertEquals(2, content.chapter(owner, chapter).get("version"));
+            assertEquals(2, content.revisions(owner, chapter, 20).size());
+        });
+    }
+
+    private static String proposal(PGSimpleDataSource source, String owner, String project, String chapter,
+                                    int version, String proposed) throws Exception {
+        var admission = new JdbcRunAdmission(source, Clock.systemUTC(), UUID.randomUUID());
+        var receipt = admission.create(new JdbcRunAdmission.Request(owner, project, chapter, version,
+                "检查正文", UUID.randomUUID().toString()), new JdbcRunAdmission.Config("System", "[]", "model", Map.of()));
+        String id = UUID.randomUUID().toString();
+        try (Connection c = source.getConnection()) {
+            try (PreparedStatement s = c.prepareStatement("UPDATE tb_agent_run SET status = 'SUCCEEDED', finished_at = now() WHERE id = ?::uuid")) {
+                s.setString(1, receipt.runId()); s.executeUpdate();
+            }
+            try (PreparedStatement s = c.prepareStatement("UPDATE tb_project SET active_run_id = NULL WHERE id = ?::uuid")) {
+                s.setString(1, project); s.executeUpdate();
+            }
+            try (PreparedStatement s = c.prepareStatement("""
+                    INSERT INTO tb_edit_proposal(id, run_id, project_id, target_chapter_id, base_version,
+                                                 base_content, proposed_content, reason, status)
+                    SELECT ?::uuid, id, project_id, target_chapter_id, base_version, base_content, ?, '修正矛盾', 'PENDING'
+                      FROM tb_agent_run WHERE id = ?::uuid
+                    """)) {
+                s.setString(1, id); s.setString(2, proposed); s.setString(3, receipt.runId()); s.executeUpdate();
+            }
+        }
+        return id;
+    }
     @Test void projectSearchCoversAllPagesAndBindsCursorsToItsKeyword() throws Exception {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();

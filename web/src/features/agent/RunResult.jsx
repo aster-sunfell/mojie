@@ -1,8 +1,8 @@
 import React from 'react'
 import { active, statusName } from './status.js'
-import { Proposal } from '../proposals/Proposal.jsx'
+import { proposalStatusName } from '../proposals/Proposal.jsx'
 
-export function RunResult({ task, dirty, refreshChapter, onAcceptanceBusy, onSource }) {
+export function RunResult({ task, review, onOpenReview, onSource }) {
   const { run, connection, refresh } = task
   return <div className="runDetail">
     <div className="sectionTitle"><h3>{statusName(run.status)}</h3></div>
@@ -15,9 +15,18 @@ export function RunResult({ task, dirty, refreshChapter, onAcceptanceBusy, onSou
       : task.cancelRequested ? '正在停止…' : '正在处理，页面关闭后任务继续运行。'}</p>}
     {run.status === 'FAILED' && <p className="error">{run.errorCode}：{run.errorDetail}</p>}
     {run.analysis && <section className="analysis"><h3>最终分析</h3><p>{run.analysis}</p></section>}
-    {run.status === 'SUCCEEDED' && run.proposalId && <Proposal key={run.proposalId}
-      id={run.proposalId} dirty={dirty} refreshChapter={refreshChapter}
-      refreshRun={refresh} onAcceptanceBusy={onAcceptanceBusy} />}
+    {run.status === 'SUCCEEDED' && run.proposalId && <section className="proposal">
+      <h3>修改建议 {review?.proposal && <span className="badge">{proposalStatusName(review.proposal.status)}</span>}</h3>
+      {review?.proposal && <><p>{review.proposal.reason}</p>
+        <p className="muted">共 {review.items.length} 处修改 · {review.items.filter(item => item.status === 'PENDING').length} 处待处理</p>
+        <button onClick={() => onOpenReview()}>在正文区审阅修改</button>
+        <div className="proposalIndex">{review.items.map((item, index) => <button key={item.id} className="secondary"
+          onClick={() => onOpenReview(item.id)}>修改 {index + 1} · 第 {item.lineNumber} 行
+          <small>{item.status === 'PENDING' ? '待处理' : item.unsaved ? '未保存' : item.status === 'APPLIED' ? '已保存' : '已忽略'}</small>
+        </button>)}</div></>}
+      {review?.loading && <p className="muted">正在加载修改建议…</p>}
+      {review?.error && <><p className="error" role="alert">{review.error}</p><button className="secondary" onClick={review.retry}>重试加载建议</button></>}
+    </section>}
     <details className="steps">
       <summary>执行记录 · {run.steps?.length || 0} 步</summary>
       <div>{run.steps?.map(step => <details key={step.toolExecutionId}>

@@ -2,6 +2,8 @@ package com.mojie.content;
 
 import com.mojie.common.Page;
 import com.mojie.common.PageCursor;
+import com.mojie.proposal.infra.JdbcProposalReview;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.sql.*;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -81,6 +83,10 @@ public final class JdbcContentService {
             StringBuilder camel = new StringBuilder(parts[0]);
             for (int j = 1; j < parts.length; j++) camel.append(Character.toUpperCase(parts[j].charAt(0))).append(parts[j].substring(1));
             Object item = rs.getObject(i);
+            if (key.equals("decisions") && item != null) {
+                try { item = JsonMapper.builder().build().readTree(item.toString()); }
+                catch (Exception e) { throw new SQLException("Stored review decisions are invalid", e); }
+            }
             if (item instanceof Timestamp timestamp) item = timestamp.toInstant().toString();
             else if (item instanceof UUID || item instanceof OffsetDateTime) item = item.toString();
             value.put(camel.toString(), item);
@@ -111,7 +117,7 @@ public final class JdbcContentService {
         if (requireIdle && project.get("activeRunId") != null) throw error("RESOURCE_BUSY", "Project has an active run");
     }
     private static void noPending(Connection c, String where, String id) throws SQLException {
-        try (PreparedStatement s = sql(c, "SELECT 1 FROM tb_edit_proposal WHERE status = 'PENDING' AND " + where + " = ?::uuid LIMIT 1", id);
+        try (PreparedStatement s = sql(c, "SELECT 1 FROM tb_edit_proposal WHERE status IN ('PENDING', 'PARTIALLY_APPLIED') AND " + where + " = ?::uuid LIMIT 1", id);
              ResultSet rs = s.executeQuery()) {
             if (rs.next()) throw error("RESOURCE_BUSY", "Resource has a pending proposal");
         }
@@ -216,15 +222,29 @@ public final class JdbcContentService {
         });
     }
     public Map<String,Object> saveChapter(String owner, String id, String content, int expectedVersion) {
+        return saveChapter(owner, id, content, expectedVersion, null);
+    }
+    public Map<String,Object> saveChapter(String owner, String id, String content, int expectedVersion,
+                                         List<JdbcProposalReview.Review> proposalReviews) {
         String chapterId = uuid(id), body = text(content, "content", 0, 6000);
         if (expectedVersion < 1) throw error("VALIDATION_ERROR", "Invalid expectedVersion");
         return db(true, c -> {
+            String projectId = String.valueOf(one(c, "SELECT ch.project_id FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.owner_id = ? AND p.deleted_at IS NULL", chapterId, owner).get("projectId"));
+            // Match legacy accept's lock order, so review saves cannot deadlock with it.
+            lockProject(c, owner, projectId, false);
             Map<String,Object> old = one(c, "SELECT ch.id, ch.version, ch.content FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.owner_id = ? AND p.deleted_at IS NULL FOR UPDATE OF ch", chapterId, owner);
             if (((Number) old.get("version")).intValue() != expectedVersion) throw error("VERSION_CONFLICT", "Chapter version changed");
-            if (body.equals(old.get("content")))
-                return one(c, "SELECT id, project_id, chapter_order, title, content, version, updated_at FROM tb_chapter WHERE id = ?::uuid", chapterId);
-            change(c, "UPDATE tb_chapter SET content = ?, version = version + 1, updated_at = now() WHERE id = ?::uuid AND version = ?", body, chapterId, expectedVersion);
-            change(c, "INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES (?::uuid, ?, ?, 'MANUAL')", chapterId, expectedVersion + 1, body);
+            boolean changed = !body.equals(old.get("content"));
+            int version = expectedVersion + (changed ? 1 : 0);
+            List<JdbcProposalReview.Saved> reviews = JdbcProposalReview.save(c, owner, chapterId, version, proposalReviews);
+            if (changed) {
+                change(c, "UPDATE tb_chapter SET content = ?, version = version + 1, updated_at = now() WHERE id = ?::uuid AND version = ?", body, chapterId, expectedVersion);
+                String proposalId = reviews.stream().filter(JdbcProposalReview.Saved::applied)
+                        .map(JdbcProposalReview.Saved::proposalId).findFirst().orElse(null);
+                change(c, "INSERT INTO tb_chapter_revision(chapter_id, version, content, source, proposal_id) VALUES (?::uuid, ?, ?, ?, ?::uuid)",
+                        chapterId, version, body, proposalId == null ? "MANUAL" : "MIXED", proposalId);
+            }
+            JdbcProposalReview.link(c, chapterId, version, reviews);
             return one(c, "SELECT id, project_id, chapter_order, title, content, version, updated_at FROM tb_chapter WHERE id = ?::uuid", chapterId);
         });
     }
@@ -262,7 +282,11 @@ public final class JdbcContentService {
     }
     public Map<String,Object> revision(String owner, String id, int version) {
         String chapterId = uuid(id);
-        return db(false, c -> one(c, "SELECT r.chapter_id, r.version, r.content, r.source, r.proposal_id, r.created_at FROM tb_chapter_revision r JOIN tb_chapter ch ON ch.id = r.chapter_id JOIN tb_project p ON p.id = ch.project_id WHERE r.chapter_id = ?::uuid AND r.version = ? AND p.owner_id = ?", chapterId, version, owner));
+        return db(false, c -> {
+            Map<String,Object> revision = one(c, "SELECT r.chapter_id, r.version, r.content, r.source, r.proposal_id, r.created_at FROM tb_chapter_revision r JOIN tb_chapter ch ON ch.id = r.chapter_id JOIN tb_project p ON p.id = ch.project_id WHERE r.chapter_id = ?::uuid AND r.version = ? AND p.owner_id = ?", chapterId, version, owner);
+            revision.put("proposalReviews", many(c, "SELECT proposal_id, decisions FROM tb_chapter_revision_review WHERE chapter_id = ?::uuid AND version = ?", chapterId, version));
+            return revision;
+        });
     }
     public List<Map<String,Object>> settings(String owner, String id, String filterType, String keyword, Integer requestedLimit) {
         return settingPage(owner, id, filterType, keyword, null, requestedLimit).items();

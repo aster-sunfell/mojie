@@ -1,6 +1,8 @@
 package com.mojie.api;
 
 import com.mojie.content.JdbcContentService;
+import com.mojie.proposal.infra.JdbcProposalReview;
+import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,7 +15,7 @@ public final class ContentController {
     public ContentController(JdbcContentService content) { this.content = content; }
     private static Map<String,Object> data(Object value) { return Map.of("data", value); }
     public record Title(String title) {}
-    public record Body(String content, Integer expectedVersion) {}
+    public record Body(String content, Integer expectedVersion, List<JdbcProposalReview.Review> proposalReviews) {}
     public record Setting(String type, String title, String content) {}
 
     @GetMapping("/projects") public Map<String,Object> projects(@RequestParam(required = false) String cursor,
@@ -43,7 +45,7 @@ public final class ContentController {
     }
     @PutMapping("/chapters/{id}/content") public Map<String,Object> saveChapter(@PathVariable String id, @RequestBody Body body) {
         if (body.expectedVersion() == null) throw new IllegalArgumentException("expectedVersion is required");
-        return data(content.saveChapter(owner, id, body.content(), body.expectedVersion()));
+        return data(content.saveChapter(owner, id, body.content(), body.expectedVersion(), body.proposalReviews()));
     }
     @DeleteMapping("/chapters/{id}") public ResponseEntity<Void> deleteChapter(@PathVariable String id) {
         content.deleteChapter(owner, id); return ResponseEntity.noContent().build();

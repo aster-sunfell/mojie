@@ -35,3 +35,53 @@
 .comparison strong {
   font-size: 12px;
 }
+
+.editorTabs { display: flex; gap: 8px; padding: 16px 0; flex-shrink: 0; }
+.editorTabs button { font-size: 13px; }
+.reviewFooter { border-top: 1px solid #e1e8df; padding: 10px 16px; background: var(--color-surface); display: flex; justify-content: flex-end; flex-shrink: 0; }
+.reviewFooter button { font-size: 12px; }
+.proposalReview { min-width: 0; padding-bottom: 24px; }
+.reviewToolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 0; }
+.reviewToolbar h2 { font-size: 19px; margin: 0 0 7px; }
+.reviewToolbar p { font-size: 13px; color: #697a70; margin: 0; }
+.reviewToolbar .reviewHint { flex-basis: 100%; line-height: 1.7; }
+.reviewToolbar .reviewReason { flex-basis: 100%; line-height: 1.7; overflow-wrap: anywhere; }
+.proposalIndex { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.proposalIndex button { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; text-align: left; }
+.reviewNavigation { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+.reviewNavigation button { padding: 6px 10px; font-size: 12px; }
+.changeCard { border: 1px solid #dce5dd; border-radius: 10px; overflow: hidden; margin: 16px 0; }
+.selectedChange { border-color: #799887; }
+.changeHeader { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 13px 16px; background: #f4f7f1; font-size: 13px; }
+.changeState { font-size: 12px; color: #4f7663; }
+.conflictState { color: #956b25; }
+.diffLine { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
+.diffBefore { background: #fff5f3; border-bottom: 1px solid #ecdfda; }
+.diffAfter { background: #eff9f1; }
+.diffLabel { font: 600 12px/1.5 sans-serif; }
+.diffBefore .diffLabel { color: #a34a40; }
+.diffAfter .diffLabel { color: #267348; }
+.diffLine p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 16px/1.9 'Noto Serif SC',serif; }
+.diffContext { color: #78837b; }
+.diffLine del { color: #943c35; background: #f9dcd5; text-decoration-thickness: 1px; }
+.diffLine ins { color: #175d36; background: #cdecd4; text-decoration: none; border-bottom: 2px solid #51a66b; }
+.changeActions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 12px 16px; border-top: 1px solid #e3eae1; }
+.changeActions button { font-size: 12px; }
+.changeConflict { background: #fff9eb; padding: 14px 16px; font-size: 13px; color: #826324; line-height: 1.7; }
+.changeConflict p { margin: 8px 0 0; }
+.currentExcerpt { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reviewFullText { margin-top: 22px; font-size: 13px; }
+.reviewFullText summary { cursor: pointer; color: #526e60; }
+.reviewFullText pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/1.9 'Noto Serif SC',serif; padding: 16px; background: #f5f7f2; }
+
+@media (max-width: 640px) {
+  .editorHeader h1 { font-size: 24px; }
+  .editorHeader { padding-bottom: 12px; }
+  .editorTabs { padding: 12px 0; }
+  .reviewToolbar { padding: 8px 0; gap: 8px; }
+  .reviewToolbar h2 { font-size: 17px; }
+  .reviewToolbar p { font-size: 12px; }
+  .diffLine { padding: 10px 12px; }
+  .diffLine p { font-size: 15px; }
+  .changeCard { margin: 12px 0; }
+}

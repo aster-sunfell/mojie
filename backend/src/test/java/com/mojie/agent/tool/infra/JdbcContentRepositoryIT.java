@@ -48,10 +48,10 @@ class JdbcContentRepositoryIT {
             dataSource.setURL(baseUrl + (baseUrl.contains("?") ? "&" : "?") + "currentSchema=" + schema);
             dataSource.setUser(user);
             dataSource.setPassword(password);
-            assertEquals(4, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
+            assertEquals(5, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
             try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
                 try (ResultSet rows = statement.executeQuery("SELECT count(*) FROM pg_tables WHERE schemaname = '" + schema + "' AND tablename LIKE 'tb_%'")) {
-                    rows.next(); assertEquals(13, rows.getInt(1));
+                    rows.next(); assertEquals(14, rows.getInt(1));
                 }
             }
 
