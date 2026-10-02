@@ -244,6 +244,593 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '409': { $ref: '#/components/responses/Error' }
+  /projects/{id}/conversations:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    post:
+      operationId: createConversation
+      responses:
+        '201':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listConversations
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - &id001
+        $ref: '#/components/parameters/Cursor'
+      - &id002
+        $ref: '#/components/parameters/Limit'
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - ARCHIVED
+  /conversations/{id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getConversation
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateConversation
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationPatch'
+  /conversations/{id}/messages:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: listConversationMessages
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters: &id003
+      - *id001
+      - *id002
+    post:
+      operationId: sendConversationMessage
+      responses:
+        '202':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationSend'
+  /conversations/{id}/messages/{messageId}/retry:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: messageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    post:
+      operationId: retryConversationMessage
+      responses:
+        '202':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - clientRequestId
+              properties:
+                clientRequestId:
+                  type: string
+                  format: uuid
+  /conversations/{id}/skills:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getConversationSkills
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: setConversationSkills
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              maxItems: 8
+              items:
+                $ref: '#/components/schemas/SkillSelection'
+  /skills/capabilities:
+    get:
+      operationId: getSkillCapabilities
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /skills/import:
+    post:
+      operationId: importSkill
+      responses:
+        '202':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data: &id004
+            schema:
+              type: object
+              required:
+              - files
+              properties:
+                files:
+                  type: array
+                  maxItems: 500
+                  items:
+                    type: string
+                    format: binary
+                paths:
+                  type: array
+                  items:
+                    type: string
+                  description: One relative path per file for a directory; one Markdown
+                    file becomes SKILL.md.
+  /skill-uploads/{id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getSkillUpload
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /skills:
+    get:
+      operationId: listSkills
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters: *id003
+  /skills/{id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getSkill
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateSkill
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - expectedVersion
+              properties:
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+                enabled:
+                  type: boolean
+                currentVersionId:
+                  type: string
+                  format: uuid
+    delete:
+      operationId: deleteSkill
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: expectedVersion
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+  /skills/{id}/versions:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: listSkillVersions
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters: *id003
+    post:
+      operationId: publishSkillVersion
+      responses:
+        '202':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data: *id004
+          application/json:
+            schema:
+              type: object
+              required:
+              - baseVersionId
+              - files
+              properties:
+                baseVersionId:
+                  type: string
+                  format: uuid
+                files:
+                  type: object
+                  additionalProperties:
+                    type: string
+  /skills/{id}/versions/{versionId}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: versionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getSkillVersion
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /skills/{id}/versions/{versionId}/export:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: versionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: exportSkillVersion
+      responses:
+        '200':
+          description: Protected download, attachment and nosniff
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /skills/{id}/versions/{versionId}/files/{fileId}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: versionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: fileId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: downloadSkillFile
+      responses:
+        '200':
+          description: Protected download, attachment and nosniff
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /artifacts/{id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getArtifact
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /artifacts/{id}/download:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: downloadArtifact
+      responses:
+        '200':
+          description: Protected download, attachment and nosniff
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+  /agent/runs/{id}/resources:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      operationId: getRunSkillsAndArtifacts
+      responses:
+        '200':
+          $ref: '#/components/responses/Data'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     Id:
@@ -280,6 +867,73 @@ components:
               title: { type: string }
               content: { type: string }
   schemas:
+    SkillSelection:
+      type: object
+      required:
+      - skillId
+      - versionId
+      properties:
+        skillId:
+          type: string
+          format: uuid
+        versionId:
+          type: string
+          format: uuid
+    ConversationPatch:
+      type: object
+      required:
+      - expectedVersion
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - ARCHIVED
+        discoveryEnabled:
+          type: boolean
+    ConversationSend:
+      type: object
+      required:
+      - content
+      - clientRequestId
+      - expectedConversationSeq
+      - taskType
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 8000
+        clientRequestId:
+          type: string
+          format: uuid
+        expectedConversationSeq:
+          type: integer
+          minimum: 0
+        taskType:
+          type: string
+          enum:
+          - CHAT
+          - CHAPTER_REVIEW
+          - CHAPTER_EDIT
+        targetChapterId:
+          type: string
+          format: uuid
+          description: Required only for chapter tasks; forbidden for CHAT.
+        expectedVersion:
+          type: integer
+          minimum: 1
+        selectedSkills:
+          type: array
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/SkillSelection'
     SaveChapter:
       type: object
       required: [content, expectedVersion]
