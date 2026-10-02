@@ -40,6 +40,15 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: backend/pom.xml
+      - name: Prepare isolated Skill executor
+        env:
+          MOJIE_PYTHON_IMAGE: python@sha256:a3ab0b966bc4e91546a033e22093cb840908979487a9fc0e6e38295747e49ac0
+          MOJIE_NODE_IMAGE: node@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
+        run: |
+          docker pull "$MOJIE_PYTHON_IMAGE"
+          docker pull "$MOJIE_NODE_IMAGE"
+          python3 -m unittest discover -s executor -p test_executor.py -v
+          python3 executor/server.py >/tmp/mojie-executor.log 2>&1 &
       - name: Unit and integration tests
         working-directory: backend
         env:
@@ -47,6 +56,7 @@ jobs:
           MOJIE_TEST_DB_USER: mojie
           MOJIE_TEST_DB_PASSWORD: ci_test_only
           MOJIE_TEST_LOCAL_HTTP: '1'
+          MOJIE_TEST_EXECUTOR_URL: http://127.0.0.1:8091
         run: mvn -B -ntp verify
 
   web-test:
@@ -81,6 +91,9 @@ jobs:
           - name: backend
             context: ./backend
             dockerfile: backend/Dockerfile
+          - name: executor
+            context: ./executor
+            dockerfile: executor/Dockerfile
           - name: web
             context: .
             dockerfile: web/Dockerfile
