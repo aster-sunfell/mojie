@@ -6,3 +6,6 @@
 /web/playwright-report/
 /deploy/.env
 /deploy/.env.prod
+
+.mojie-data/
+__pycache__/
