@@ -1,4 +1,5 @@
 package com.mojie.proposal;
+import com.mojie.proposal.model.ProposalDiff;
 
 import org.junit.jupiter.api.Test;
 import java.util.*;

@@ -1,0 +1,39 @@
+package com.mojie.proposal.model;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.mojie.common.model.QueryResult;
+import java.util.*;
+
+public record ProposalDetail(
+    String id,
+    String runId,
+    String projectId,
+    String targetChapterId,
+    int baseVersion,
+    String baseContent,
+    String proposedContent,
+    String reason,
+    String status,
+    Integer appliedVersion,
+    String createdAt,
+    String updatedAt,
+    JsonNode reviewDecisions)
+    implements QueryResult {
+  public Map<String, Object> fields() {
+    Map<String, Object> fields = new LinkedHashMap<>();
+    fields.put("id", id);
+    fields.put("runId", runId);
+    fields.put("projectId", projectId);
+    fields.put("targetChapterId", targetChapterId);
+    fields.put("baseVersion", baseVersion);
+    fields.put("baseContent", baseContent);
+    fields.put("proposedContent", proposedContent);
+    fields.put("reason", reason);
+    fields.put("status", status);
+    fields.put("appliedVersion", appliedVersion);
+    fields.put("createdAt", createdAt);
+    fields.put("updatedAt", updatedAt);
+    fields.put("reviewDecisions", reviewDecisions);
+    return fields;
+  }
+}
