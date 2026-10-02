@@ -107,8 +107,9 @@ public final class RunCompletionService {
       throw new IllegalStateException("Budget counters differ from trace");
     if (!trace.hasFinalResponse(runId, completed.modelCalls()))
       throw new IllegalStateException("Final model response is not committed");
-    if (!trace.hasTargetInput(
-        runId, completed.modelCalls(), row.targetChapterId(), row.baseVersion()))
+    if (row.targetChapterId() != null
+        && !trace.hasTargetInput(
+            runId, completed.modelCalls(), row.targetChapterId(), row.baseVersion()))
       throw new IllegalStateException("Target chapter was not sent to final model call");
     if (completed.candidate() != null && !trace.hasCandidateStep(runId))
       throw new IllegalStateException("Candidate has no successful tool step");

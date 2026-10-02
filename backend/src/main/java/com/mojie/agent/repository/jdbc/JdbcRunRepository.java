@@ -62,6 +62,11 @@ public final class JdbcRunRepository implements RunRepository {
 
   @Override
   public RunRecord lockRun(String projectId, String runId) {
+    if (projectId != null)
+      db.first(
+          "SELECT c.id FROM tb_conversation c JOIN tb_agent_run r ON r.conversation_id=c.id WHERE"
+              + " r.id=?::uuid FOR UPDATE OF c",
+          runId);
     Map<String, Object> r =
         db.first(
             "SELECT status, cancel_requested, deadline_at, target_chapter_id, base_version,"
@@ -77,8 +82,8 @@ public final class JdbcRunRepository implements RunRepository {
             (String) r.get("status"),
             (Boolean) r.get("cancelRequested"),
             java.time.OffsetDateTime.parse(r.get("deadlineAt").toString()).toInstant(),
-            r.get("targetChapterId").toString(),
-            ((Number) r.get("baseVersion")).intValue(),
+            r.get("targetChapterId") == null ? null : r.get("targetChapterId").toString(),
+            r.get("baseVersion") == null ? 0 : ((Number) r.get("baseVersion")).intValue(),
             (String) r.get("baseContent"),
             ((Number) r.get("modelCallCount")).intValue(),
             ((Number) r.get("toolCallCount")).intValue(),
@@ -138,7 +143,7 @@ VALUES (?, ?::uuid, ?::uuid, ?, ?::uuid, ?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?:
     return db.update(
         """
 UPDATE tb_agent_run SET status = 'RUNNING', started_at = clock_timestamp(),
-       deadline_at = clock_timestamp() + interval '180 seconds', updated_at = now()
+       deadline_at = clock_timestamp() + make_interval(secs => COALESCE((config_snapshot->>'runTimeoutSeconds')::int,180)), updated_at = now()
  WHERE id = ?::uuid AND project_id = ?::uuid AND status = 'QUEUED'
    AND cancel_requested = false AND process_instance_id = ? AND deadline_at > clock_timestamp()
 """,
