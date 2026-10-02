@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-02",
+  "baselineSourceCommit": "ecfe2bb",
+  "database": "dedicated PostgreSQL 18.6 test database",
+  "suites": {
+    "unit": [
+      {
+        "name": "com.mojie.agent.model.ModelApiConfigTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.agent.service.RunServiceTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.agent.service.loop.AgentLoopTest",
+        "tests": 34,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.architecture.LayerRulesTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.architecture.ModuleRulesTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.proposal.ProposalDiffTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.proposal.service.ProposalReviewServiceTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "integration": [
+      {
+        "name": "com.mojie.agent.service.RunServicesIT",
+        "tests": 22,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.agent.service.tool.ToolContentServiceIT",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.content.ChapterReviewConcurrencyIT",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.content.ContentServicesIT",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.infrastructure.model.anthropic.AnthropicModelGatewayIT",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.infrastructure.model.openai.ChatCompletionsModelGatewayIT",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.mojie.infrastructure.transaction.SpringTransactionRunnerIT",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "http": {
+    "cases": 31,
+    "differences": []
+  },
+  "browser": {
+    "tests": 33,
+    "failures": 0,
+    "skipped": 0
+  },
+  "routes": [
+    "DELETE /api/v1/chapters/{id}",
+    "DELETE /api/v1/projects/{id}",
+    "DELETE /api/v1/settings/{id}",
+    "GET /api/v1/agent/runs",
+    "GET /api/v1/agent/runs/{id}",
+    "GET /api/v1/agent/runs/{id}/events",
+    "GET /api/v1/agent/runs/{id}/trace",
+    "GET /api/v1/chapters/{id}",
+    "GET /api/v1/chapters/{id}/revisions",
+    "GET /api/v1/chapters/{id}/revisions/{version}",
+    "GET /api/v1/edit-proposals/{id}",
+    "GET /api/v1/health",
+    "GET /api/v1/projects",
+    "GET /api/v1/projects/{id}",
+    "GET /api/v1/projects/{id}/chapters",
+    "GET /api/v1/projects/{id}/settings",
+    "GET /api/v1/system/capabilities",
+    "PATCH /api/v1/chapters/{id}",
+    "PATCH /api/v1/projects/{id}",
+    "PATCH /api/v1/settings/{id}",
+    "POST /api/v1/agent/runs",
+    "POST /api/v1/agent/runs/{id}/cancel",
+    "POST /api/v1/edit-proposals/{id}/accept",
+    "POST /api/v1/edit-proposals/{id}/reject",
+    "POST /api/v1/projects",
+    "POST /api/v1/projects/{id}/chapters",
+    "POST /api/v1/projects/{id}/settings",
+    "PUT /api/v1/chapters/{id}/content"
+  ]
+}

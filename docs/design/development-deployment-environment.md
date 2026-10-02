@@ -53,7 +53,7 @@
 
 生产环境必须在 `deploy/.env.prod` 中显式提供数据库密码，以及稳定且私密的 `MOJIE_CURSOR_KEY`；启用模型任务时再提供 `MOJIE_MODEL_API_KEY`。还需设置 `MOJIE_IMAGE_TAG` 为 Actions 全部成功的完整提交 SHA；`MOJIE_IMAGE_PREFIX` 默认为 `ghcr.io/aster-sunfell/mojie`，迁移仓库时同步修改。前后端必须使用同一标签。可从 [共用示例](../../deploy/.env.example) 复制，取消注释并填入真实值后保留在服务器，不提交到 Git。CI 无需生产密钥，前后端构建产物不得包含模型密钥。`MOJIE_OWNER_ID`、`MOJIE_MODEL_ID` 等按部署需要配置。更改已有 PostgreSQL 数据卷对应的 `POSTGRES_PASSWORD` 环境变量不会自动修改数据库中已有用户的密码，轮换密码需要单独操作。
 
-生产配置在 PostgreSQL 健康后启动后端，后端健康后再开放 Nginx。后端启动时由 `RunScheduler.start()` 执行 Flyway 迁移和旧进程任务清理。[健康接口](../../backend/src/main/java/com/mojie/api/AgentController.java) 在调度器为 `DEGRADED` 时仍返回 HTTP 200，因此容器健康检查解析响应体，只接受 `UP`。Compose 的 `depends_on` 处理初次启动顺序，不能代替运行期健康监控；`restart: always` 只会重启已退出的容器。
+生产配置在 PostgreSQL 健康后启动后端，后端健康后再开放 Nginx。后端启动时由 `StartupLifecycle.start()` 执行 Flyway 迁移和旧进程任务清理。[健康接口](../../backend/src/main/java/com/mojie/system/api/SystemController.java) 在调度器为 `DEGRADED` 时仍返回 HTTP 200，因此容器健康检查解析响应体，只接受 `UP`。Compose 的 `depends_on` 处理初次启动顺序，不能代替运行期健康监控；`restart: always` 只会重启已退出的容器。
 
 ## 操作方式
 

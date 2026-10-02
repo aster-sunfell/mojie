@@ -3,7 +3,7 @@
 **版本：** 0.1  
 **日期：** 2026-09-27  
 **依据：** [PRD v0.3](../prd/MVP_PRD_v0.3.md)、[ADR v0.3](../adr/MVP_ADR_v0.3.md)  
-**状态：** 设计稿；代码尚未开始。依赖版本为 2026-09-27 在 Maven Central / npm 查询的候选值，须在 M1 实际构建通过后锁定（PRD 9.1）。  
+**状态：** 原框架设计已用于 MVP 实现；2026-10-02 按[三层重构方案](Backend_Three_Layer_Refactoring_v0.1.md)更新分层与持久化说明。后文接口草案与里程碑保留原设计背景，实际实现与验证以源码和[重构记录](../verification/backend-three-layer-refactoring-2026-10-02.md)为准。
 **与其他文档的关系：** PRD 定义行为与验收，ADR 解释选型；本文把二者落到仓库结构、模块边界、核心接口、线程/事务骨架、数据表和测试框架。冲突时以 PRD 为准并回改本文。PRD 11.1 要求的 `docs/design/runtime.md`（时序、SQL、锁细节）在 M2 以本文为骨架补齐。
 
 ## 0. 框架设计原则
@@ -22,11 +22,11 @@
 | 层 | 选择 | 候选版本 | 说明 / 待验证 |
 | --- | --- | --- | --- |
 | JDK | Temurin | 21 LTS（已决定） | 用途：sealed 结果类型（`LoopOutcome`、`ToolResult`、`ModelCallException`、`ContentPart`）的 switch 模式匹配与 record 解构，由编译器检查分支覆盖。不使用虚拟线程，见第 5 节 |
-| 框架 | Spring Boot（MVC，非 WebFlux） | 4.1.1 | SSE 使用 `SseEmitter`；不引入 Reactor。Boot 4 默认 Jackson 3，JSON 类型处理按其包名编写 |
-| 持久层 | MyBatis Spring Boot Starter | 4.1.0 | 官方 POM 以 Boot 4.1.0、Java 17 构建；M1 以实际构建确认兼容 |
+| 框架 | Spring Boot（MVC，非 WebFlux） | 3.5.0（当前） | SSE 使用 `SseEmitter`，Jackson 2；不引入 Reactor |
+| 持久层 | Spring JDBC、pgJDBC、TransactionTemplate | Boot BOM / pgJDBC 42.7.1 | Repository 接口与 JDBC 实现分离；事务由 Service 管理，无 MyBatis 或 ORM |
 | 数据库 | PostgreSQL | 18.x（Docker 镜像按 digest 锁定） | 18 内置 `uuidv7()`，主键无需 Java 端生成库；不安装 pgvector |
 | 驱动 / 迁移 | pgJDBC / Flyway | 42.7.13 / 13.8.0（含 `flyway-database-postgresql`） | 迁移只写 PostgreSQL 方言 |
-| 模型 SDK | Anthropic Java SDK | `com.anthropic:anthropic-java` 2.65.0 | 仅在 `agent.model.anthropic` 包内出现；见第 9 节 |
+| 模型 SDK | Anthropic Java SDK | `com.anthropic:anthropic-java` 2.65.0 | 仅在 `infrastructure.model.anthropic` 包内出现；见第 9 节 |
 | API 文档 | springdoc-openapi | 3.1.1 | Boot 4.1 兼容性待 M1 确认；不兼容时改为手写 `contracts/openapi.yaml` + 契约测试 |
 | 测试 | JUnit 5、AssertJ、Awaitility、Testcontainers、ArchUnit | Boot BOM / 2.0.5 / 1.5.1 | 集成测试只用真实 PostgreSQL 容器（AC-41） |
 | 前端 | React、TypeScript、React Router、TanStack Query、Zustand | 19 / 5.9 / 7 / 5 / 5 | **跟随上游主版本**，便于选择性迁移（上游为 React 19、RR 7、TS ~5.9）。npm 上已有 RR 8、TS 7，迁移完成、P0 验收后再评估升级 |
@@ -46,15 +46,13 @@ mojie/
 │   └── src/
 │       ├── main/java/com/mojie/...        # 见第 3 节
 │       ├── main/resources/
-│       │   ├── application.yml
-│       │   ├── application-dev.yml        # 本地：开放 /trace
+│       │   ├── application.properties
 │       │   ├── db/migration/V*.sql        # Flyway
-│       │   ├── mapper/*.xml               # MyBatis 复杂 SQL
 │       │   └── prompts/system-v1.md       # 系统提示词（进版本库，按哈希快照）
 │       └── test/
 │           ├── java/com/mojie/...         # 单测 / 集成 / 架构测试
 │           └── resources/scenarios/*.json # 脚本化模型场景（AC-04 等）
-├── frontend/                    # React + Vite
+├── web/                         # React + Vite
 │   ├── package.json, pnpm-lock.yaml
 │   └── src/...                            # 见第 7 节
 ├── contracts/
@@ -69,72 +67,55 @@ mojie/
 └── README.md
 ```
 
-前后端在同一仓库，但各自构建。生产形态为 Nginx 同源服务 `frontend/dist` 并反代 `/api`；开发期由 Vite `server.proxy` 转发 `/api` 到 `localhost:8080`，保持同源语义（PRD 9.1、9.3）。
+前后端在同一仓库，但各自构建。生产形态为 Nginx 同源服务 `web/dist` 并反代 `/api`；开发期由 Vite `server.proxy` 转发 `/api` 到 `localhost:8080`，保持同源语义（PRD 9.1、9.3）。
 
 ## 3. 后端模块与包结构
 
 ### 3.1 包布局
 
-根包 `com.mojie`（占位，可改为个人域名）。按 PRD 5.1 的职责划分**业务模块**；每个模块内部按 `api / app / domain / infra` 分层。
+根包 `com.mojie`。内容、Agent、建议和系统模块内部使用 `api / service / repository` 三层；`model` 存放 record 与纯规则，JDBC 实现在 `repository.jdbc`，技术支撑集中在 `infrastructure`，构造与启动由 `config` 完成。
 
 ```text
 com.mojie
-├── MojieApplication
-├── common/            # 横切：错误码、ApiException、分页游标、码点工具、Clock、JSON、requestId 过滤器
-├── system/            # /health、/system/capabilities、启动清理与就绪门
-├── content/           # 作品、章节、设定、版本、历史       (PRD 5.2 / BE-01)
-│   ├── api/           # ProjectController、ChapterController、SettingController + DTO
-│   ├── app/           # ProjectService、ChapterService、SettingService、ProjectGuard
-│   ├── domain/        # Chapter、ChapterRevision、Setting、RevisionSource …（record）
-│   └── infra/         # *Mapper（MyBatis）
+├── MojieApplication             # Spring Boot 入口
+├── config/                      # 内容/Agent/事务装配、StartupLifecycle
+├── common/                      # error、web、pagination、transaction、cancellation、SQL 支撑
+├── content/
+│   ├── api/                     # ProjectController、ChapterController、SettingController
+│   ├── service/                 # Project/Chapter/Setting/Access/ContentReadService
+│   ├── model/                   # 内容、历史、分页投影、纯规则
+│   └── repository/jdbc/         # 接口在 repository；SQL 与行映射在 jdbc
 ├── agent/
-│   ├── run/           # AgentRunService：受理、幂等、活动槽、查询、取消请求、终态仲裁 (BE-05/08/12)
-│   ├── runtime/       # AgentRunner、RunRegistry、RunHandle、RunExecutor、RunAdmission、TimeoutSweeper、RestartCleanup (BE-11/13)
-│   ├── loop/          # AgentLoop、RunBudget、LoopOutcome —— 纯 Java (BE-04)
-│   ├── model/         # ModelGateway 接口与中立类型；model/anthropic/ 为唯一实现；model/scripted/ 为测试实现 (BE-10)
-│   ├── tool/          # AgentTool、ToolRegistry、ToolContext、ToolResult；tool/impl/ 七个工具 (BE-03)
-│   ├── context/       # ContextBuilder、ReadSnapshotCache、ContextManifestRecorder、TextBudget (BE-02)
-│   └── trace/         # RunTraceStore：消息、模型调用、步骤持久化 (BE-09)
-├── retrieval/         # ChapterTextSearchService、ChapterViewService、SearchCursorCodec、LiteralMatcher (BE-14)
-├── proposal/          # EditProposalService：发布、采纳、拒绝 (BE-06/07)
-└── event/             # RunEventAppender、RunEventQuery、RunEventStream(SSE) (PRD 7.4)
+│   ├── api/sse/                 # 任务/事件路由、RunEventStream
+│   ├── service/                 # 受理、生命周期、完成、轨迹、查询、AgentRunner
+│   │   ├── loop/                # 纯 Java AgentLoop 及契约
+│   │   ├── tool/                # 七工具、ToolContext、ToolContentReader、ToolContentService
+│   │   └── port/                # ModelGateway、RunExecutor、RuntimeStatus
+│   ├── model/                   # 运行命令、快照、轨迹投影、固定章节视图
+│   └── repository/jdbc/         # 任务、消息/调用/步骤、事件、章节视图
+├── proposal/                    # api、service、model、repository/jdbc
+├── system/                      # api、service、model、repository/jdbc
+└── infrastructure/
+    ├── transaction/             # SpringTransactionRunner
+    ├── runtime/                 # BoundedRunExecutor、RunRegistry、RunHandle、TimeoutSweeper
+    └── model/                   # anthropic、openai 协议适配器
 ```
 
 ### 3.2 依赖方向（ArchUnit 强制）
 
-```text
-                  ┌──────────── api (Controller) ────────────┐
-                  ▼                                          ▼
-content.app ◀── agent.run ──▶ agent.runtime ──▶ agent.loop ──▶ agent.model (接口)
-    ▲                               │               │
-    │                               ▼               ▼
-    ├──────────── agent.tool.impl ◀── agent.tool (接口) ◀── agent.context
-    │                  │
-    │                  ▼
-    │            retrieval ──▶ content.app（只读历史正文）
-    │
-proposal ──▶ content.app（采纳走同一版本规则）
-event   ◀── 被 run / runtime / proposal 在同一事务内调用
-trace   ◀── 被 runtime / loop 通过接口调用
-```
+`api → service → repository 接口`。Controller 不接触 SQL、事务设施或运行资源实现；Service 不导入 JDBC 实现或 infrastructure 实现。Repository 查询返回有类型的 record，SQL、行映射、条件更新和数据库超时由 JDBC 实现处理。
 
-`architecture/ModuleRulesTest` 至少包含以下规则：
+`proposal.service → content.service`；Agent 工具通过 `ToolContentService` 和 `ContentReadService` 读取内容。`content.service` 不反向依赖 proposal 或 Agent。章节路由明确允许调用 `proposal.service.ChapterSaveCoordinator` 来协调一次保存。模型、执行器与运行状态通过业务能力接口注入；基础设施可以回调业务流程。
 
-| 规则 | 保护的 PRD 条款 |
-| --- | --- |
-| `agent.loop`、`agent.tool`（接口）、`agent.context` 不依赖 `org.springframework..`、`java.sql..`、`..infra..` | 2.3：Controller 不承载循环；循环可独立测试 |
-| `com.anthropic..` 只允许出现在 `agent.model.anthropic..` | 5.7：单一模型适配边界 |
-| 任何 `..api..` 包不依赖 `agent.loop`、`agent.runtime` | 5.1：Controller → Service 单向 |
-| `agent.tool.impl` 不依赖任何 `*Mapper`，只依赖 `content.app` / `retrieval` / `proposal` 的只读或候选接口 | 5.1：工具不能直接写正式正文或拼 SQL |
-| `agent.tool.impl` 类不含非 `final`/非注入的实例字段 | 5.3：工具无运行状态，run 数据只经 `ToolContext` 传入 |
-| 只有 `content.app` 与 `proposal` 可以调用 `ChapterMapper.updateContent*` | 2.3：正文写入的唯一入口 |
+`architecture.LayerRulesTest` 检查接口层、Service、Repository、纯算法和 SDK 边界，`architecture.ModuleRulesTest` 检查业务模块无环、内容无反向依赖，以及正式正文与历史仅由 `ChapterService` 发起写入。两者没有遗留豁免。事务传播、锁序和释放次数由真实 PostgreSQL 与并发测试补充验证。
 
 ### 3.3 模块内部约定
 
-- **Controller** 只做参数绑定、校验注解、调用一个 Service、转换 DTO；异常统一由 `common.web.ApiExceptionHandler` 映射为 `{code, message, requestId, details}`（PRD 7.1）。
-- **domain** 中使用 `record` 和 `enum`；状态机写成显式转换表，例如 `RunStatus.canTransitionTo(target)`，单测覆盖所有转换组合。
-- **infra** 中简单 CRUD 使用注解 Mapper，条件更新、`FOR UPDATE`、批量历史读取写在 XML 中；所有 `LIKE` 参数经 `common.sql.LikeEscaper` 转义（ADR-004 5.3）。
-- **时间与 ID**：注入 `java.time.Clock`（测试使用可控时钟，PRD 9.2 超时扫描）；主键使用数据库 `uuidv7()` 并通过 `RETURNING` 取回，对外以字符串传输。
+- Controller 负责参数绑定、格式校验、DTO 转换与 HTTP/SSE；作者由 `ActorProvider` 注入，业务归属和状态在 Service 校验。
+- Service 管理业务规则及短事务。章节、历史、审核和版本关联加入同一 REQUIRED 事务；一致快照使用独立只读 REPEATABLE READ。模型请求、正文扫描和 SSE 发送不在事务内。
+- Repository 接口不暴露 JDBC 对象；实现使用事务绑定连接，不自行 commit、rollback 或 setAutoCommit。存储异常与稳定业务错误分别由 `StorageException`、`BusinessException` 表达。
+- `model`、循环与工具契约保持纯 Java；提供方 SDK 限于对应适配器。配置、线程池与启动资源经 `config` 装配，不在 Service 中创建实现。
+- 时间通过 `Clock` 注入；对外保留既有字符串时间和 ID 表示。分页游标继续绑定作者、资源与筛选条件。
 
 ## 4. 核心接口草案
 

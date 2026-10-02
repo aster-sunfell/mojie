@@ -1,0 +1,1502 @@
+{
+  "date": "2026-10-02",
+  "baselineSourceCommit": "ecfe2bb",
+  "cases": 31,
+  "differences": [],
+  "normalizedSamples": {
+    "baseline": {
+      "health": {
+        "status": 200,
+        "body": {
+          "data": {
+            "status": "UP"
+          }
+        }
+      },
+      "capabilities": {
+        "status": 200,
+        "body": {
+          "data": {
+            "maxModelCalls": 8,
+            "agentConfigured": true,
+            "maxChapterCodePoints": 6000,
+            "maxSettingCodePoints": 2000,
+            "modelId": "contract-test",
+            "maxToolCalls": 12,
+            "maxInstructionCodePoints": 2000
+          }
+        }
+      },
+      "createProject": {
+        "status": 201,
+        "body": {
+          "data": {
+            "id": "<id-1>",
+            "title": "契约作品",
+            "activeRunId": null,
+            "createdAt": "<timestamp>",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "createChapter": {
+        "status": 201,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "",
+            "version": 1
+          }
+        }
+      },
+      "saveChapter": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "甲\n乙😀\n尾",
+            "version": 2,
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "sameContent": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "甲\n乙😀\n尾",
+            "version": 2,
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "chapter": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "甲\n乙😀\n尾",
+            "version": 2,
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "renameChapter": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "章节新名",
+            "content": "甲\n乙😀\n尾",
+            "version": 2
+          }
+        }
+      },
+      "revisions": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "version": 2,
+                "source": "MANUAL",
+                "proposalId": null,
+                "createdAt": "<timestamp>"
+              },
+              {
+                "version": 1,
+                "source": "CREATE",
+                "proposalId": null,
+                "createdAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "revision": {
+        "status": 200,
+        "body": {
+          "data": {
+            "chapterId": "<id-2>",
+            "version": 2,
+            "content": "甲\n乙😀\n尾",
+            "source": "MANUAL",
+            "proposalId": null,
+            "createdAt": "<timestamp>",
+            "proposalReviews": []
+          }
+        }
+      },
+      "chapters": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-2>",
+                "projectId": "<id-1>",
+                "chapterOrder": 1,
+                "title": "章节新名",
+                "version": 2
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "projects": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-1>",
+                "title": "契约作品",
+                "updatedAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "project": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-1>",
+            "title": "契约作品",
+            "activeRunId": null,
+            "createdAt": "<timestamp>",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "createSetting": {
+        "status": 201,
+        "body": {
+          "data": {
+            "id": "<id-3>",
+            "projectId": "<id-1>",
+            "type": "CHARACTER",
+            "title": "甲",
+            "content": "甲不会游泳。",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "settings": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-3>",
+                "projectId": "<id-1>",
+                "type": "CHARACTER",
+                "title": "甲",
+                "content": "甲不会游泳。",
+                "updatedAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "updateSetting": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-3>",
+            "projectId": "<id-1>",
+            "type": "WORLD",
+            "title": "河流",
+            "content": "河流湍急。",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "versionConflict": {
+        "status": 409,
+        "body": {
+          "requestId": "<id-4>",
+          "details": {},
+          "code": "VERSION_CONFLICT",
+          "message": "Chapter version changed"
+        }
+      },
+      "invalidCursor": {
+        "status": 400,
+        "body": {
+          "requestId": "<id-5>",
+          "details": {},
+          "code": "VALIDATION_ERROR",
+          "message": "Invalid cursor"
+        }
+      },
+      "missingChapter": {
+        "status": 404,
+        "body": {
+          "requestId": "<id-6>",
+          "details": {},
+          "code": "RESOURCE_NOT_FOUND",
+          "message": "Resource unavailable"
+        }
+      },
+      "missingProposal": {
+        "status": 404,
+        "body": {
+          "requestId": "<id-7>",
+          "details": {},
+          "code": "RESOURCE_NOT_FOUND",
+          "message": "Run or proposal unavailable"
+        }
+      },
+      "submit": {
+        "status": 202,
+        "body": {
+          "data": {
+            "runId": "<id-8>",
+            "status": "QUEUED"
+          }
+        }
+      },
+      "runDetail": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-8>",
+            "projectId": "<id-1>",
+            "targetChapterId": "<id-2>",
+            "baseVersion": 2,
+            "instruction": "只读核查",
+            "status": "SUCCEEDED",
+            "cancelRequested": false,
+            "queuedAt": "<timestamp>",
+            "startedAt": "<timestamp>",
+            "finishedAt": "<timestamp>",
+            "analysis": "已完整读取目标章节；只读核查结束。",
+            "errorCode": null,
+            "errorDetail": null,
+            "modelCallCount": 2,
+            "toolCallCount": 1,
+            "toolTextCodepoints": 280,
+            "lastEventSeq": 9,
+            "proposalId": null,
+            "steps": [
+              {
+                "toolExecutionId": "<id-9>",
+                "toolCallId": "contract-read",
+                "toolName": "read_chapter",
+                "args": {
+                  "chapterId": "<id-2>"
+                },
+                "result": {
+                  "data": {
+                    "title": "章节新名",
+                    "content": "甲\n乙😀\n尾",
+                    "version": 2,
+                    "chapterId": "<id-2>",
+                    "chapterOrder": 1
+                  },
+                  "error": null,
+                  "budget": {
+                    "toolCallsUsed": 1,
+                    "modelCallsUsed": 1,
+                    "toolCallsRemaining": 11,
+                    "modelCallsRemaining": 7,
+                    "finalResponseRequired": false
+                  },
+                  "success": true
+                },
+                "summary": null,
+                "status": "SUCCEEDED",
+                "errorCode": null,
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>",
+                "modelCallIndex": 1
+              }
+            ],
+            "sources": [
+              {
+                "id": "<id-10>",
+                "kind": "FULL_CHAPTER",
+                "chapterId": "<id-2>",
+                "chapterVersion": 2,
+                "settingId": null,
+                "lineNumber": null,
+                "codepointOffset": null,
+                "contentHash": null,
+                "toolExecutionId": "<id-9>",
+                "providedToModel": true
+              }
+            ]
+          }
+        }
+      },
+      "runList": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-8>",
+                "projectId": "<id-1>",
+                "targetChapterId": "<id-2>",
+                "baseVersion": 2,
+                "instruction": "只读核查",
+                "status": "SUCCEEDED",
+                "cancelRequested": false,
+                "queuedAt": "<timestamp>",
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>",
+                "analysis": "已完整读取目标章节；只读核查结束。",
+                "errorCode": null,
+                "errorDetail": null,
+                "lastEventSeq": 9,
+                "proposalId": null,
+                "createdAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "trace": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-8>",
+            "projectId": "<id-1>",
+            "targetChapterId": "<id-2>",
+            "baseVersion": 2,
+            "instruction": "只读核查",
+            "status": "SUCCEEDED",
+            "cancelRequested": false,
+            "queuedAt": "<timestamp>",
+            "startedAt": "<timestamp>",
+            "finishedAt": "<timestamp>",
+            "analysis": "已完整读取目标章节；只读核查结束。",
+            "errorCode": null,
+            "errorDetail": null,
+            "modelCallCount": 2,
+            "toolCallCount": 1,
+            "toolTextCodepoints": 280,
+            "lastEventSeq": 9,
+            "proposalId": null,
+            "modelId": "contract-test",
+            "modelConfig": {
+              "apiPath": "/v1/messages",
+              "maxOutputTokens": 16000,
+              "contextWindowTokens": 200000
+            },
+            "modelCalls": [
+              {
+                "id": "<id-11>",
+                "callIndex": 1,
+                "inputMessageSeqs": [
+                  1
+                ],
+                "status": "SUCCEEDED",
+                "finishReason": "TOOL_CALLS",
+                "rawFinishReason": "tool_use",
+                "providerRequestId": "contract-message",
+                "errorCode": null,
+                "errorDetail": null,
+                "usage": {
+                  "inputTokens": 20,
+                  "outputTokens": 20
+                },
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>"
+              },
+              {
+                "id": "<id-12>",
+                "callIndex": 2,
+                "inputMessageSeqs": [
+                  1,
+                  2,
+                  3
+                ],
+                "status": "SUCCEEDED",
+                "finishReason": "FINAL",
+                "rawFinishReason": "end_turn",
+                "providerRequestId": "contract-message",
+                "errorCode": null,
+                "errorDetail": null,
+                "usage": {
+                  "inputTokens": 20,
+                  "outputTokens": 20
+                },
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>"
+              }
+            ],
+            "messages": [
+              {
+                "messageSeq": 1,
+                "role": "USER",
+                "content": [
+                  {
+                    "text": "目标章节 ID: <id-2>\n目标章节基准版本: 2\n请使用 read_chapter 读取完整目标章后再形成最终分析。\n检查要求:\n只读核查",
+                    "type": "text"
+                  }
+                ],
+                "modelCallId": null,
+                "toolCallId": null,
+                "toolExecutionId": null,
+                "createdAt": "<timestamp>"
+              },
+              {
+                "messageSeq": 2,
+                "role": "ASSISTANT",
+                "content": [
+                  {
+                    "id": "contract-read",
+                    "name": "read_chapter",
+                    "type": "tool_call",
+                    "arguments": {
+                      "chapterId": "<id-2>"
+                    }
+                  }
+                ],
+                "modelCallId": "<id-11>",
+                "toolCallId": null,
+                "toolExecutionId": null,
+                "createdAt": "<timestamp>"
+              },
+              {
+                "messageSeq": 3,
+                "role": "TOOL",
+                "content": {
+                  "data": {
+                    "title": "章节新名",
+                    "content": "甲\n乙😀\n尾",
+                    "version": 2,
+                    "chapterId": "<id-2>",
+                    "chapterOrder": 1
+                  },
+                  "error": null,
+                  "budget": {
+                    "toolCallsUsed": 1,
+                    "modelCallsUsed": 1,
+                    "toolCallsRemaining": 11,
+                    "modelCallsRemaining": 7,
+                    "finalResponseRequired": false
+                  },
+                  "success": true
+                },
+                "modelCallId": "<id-11>",
+                "toolCallId": "contract-read",
+                "toolExecutionId": "<id-9>",
+                "createdAt": "<timestamp>"
+              },
+              {
+                "messageSeq": 4,
+                "role": "ASSISTANT",
+                "content": [
+                  {
+                    "text": "已完整读取目标章节；只读核查结束。",
+                    "type": "text"
+                  }
+                ],
+                "modelCallId": "<id-12>",
+                "toolCallId": null,
+                "toolExecutionId": null,
+                "createdAt": "<timestamp>"
+              }
+            ],
+            "steps": [
+              {
+                "toolExecutionId": "<id-9>",
+                "modelCallId": "<id-11>",
+                "toolCallId": "contract-read",
+                "toolName": "read_chapter",
+                "args": {
+                  "chapterId": "<id-2>"
+                },
+                "result": {
+                  "data": {
+                    "title": "章节新名",
+                    "content": "甲\n乙😀\n尾",
+                    "version": 2,
+                    "chapterId": "<id-2>",
+                    "chapterOrder": 1
+                  },
+                  "error": null,
+                  "budget": {
+                    "toolCallsUsed": 1,
+                    "modelCallsUsed": 1,
+                    "toolCallsRemaining": 11,
+                    "modelCallsRemaining": 7,
+                    "finalResponseRequired": false
+                  },
+                  "success": true
+                },
+                "status": "SUCCEEDED",
+                "errorCode": null,
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>"
+              }
+            ],
+            "sources": [
+              {
+                "kind": "FULL_CHAPTER",
+                "chapterId": "<id-2>",
+                "chapterVersion": 2,
+                "settingId": null,
+                "lineNumber": null,
+                "codepointOffset": null,
+                "contentHash": null,
+                "toolExecutionId": "<id-9>"
+              }
+            ]
+          }
+        }
+      },
+      "idempotentRetry": {
+        "status": 202,
+        "body": {
+          "data": {
+            "runId": "<id-8>",
+            "status": "SUCCEEDED"
+          }
+        }
+      },
+      "idempotencyConflict": {
+        "status": 409,
+        "body": {
+          "requestId": "<id-13>",
+          "details": {},
+          "code": "IDEMPOTENCY_CONFLICT",
+          "message": "Request key belongs to different content"
+        }
+      },
+      "terminalCancel": {
+        "status": 200,
+        "body": {
+          "data": {
+            "status": "SUCCEEDED",
+            "cancelRequested": false
+          }
+        }
+      },
+      "invalidEventCursor": {
+        "status": 400,
+        "body": {
+          "requestId": "<id-14>",
+          "details": {},
+          "code": "VALIDATION_ERROR",
+          "message": "Invalid event cursor"
+        }
+      },
+      "eventReplay": {
+        "status": 200,
+        "body": [
+          {
+            "seq": 1,
+            "payload": {
+              "status": "QUEUED"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.queued",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 2,
+            "payload": {
+              "status": "RUNNING"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.started",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 3,
+            "payload": {
+              "callIndex": 1
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.started",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 4,
+            "payload": {
+              "status": "SUCCEEDED",
+              "callIndex": 1,
+              "finishReason": "TOOL_CALLS"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.finished",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 5,
+            "payload": {
+              "toolName": "read_chapter",
+              "callIndex": 1,
+              "toolExecutionId": "<id-9>"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "tool.started",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 6,
+            "payload": {
+              "status": "SUCCEEDED",
+              "toolName": "read_chapter",
+              "returnedToModel": true,
+              "toolExecutionId": "<id-9>"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "tool.finished",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 7,
+            "payload": {
+              "callIndex": 2
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.started",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 8,
+            "payload": {
+              "status": "SUCCEEDED",
+              "callIndex": 2,
+              "finishReason": "FINAL"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.finished",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 9,
+            "payload": {
+              "status": "SUCCEEDED"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.succeeded",
+            "runId": "<id-8>"
+          }
+        ]
+      },
+      "lastEventIdPrecedence": {
+        "status": 200,
+        "body": [
+          {
+            "seq": 7,
+            "payload": {
+              "callIndex": 2
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.started",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 8,
+            "payload": {
+              "status": "SUCCEEDED",
+              "callIndex": 2,
+              "finishReason": "FINAL"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.finished",
+            "runId": "<id-8>"
+          },
+          {
+            "seq": 9,
+            "payload": {
+              "status": "SUCCEEDED"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.succeeded",
+            "runId": "<id-8>"
+          }
+        ]
+      },
+      "deleteSetting": {
+        "status": 204,
+        "body": null
+      }
+    },
+    "candidate": {
+      "health": {
+        "status": 200,
+        "body": {
+          "data": {
+            "status": "UP"
+          }
+        }
+      },
+      "capabilities": {
+        "status": 200,
+        "body": {
+          "data": {
+            "agentConfigured": true,
+            "modelId": "contract-test",
+            "maxInstructionCodePoints": 2000,
+            "maxChapterCodePoints": 6000,
+            "maxSettingCodePoints": 2000,
+            "maxModelCalls": 8,
+            "maxToolCalls": 12
+          }
+        }
+      },
+      "createProject": {
+        "status": 201,
+        "body": {
+          "data": {
+            "id": "<id-1>",
+            "title": "契约作品",
+            "activeRunId": null,
+            "createdAt": "<timestamp>",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "createChapter": {
+        "status": 201,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "",
+            "version": 1
+          }
+        }
+      },
+      "saveChapter": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "甲\n乙😀\n尾",
+            "version": 2,
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "sameContent": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "甲\n乙😀\n尾",
+            "version": 2,
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "chapter": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "目标章",
+            "content": "甲\n乙😀\n尾",
+            "version": 2,
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "renameChapter": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-2>",
+            "projectId": "<id-1>",
+            "chapterOrder": 1,
+            "title": "章节新名",
+            "content": "甲\n乙😀\n尾",
+            "version": 2
+          }
+        }
+      },
+      "revisions": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "version": 2,
+                "source": "MANUAL",
+                "proposalId": null,
+                "createdAt": "<timestamp>"
+              },
+              {
+                "version": 1,
+                "source": "CREATE",
+                "proposalId": null,
+                "createdAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "revision": {
+        "status": 200,
+        "body": {
+          "data": {
+            "chapterId": "<id-2>",
+            "version": 2,
+            "content": "甲\n乙😀\n尾",
+            "source": "MANUAL",
+            "proposalId": null,
+            "createdAt": "<timestamp>",
+            "proposalReviews": []
+          }
+        }
+      },
+      "chapters": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-2>",
+                "projectId": "<id-1>",
+                "chapterOrder": 1,
+                "title": "章节新名",
+                "version": 2
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "projects": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-1>",
+                "title": "契约作品",
+                "updatedAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "project": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-1>",
+            "title": "契约作品",
+            "activeRunId": null,
+            "createdAt": "<timestamp>",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "createSetting": {
+        "status": 201,
+        "body": {
+          "data": {
+            "id": "<id-3>",
+            "projectId": "<id-1>",
+            "type": "CHARACTER",
+            "title": "甲",
+            "content": "甲不会游泳。",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "settings": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-3>",
+                "projectId": "<id-1>",
+                "type": "CHARACTER",
+                "title": "甲",
+                "content": "甲不会游泳。",
+                "updatedAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "updateSetting": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-3>",
+            "projectId": "<id-1>",
+            "type": "WORLD",
+            "title": "河流",
+            "content": "河流湍急。",
+            "updatedAt": "<timestamp>"
+          }
+        }
+      },
+      "versionConflict": {
+        "status": 409,
+        "body": {
+          "message": "Chapter version changed",
+          "requestId": "<id-4>",
+          "details": {},
+          "code": "VERSION_CONFLICT"
+        }
+      },
+      "invalidCursor": {
+        "status": 400,
+        "body": {
+          "message": "Invalid cursor",
+          "requestId": "<id-5>",
+          "details": {},
+          "code": "VALIDATION_ERROR"
+        }
+      },
+      "missingChapter": {
+        "status": 404,
+        "body": {
+          "message": "Resource unavailable",
+          "requestId": "<id-6>",
+          "details": {},
+          "code": "RESOURCE_NOT_FOUND"
+        }
+      },
+      "missingProposal": {
+        "status": 404,
+        "body": {
+          "message": "Run or proposal unavailable",
+          "requestId": "<id-7>",
+          "details": {},
+          "code": "RESOURCE_NOT_FOUND"
+        }
+      },
+      "submit": {
+        "status": 202,
+        "body": {
+          "data": {
+            "status": "QUEUED",
+            "runId": "<id-8>"
+          }
+        }
+      },
+      "runDetail": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-8>",
+            "projectId": "<id-1>",
+            "targetChapterId": "<id-2>",
+            "baseVersion": 2,
+            "instruction": "只读核查",
+            "status": "SUCCEEDED",
+            "cancelRequested": false,
+            "queuedAt": "<timestamp>",
+            "startedAt": "<timestamp>",
+            "finishedAt": "<timestamp>",
+            "analysis": "已完整读取目标章节；只读核查结束。",
+            "errorCode": null,
+            "errorDetail": null,
+            "modelCallCount": 2,
+            "toolCallCount": 1,
+            "toolTextCodepoints": 280,
+            "lastEventSeq": 9,
+            "proposalId": null,
+            "steps": [
+              {
+                "toolExecutionId": "<id-9>",
+                "toolCallId": "contract-read",
+                "toolName": "read_chapter",
+                "args": {
+                  "chapterId": "<id-2>"
+                },
+                "result": {
+                  "data": {
+                    "title": "章节新名",
+                    "content": "甲\n乙😀\n尾",
+                    "version": 2,
+                    "chapterId": "<id-2>",
+                    "chapterOrder": 1
+                  },
+                  "error": null,
+                  "budget": {
+                    "toolCallsUsed": 1,
+                    "modelCallsUsed": 1,
+                    "toolCallsRemaining": 11,
+                    "modelCallsRemaining": 7,
+                    "finalResponseRequired": false
+                  },
+                  "success": true
+                },
+                "summary": null,
+                "status": "SUCCEEDED",
+                "errorCode": null,
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>",
+                "modelCallIndex": 1
+              }
+            ],
+            "sources": [
+              {
+                "id": "<id-10>",
+                "kind": "FULL_CHAPTER",
+                "chapterId": "<id-2>",
+                "chapterVersion": 2,
+                "settingId": null,
+                "lineNumber": null,
+                "codepointOffset": null,
+                "contentHash": null,
+                "toolExecutionId": "<id-9>",
+                "providedToModel": true
+              }
+            ]
+          }
+        }
+      },
+      "runList": {
+        "status": 200,
+        "body": {
+          "data": {
+            "items": [
+              {
+                "id": "<id-8>",
+                "projectId": "<id-1>",
+                "targetChapterId": "<id-2>",
+                "baseVersion": 2,
+                "instruction": "只读核查",
+                "status": "SUCCEEDED",
+                "cancelRequested": false,
+                "queuedAt": "<timestamp>",
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>",
+                "analysis": "已完整读取目标章节；只读核查结束。",
+                "errorCode": null,
+                "errorDetail": null,
+                "lastEventSeq": 9,
+                "proposalId": null,
+                "createdAt": "<timestamp>"
+              }
+            ],
+            "nextCursor": null
+          }
+        }
+      },
+      "trace": {
+        "status": 200,
+        "body": {
+          "data": {
+            "id": "<id-8>",
+            "projectId": "<id-1>",
+            "targetChapterId": "<id-2>",
+            "baseVersion": 2,
+            "instruction": "只读核查",
+            "status": "SUCCEEDED",
+            "cancelRequested": false,
+            "queuedAt": "<timestamp>",
+            "startedAt": "<timestamp>",
+            "finishedAt": "<timestamp>",
+            "analysis": "已完整读取目标章节；只读核查结束。",
+            "errorCode": null,
+            "errorDetail": null,
+            "modelCallCount": 2,
+            "toolCallCount": 1,
+            "toolTextCodepoints": 280,
+            "lastEventSeq": 9,
+            "proposalId": null,
+            "modelId": "contract-test",
+            "modelConfig": {
+              "apiPath": "/v1/messages",
+              "maxOutputTokens": 16000,
+              "contextWindowTokens": 200000
+            },
+            "modelCalls": [
+              {
+                "id": "<id-11>",
+                "callIndex": 1,
+                "inputMessageSeqs": [
+                  1
+                ],
+                "status": "SUCCEEDED",
+                "finishReason": "TOOL_CALLS",
+                "rawFinishReason": "tool_use",
+                "providerRequestId": "contract-message",
+                "errorCode": null,
+                "errorDetail": null,
+                "usage": {
+                  "inputTokens": 20,
+                  "outputTokens": 20
+                },
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>"
+              },
+              {
+                "id": "<id-12>",
+                "callIndex": 2,
+                "inputMessageSeqs": [
+                  1,
+                  2,
+                  3
+                ],
+                "status": "SUCCEEDED",
+                "finishReason": "FINAL",
+                "rawFinishReason": "end_turn",
+                "providerRequestId": "contract-message",
+                "errorCode": null,
+                "errorDetail": null,
+                "usage": {
+                  "inputTokens": 20,
+                  "outputTokens": 20
+                },
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>"
+              }
+            ],
+            "messages": [
+              {
+                "messageSeq": 1,
+                "role": "USER",
+                "content": [
+                  {
+                    "text": "目标章节 ID: <id-2>\n目标章节基准版本: 2\n请使用 read_chapter 读取完整目标章后再形成最终分析。\n检查要求:\n只读核查",
+                    "type": "text"
+                  }
+                ],
+                "modelCallId": null,
+                "toolCallId": null,
+                "toolExecutionId": null,
+                "createdAt": "<timestamp>"
+              },
+              {
+                "messageSeq": 2,
+                "role": "ASSISTANT",
+                "content": [
+                  {
+                    "id": "contract-read",
+                    "name": "read_chapter",
+                    "type": "tool_call",
+                    "arguments": {
+                      "chapterId": "<id-2>"
+                    }
+                  }
+                ],
+                "modelCallId": "<id-11>",
+                "toolCallId": null,
+                "toolExecutionId": null,
+                "createdAt": "<timestamp>"
+              },
+              {
+                "messageSeq": 3,
+                "role": "TOOL",
+                "content": {
+                  "data": {
+                    "title": "章节新名",
+                    "content": "甲\n乙😀\n尾",
+                    "version": 2,
+                    "chapterId": "<id-2>",
+                    "chapterOrder": 1
+                  },
+                  "error": null,
+                  "budget": {
+                    "toolCallsUsed": 1,
+                    "modelCallsUsed": 1,
+                    "toolCallsRemaining": 11,
+                    "modelCallsRemaining": 7,
+                    "finalResponseRequired": false
+                  },
+                  "success": true
+                },
+                "modelCallId": "<id-11>",
+                "toolCallId": "contract-read",
+                "toolExecutionId": "<id-9>",
+                "createdAt": "<timestamp>"
+              },
+              {
+                "messageSeq": 4,
+                "role": "ASSISTANT",
+                "content": [
+                  {
+                    "text": "已完整读取目标章节；只读核查结束。",
+                    "type": "text"
+                  }
+                ],
+                "modelCallId": "<id-12>",
+                "toolCallId": null,
+                "toolExecutionId": null,
+                "createdAt": "<timestamp>"
+              }
+            ],
+            "steps": [
+              {
+                "toolExecutionId": "<id-9>",
+                "modelCallId": "<id-11>",
+                "toolCallId": "contract-read",
+                "toolName": "read_chapter",
+                "args": {
+                  "chapterId": "<id-2>"
+                },
+                "result": {
+                  "data": {
+                    "title": "章节新名",
+                    "content": "甲\n乙😀\n尾",
+                    "version": 2,
+                    "chapterId": "<id-2>",
+                    "chapterOrder": 1
+                  },
+                  "error": null,
+                  "budget": {
+                    "toolCallsUsed": 1,
+                    "modelCallsUsed": 1,
+                    "toolCallsRemaining": 11,
+                    "modelCallsRemaining": 7,
+                    "finalResponseRequired": false
+                  },
+                  "success": true
+                },
+                "status": "SUCCEEDED",
+                "errorCode": null,
+                "startedAt": "<timestamp>",
+                "finishedAt": "<timestamp>"
+              }
+            ],
+            "sources": [
+              {
+                "kind": "FULL_CHAPTER",
+                "chapterId": "<id-2>",
+                "chapterVersion": 2,
+                "settingId": null,
+                "lineNumber": null,
+                "codepointOffset": null,
+                "contentHash": null,
+                "toolExecutionId": "<id-9>"
+              }
+            ]
+          }
+        }
+      },
+      "idempotentRetry": {
+        "status": 202,
+        "body": {
+          "data": {
+            "status": "SUCCEEDED",
+            "runId": "<id-8>"
+          }
+        }
+      },
+      "idempotencyConflict": {
+        "status": 409,
+        "body": {
+          "message": "Request key belongs to different content",
+          "requestId": "<id-13>",
+          "details": {},
+          "code": "IDEMPOTENCY_CONFLICT"
+        }
+      },
+      "terminalCancel": {
+        "status": 200,
+        "body": {
+          "data": {
+            "status": "SUCCEEDED",
+            "cancelRequested": false
+          }
+        }
+      },
+      "invalidEventCursor": {
+        "status": 400,
+        "body": {
+          "message": "Invalid event cursor",
+          "requestId": "<id-14>",
+          "details": {},
+          "code": "VALIDATION_ERROR"
+        }
+      },
+      "eventReplay": {
+        "status": 200,
+        "body": [
+          {
+            "runId": "<id-8>",
+            "seq": 1,
+            "payload": {
+              "status": "QUEUED"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.queued"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 2,
+            "payload": {
+              "status": "RUNNING"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.started"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 3,
+            "payload": {
+              "callIndex": 1
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.started"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 4,
+            "payload": {
+              "status": "SUCCEEDED",
+              "callIndex": 1,
+              "finishReason": "TOOL_CALLS"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.finished"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 5,
+            "payload": {
+              "toolName": "read_chapter",
+              "callIndex": 1,
+              "toolExecutionId": "<id-9>"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "tool.started"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 6,
+            "payload": {
+              "status": "SUCCEEDED",
+              "toolName": "read_chapter",
+              "returnedToModel": true,
+              "toolExecutionId": "<id-9>"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "tool.finished"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 7,
+            "payload": {
+              "callIndex": 2
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.started"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 8,
+            "payload": {
+              "status": "SUCCEEDED",
+              "callIndex": 2,
+              "finishReason": "FINAL"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.finished"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 9,
+            "payload": {
+              "status": "SUCCEEDED"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.succeeded"
+          }
+        ]
+      },
+      "lastEventIdPrecedence": {
+        "status": 200,
+        "body": [
+          {
+            "runId": "<id-8>",
+            "seq": 7,
+            "payload": {
+              "callIndex": 2
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.started"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 8,
+            "payload": {
+              "status": "SUCCEEDED",
+              "callIndex": 2,
+              "finishReason": "FINAL"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "model.finished"
+          },
+          {
+            "runId": "<id-8>",
+            "seq": 9,
+            "payload": {
+              "status": "SUCCEEDED"
+            },
+            "schemaVersion": 1,
+            "occurredAt": "<timestamp>",
+            "type": "run.succeeded"
+          }
+        ]
+      },
+      "deleteSetting": {
+        "status": 204,
+        "body": null
+      }
+    }
+  }
+}

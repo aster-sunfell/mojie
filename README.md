@@ -4,7 +4,7 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 ## 当前实现
 
-`backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Messages 与 Chat Completions 模型适配器、内容管理和 HTTP/SSE 接口。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md)、[联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md)、[真实模型核查](docs/verification/agent-loop-real-model-2026-09-30.md)、[浏览器核查](docs/verification/browser-agent-loop-2026-09-30.md) 和 [数据库恢复核查](docs/verification/agent-loop-db-recovery-2026-09-30.md)。核心链路可用；正式发布验收仍有部分浏览器竞争与故障组合待签收。
+`backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Messages 与 Chat Completions 模型适配器、内容管理和 HTTP/SSE 接口。后端现已按业务模块采用 `api → service → repository` 三层结构，事务、SQL 与运行资源分别管理；验证结果见 [三层重构记录](docs/verification/backend-three-layer-refactoring-2026-10-02.md)。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md)、[联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md)、[真实模型核查](docs/verification/agent-loop-real-model-2026-09-30.md)、[浏览器核查](docs/verification/browser-agent-loop-2026-09-30.md) 和 [数据库恢复核查](docs/verification/agent-loop-db-recovery-2026-09-30.md)。核心链路可用；正式发布验收仍有部分浏览器竞争与故障组合待签收。
 
 ## 本地运行
 
@@ -63,6 +63,7 @@ HTTP 取消回归可运行 `node scripts/check-http-cancel.mjs`：同样先构�
 | [显式 Agent 工具循环 PRD v0.1](docs/prd/Agent_Tool_Loop_PRD_v0.1.md) | 章节检查的工具循环、预算边界、异常规则与专项验收 |
 | [架构决策 v0.3](docs/adr/MVP_ADR_v0.3.md) | 选型、取舍与重评条件 |
 | [工程框架设计 v0.1](docs/design/Framework_Design_v0.1.md) | 仓库结构、模块边界、核心接口、线程/事务骨架与测试框架 |
+| [后端三层架构与重构方案 v0.1](docs/design/Backend_Three_Layer_Refactoring_v0.1.md) | 已实施的三层职责、包结构、事务约束与验收标准 |
 | [环境与部署方案](docs/design/development-deployment-environment.md) | 本地容器按需启动、远程持续运行与代码更新步骤 |
 | [项目亮点与简历素材 v0.1](docs/resume/Project_Highlights_v0.1.md) | 设计亮点、面试素材与实现前置条件 |
 
