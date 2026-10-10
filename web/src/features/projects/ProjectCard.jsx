@@ -5,14 +5,17 @@ import { timeAgo } from '../../shared/utils/text.js'
 import styles from './ProjectCard.module.css'
 
 export function ProjectCard({ project, open, onRemove }) {
-  return <article className={styles.card} aria-label={`作品：${project.title}`}>
+  const tone = [...String(project.id)].reduce((hash, character) => hash + character.codePointAt(0), 0) % 5
+
+  return <article className={styles.card} data-tone={tone} aria-label={`作品：${project.title}`}>
     <button type="button" className={styles.open} onClick={() => open(project.id)}
       aria-label={`打开作品《${project.title}》`}>
-      <span className={styles.seal} aria-hidden="true">{[...project.title.trim()][0] || '墨'}</span>
-      <span className={styles.body}>
+      <span className={styles.cover}>
+        <span className={styles.imprint} aria-hidden="true">MOJIE</span>
         <strong>{project.title}</strong>
-        <small>更新于 {timeAgo(project.updatedAt)}</small>
+        <span className={styles.seal} aria-hidden="true">墨</span>
       </span>
+      <small className={styles.updated}>最近编辑 · {timeAgo(project.updatedAt)}</small>
     </button>
     <div className={styles.actions}>
       <Tooltip label="删除">

@@ -16,28 +16,27 @@ export function ProjectHome({ open }) {
   return <main className={styles.home}>
     <header className={styles.header}>
       <span className="brand">墨界 <small>Mojie</small></span>
-      <div className={styles.heading}>
-        <div><h1>你的作品</h1><p>从章节开始写作，再让 Agent 查阅证据并给出建议。</p></div>
-        <button className={styles.createButton} onClick={() => setCreating(true)}>
-          <Icon name="plus" />新建作品
-        </button>
-      </div>
+      <ProjectSearch value={keyword} onChange={setKeyword} />
     </header>
-    <ProjectSearch value={keyword} onChange={setKeyword} />
     {error && <div className={styles.error} role="alert">
       <p className="error">{error}</p>
       <button className="secondary" onClick={() => load()}>重试加载</button>
     </div>}
     <section className={styles.grid} aria-label="作品列表" aria-busy={loading || loadingMore}>
+      <div className={styles.createSlot}>
+        <button type="button" className={styles.createButton} aria-label="新建作品"
+          onClick={() => setCreating(true)}>
+          <span className={styles.createIcon}><Icon name="plus" size={28} /></span>
+          <span>新建</span>
+        </button>
+      </div>
       {projects.map(project => <ProjectCard key={project.id} project={project} open={open} onRemove={setRemoving} />)}
     </section>
     <div role="status" aria-live="polite">
       {loading && <p className={styles.empty}>正在加载作品…</p>}
       {!loading && !error && projects.length === 0 && <div className={styles.empty}>
-        <p>{keyword.trim() ? '没有匹配的作品' : '暂无作品，开始创作你的第一部作品吧。'}</p>
-        {keyword.trim()
-          ? <button className="secondary" onClick={() => setKeyword('')}>清空搜索</button>
-          : <button className="secondary" onClick={() => setCreating(true)}>新建作品</button>}
+        <p>{keyword.trim() ? '没有匹配的作品' : '从这里开始你的第一部作品。'}</p>
+        {keyword.trim() && <button className="secondary" onClick={() => setKeyword('')}>清空搜索</button>}
       </div>}
     </div>
     {cursor && <div className={styles.pagination}>
