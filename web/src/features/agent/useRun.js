@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../../shared/api/client.js'
 
-const eventTypes = ['run.queued', 'run.started', 'model.started', 'model.finished', 'tool.started', 'tool.finished', 'run.succeeded', 'run.failed', 'run.cancelled']
+const eventTypes = ['run.queued', 'run.started', 'model.started', 'model.finished', 'tool.started', 'tool.finished', 'run.succeeded', 'run.failed', 'run.cancelled', 'context.compacted', 'skill.loaded', 'script.started', 'script.finished', 'artifact.created']
 const terminal = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED'])
 
 export function useRun(runId, onChange) {

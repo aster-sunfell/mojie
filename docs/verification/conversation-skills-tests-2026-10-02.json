@@ -1,0 +1,192 @@
+{
+  "date": "2026-10-02",
+  "backend": {
+    "surefire": {
+      "totals": {
+        "tests": 59,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "name": "com.mojie.agent.model.ModelApiConfigTest",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.agent.service.RunServiceTest",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.agent.service.loop.AgentLoopTest",
+          "tests": "34",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.architecture.LayerRulesTest",
+          "tests": "7",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.architecture.ModuleRulesTest",
+          "tests": "3",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.proposal.ProposalDiffTest",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.proposal.service.ProposalReviewServiceTest",
+          "tests": "1",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.skill.FileSkillStorageTest",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        }
+      ]
+    },
+    "failsafe": {
+      "totals": {
+        "tests": 50,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "name": "com.mojie.agent.service.RunServicesIT",
+          "tests": "22",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.agent.service.tool.ToolContentServiceIT",
+          "tests": "1",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.config.ConversationRetryIT",
+          "tests": "1",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.config.ConversationSkillsIT",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.config.SkillExecutionIT",
+          "tests": "1",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.content.ChapterReviewConcurrencyIT",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.content.ContentServicesIT",
+          "tests": "5",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.infrastructure.model.anthropic.AnthropicModelGatewayIT",
+          "tests": "4",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.infrastructure.model.openai.ChatCompletionsModelGatewayIT",
+          "tests": "8",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.infrastructure.transaction.SpringTransactionRunnerIT",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "com.mojie.skill.SkillLifecycleIT",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        }
+      ]
+    }
+  },
+  "executor": {
+    "tests": 13,
+    "status": "PASS",
+    "cases": [
+      "test_artifact_count_limit",
+      "test_artifact_file_size_limit",
+      "test_cancel_stops_container_and_child_process",
+      "test_full_package_directories_and_assets",
+      "test_lost_backend_poll_stops_container",
+      "test_node_artifact",
+      "test_nonzero_and_dependency",
+      "test_output_limit",
+      "test_output_link_rejected",
+      "test_python_input_and_artifact",
+      "test_readonly_package_no_secrets_no_network",
+      "test_restart_only_stops_same_instance",
+      "test_timeout"
+    ]
+  },
+  "web": {
+    "unitTests": 57,
+    "unitStatus": "PASS",
+    "build": "PASS",
+    "browserFullSuiteTests": 34,
+    "browserFullSuiteStatus": "PASS",
+    "latestConversationBrowserTests": 1,
+    "latestConversationBrowserStatus": "PASS"
+  },
+  "contracts": {
+    "openapiYamlAndLocalRefs": "PASS",
+    "composeConfig": "PASS",
+    "diffCheck": "PASS"
+  },
+  "scope": "Automated test evidence. Does not imply all CS-AC release scenarios or model quality evaluations are signed off."
+}

@@ -77,6 +77,46 @@ public final class RunService {
     }
   }
 
+  public void conversationRuntime(com.mojie.agent.service.port.ConversationRuntime runtime) {
+    runner.conversationRuntime(runtime);
+  }
+
+  public Map<String, Object> detail(String run) {
+    return query.scoped(run);
+  }
+
+  public Receipt submitPrepared(String projectId, java.util.function.Supplier<Receipt> create) {
+    ensureReady();
+    try (var reservation = executor.reserve()) {
+      Receipt receipt = create.get();
+      if (!receipt.created()) return receipt;
+      try {
+        executor.schedule(
+            reservation,
+            new RunExecutor.Execution(
+                projectId,
+                receipt.runId(),
+                control -> runner.execute(projectId, receipt.runId(), control)));
+      } catch (RejectedExecutionException failure) {
+        try {
+          completion.finish(
+              projectId,
+              receipt.runId(),
+              new LoopOutcome.Failed("SCHEDULING_FAILED", "Run executor rejected the task"));
+        } catch (RuntimeException unavailable) {
+          executor.deferTerminal(
+              new RunExecutor.PendingTerminal(
+                  projectId,
+                  receipt.runId(),
+                  "SCHEDULING_FAILED",
+                  "Run executor rejected the task"));
+          throw unavailable;
+        }
+      }
+      return receipt;
+    }
+  }
+
   public CancelResult cancel(String runId) {
     String projectId = query.scoped(runId).get("projectId").toString();
     return cancelProjectRun(projectId, runId);

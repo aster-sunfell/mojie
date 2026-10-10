@@ -33,4 +33,10 @@
 
 模型上下文窗口在后台联网解析并持久化缓存。`GET /system/capabilities` 新增 `modelMetadataAvailable`，表示是否具备可用于新任务的窗口信息；`agentConfigured` 继续表示模型凭据已配置且执行器健康。无可用元数据时，新任务受理返回 HTTP 503 / `MODEL_METADATA_UNAVAILABLE`，不创建任务；已有任务的幂等重试仍返回原受理结果，内容编辑和查询继续可用。每次任务固定使用受理时的窗口快照。
 
-当前实例使用单作者数据模型，不接受作者身份参数；历史 owner 字段通过 V6 迁移移除。任务提交键 `clientRequestId` 在整个实例内唯一。
+当前实例使用单作者数据模型，不接受作者身份参数；历史 owner 字段通过 V8 迁移移除。任务提交键 `clientRequestId` 在整个实例内唯一。
+
+## 连续对话与 Skill 扩展（2026-10-02）
+
+新 Conversation 入口由 [连续对话与 Skill 设计](../design/conversation-skills.md) 承接。CHAT 无目标章，CHAPTER_REVIEW 不提供 propose_edit，CHAPTER_EDIT 保留当前基准全文与作者采纳边界；旧 Run API 保持原预算和独立任务语义。新任务 16 次模型/32 次工具、120000 新增工具码点和 300 秒运行预算，存入配置快照；请求保存历史来源 ID 与完整逻辑输入。终态展示消息和对话活动槽在数据库事务内收尾。
+
+Skill 目录固定于 Run，版本包在文件卷不可变保存，PG 保存状态及引用；Skill 指导不授予权限。新增 context.compacted、skill.loaded、script.started、script.finished、artifact.created 持久化事件，继续使用按 Run 序号恢复的 SSE。文件下载 attachment/nosniff。独立脚本沙箱及协调备份见 [运维说明](../design/conversation-skills-operations.md)。

@@ -17,6 +17,11 @@ public final class AgentRunner {
   private final RunExecutor executor;
   private final Clock clock;
   private final UUID processId;
+  private ConversationRuntime conversationRuntime;
+
+  public void conversationRuntime(ConversationRuntime value) {
+    conversationRuntime = value;
+  }
 
   public AgentRunner(
       RunLifecycleService lifecycle,
@@ -54,29 +59,44 @@ public final class AgentRunner {
               run.targetChapterId(),
               run.baseVersion(),
               run.baseContent());
+      context.executionClock(clock, run.deadline(), control::cancelled);
       control.onCancel(context::cancelActiveSearch);
+      var plan =
+          conversationRuntime == null ? null : conversationRuntime.prepare(run, context, tools);
       AgentLoop loop =
           new AgentLoop(
               model,
-              tools,
+              plan == null ? tools : plan.tools(),
               trace,
-              LoopLimits.defaults().withContextWindowTokens(run.contextWindowTokens()),
+              plan == null
+                  ? LoopLimits.defaults().withContextWindowTokens(run.contextWindowTokens())
+                  : plan.limits(),
               clock,
               control::cancelled);
       LoopOutcome outcome =
           loop.run(
-              new LoopInput(
-                  context,
-                  run.instruction(),
-                  run.systemPrompt(),
-                  run.modelId(),
-                  run.maxOutputTokens(),
-                  run.deadline()));
+              plan != null
+                  ? plan.input()
+                  : new LoopInput(
+                      context,
+                      run.instruction(),
+                      run.systemPrompt(),
+                      run.modelId(),
+                      run.maxOutputTokens(),
+                      run.deadline()));
       completion.finish(projectId, runId, outcome);
     } catch (RuntimeException failure) {
       try {
         completion.finish(
-            projectId, runId, new LoopOutcome.Failed("PERSISTENCE_ERROR", "Run worker failed"));
+            projectId,
+            runId,
+            new LoopOutcome.Failed(
+                failure instanceof com.mojie.common.error.BusinessException b
+                    ? b.code()
+                    : "PERSISTENCE_ERROR",
+                failure instanceof com.mojie.common.error.BusinessException
+                    ? failure.getMessage()
+                    : "Run worker failed"));
       } catch (RuntimeException unavailable) {
         executor.deferTerminal(
             new RunExecutor.PendingTerminal(

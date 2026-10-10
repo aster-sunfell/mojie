@@ -22,7 +22,7 @@ public final class JdbcRunReadRepository implements RunReadRepository {
                r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
                r.analysis, r.error_code, r.error_detail, r.model_call_count,
                r.tool_call_count, r.tool_text_codepoints, r.last_event_seq,
-               p.id AS proposal_id
+               p.id AS proposal_id,r.conversation_id,r.task_type,r.config_snapshot
           FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
          WHERE r.id = ?::uuid
         """,

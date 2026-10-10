@@ -298,7 +298,7 @@ PRD 第 8 节的 10 个逻辑实体落为 13 张表，拆表不删除任何约�
 | V4__proposal_event | `tb_edit_proposal` | `UNIQUE(run_id)`、`base_version`、`base_content`、`proposed_content`、`reason`、`status`、`applied_version` |
 | | `tb_agent_event` | `PK(run_id, seq)`、`type`、`payload jsonb`、`occurred_at` |
 
-后续迁移 V6 将当前单作者实例的 `owner_id` 字段移除，任务幂等约束变更为 `UNIQUE(client_request_id)`；上述 V1–V4 定义作为历史迁移保留。V7 新增 `tb_model_metadata_cache`，按供应商、服务地址和模型 ID 存储联网获取的窗口、来源与时间。
+后续迁移 V8 将当前单作者实例的 `owner_id` 字段移除，任务幂等约束变更为 `UNIQUE(client_request_id)`；上述 V1–V4 定义作为历史迁移保留。V9 新增 `tb_model_metadata_cache`，按供应商、服务地址和模型 ID 存储联网获取的窗口、来源与时间。
 
 每次保存正文都会写入 `tb_chapter_revision`，包括当前版本。因此检索和历史查看只需读取 `tb_chapter_revision`，不必区分“最新正文”和“历史正文”两条路径（ADR-005）。
 
@@ -442,3 +442,9 @@ Profile 划分：`dev`（开放 `/trace`、本机访问）、`test`（Testcontai
 | 模型 effort / 输出上限 / 是否改为流式聚合 | high / 16k / 非流式 | M0 长正文实测后 |
 | 根包名 `com.mojie` | 占位 | M1 |
 | RR 8 / TS 7 升级 | P0 不升级 | P0 验收后 |
+
+## 连续对话与 Skill 扩展（2026-10-02）
+
+新 Conversation 入口由 [连续对话与 Skill 设计](../design/conversation-skills.md) 承接。CHAT 无目标章，CHAPTER_REVIEW 不提供 propose_edit，CHAPTER_EDIT 保留当前基准全文与作者采纳边界；旧 Run API 保持原预算和独立任务语义。新任务 16 次模型/32 次工具、120000 新增工具码点和 300 秒运行预算，存入配置快照；请求保存历史来源 ID 与完整逻辑输入。终态展示消息和对话活动槽在数据库事务内收尾。
+
+Skill 目录固定于 Run，版本包在文件卷不可变保存，PG 保存状态及引用；Skill 指导不授予权限。新增 context.compacted、skill.loaded、script.started、script.finished、artifact.created 持久化事件，继续使用按 Run 序号恢复的 SSE。文件下载 attachment/nosniff。独立脚本沙箱及协调备份见 [运维说明](../design/conversation-skills-operations.md)。

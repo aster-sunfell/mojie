@@ -21,9 +21,13 @@ const model = http.createServer(async (request, reply) => {
     for await (const chunk of request) chunks.push(chunk)
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
     const blocks = body.messages.flatMap(message => message.content || [])
-    const instruction = blocks.find(block => block.type === 'text')?.text || ''
+    const instruction = body.messages.filter(message => message.role === 'user').flatMap(message => message.content || []).filter(block => block.type === 'text').at(-1)?.text || ''
     const targetId = instruction.match(/目标章节 ID: ([a-f0-9-]+)/)?.[1]
-    if (!targetId) throw new Error('Target chapter ID missing from model request')
+    if (!targetId) {
+      const remembered = blocks.some(block => block.type === 'text' && block.text?.includes('怕火'))
+      reply.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: `chat-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test', content: [{ type: 'text', text: remembered ? '林舟怕火，因此避开火光。' : '可以一起讨论大纲。' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }))
+      return
+    }
     if (instruction.includes('E2E_SLOW') && !blocks.some(block => block.type === 'tool_result'))
       await new Promise(resolve => setTimeout(resolve, 7_000))
     if (instruction.includes('E2E_BLOCK') && !blocks.some(block => block.type === 'tool_result'))

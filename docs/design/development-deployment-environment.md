@@ -55,7 +55,7 @@
 
 模型配置通过 `application.yaml` 绑定。上下文窗口优先读取供应商元数据，缺少该字段时查询 models.dev 中与供应商和完整模型 ID 对应的条目；结果存入 PostgreSQL 缓存，默认每 24 小时刷新，获取失败时可继续使用 7 天内的缓存。无可用元数据时仍提供内容编辑和健康检查，暂停受理新的模型任务。自定义服务可选用 `MOJIE_MODEL_CONTEXT_TOKENS` 覆盖窗口，目录请求不携带模型密钥。
 
-V6 数据库迁移移除作者身份，保留历史内容并改为实例范围的任务幂等约束；历史请求键冲突时迁移回滚。升级时先停止旧后端，再启动新版本执行迁移。V7 新增模型元数据缓存。
+V8 数据库迁移移除作者身份，保留历史内容并改为实例范围的任务幂等约束；历史请求键冲突时迁移回滚。升级时先停止旧后端，再启动新版本执行迁移。V9 新增模型元数据缓存。
 
 生产配置在 PostgreSQL 健康后启动后端，后端健康后再开放 Nginx。后端启动时由 `StartupLifecycle.start()` 执行 Flyway 迁移和旧进程任务清理。[健康接口](../../backend/src/main/java/com/mojie/system/api/SystemController.java) 在调度器为 `DEGRADED` 时仍返回 HTTP 200，因此容器健康检查解析响应体，只接受 `UP`。Compose 的 `depends_on` 处理初次启动顺序，不能代替运行期健康监控；`restart: always` 只会重启已退出的容器。
 

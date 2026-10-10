@@ -13,6 +13,49 @@ public final class JdbcRunTraceRepository implements RunTraceRepository {
   }
 
   @Override
+  public void snapshot(
+      String run, int call, String request, List<String> history, List<Long> inputs, String phase) {
+    var current =
+        db.query(
+            "SELECT id FROM tb_agent_message WHERE run_id=?::uuid AND message_seq=ANY(?) ORDER BY"
+                + " message_seq",
+            run,
+            inputs.toArray(Long[]::new));
+    List<String> refs = new ArrayList<>(history);
+    current.forEach(row -> refs.add(row.get("id").toString()));
+    for (String id : history) {
+      if (db.first(
+              "SELECT m.id FROM tb_agent_message m JOIN tb_agent_run source ON source.id=m.run_id"
+                  + " JOIN tb_agent_run target ON target.id=?::uuid JOIN tb_conversation_message"
+                  + " turn ON turn.id=source.trigger_message_id WHERE m.id=?::uuid AND"
+                  + " source.conversation_id=target.conversation_id AND"
+                  + " turn.seq<=target.input_boundary",
+              run,
+              id)
+          == null) throw new IllegalStateException("Invalid historical input reference");
+    }
+    db.update(
+        "INSERT INTO tb_agent_input_snapshot(run_id,call_index,hash,request,source_message_ids)"
+            + " VALUES(?::uuid,?,?,?::jsonb,?::jsonb)",
+        run,
+        call,
+        com.mojie.common.model.JsonSupport.hash(request),
+        request,
+        com.mojie.common.model.JsonSupport.encode(refs));
+    db.update(
+        "UPDATE tb_agent_model_call SET phase=? WHERE run_id=?::uuid AND call_index=?",
+        phase,
+        run,
+        call);
+    if ("TASK".equals(phase))
+      db.update(
+          "UPDATE tb_run_skill SET provided_to_model=true WHERE run_id=?::uuid AND loaded AND"
+              + " (loaded_message_seq IS NULL OR loaded_message_seq=ANY(?))",
+          run,
+          inputs.toArray(Long[]::new));
+  }
+
+  @Override
   public long countInputMessages(String runId, List<Long> sequences) {
     return ((Number)
             db.first(
@@ -30,7 +73,8 @@ public final class JdbcRunTraceRepository implements RunTraceRepository {
         db.first(
             "UPDATE tb_agent_run SET model_call_count = model_call_count + 1, updated_at = now()"
                 + " WHERE id = ?::uuid AND status = 'RUNNING' AND cancel_requested = false AND"
-                + " model_call_count < ? RETURNING model_call_count",
+                + " model_call_count < COALESCE((config_snapshot->>'maxModelCalls')::int,?)"
+                + " RETURNING model_call_count",
             runId,
             max);
     return r == null ? null : ((Number) r.get("modelCallCount")).intValue();
@@ -100,16 +144,65 @@ public final class JdbcRunTraceRepository implements RunTraceRepository {
       UUID callId,
       String toolCallId,
       UUID executionId) {
-    return db.update(
-        "INSERT INTO tb_agent_message(run_id, message_seq, role, content, model_call_id,"
-            + " tool_call_id, tool_execution_id) VALUES (?::uuid, ?, ?, ?::jsonb, ?, ?, ?)",
+    int changed =
+        db.update(
+            "INSERT INTO tb_agent_message(run_id, message_seq, role, content, model_call_id,"
+                + " tool_call_id, tool_execution_id) VALUES (?::uuid, ?, ?, ?::jsonb, ?, ?, ?)",
+            runId,
+            seq,
+            role,
+            body,
+            callId,
+            toolCallId,
+            executionId);
+    db.update(
+        "UPDATE tb_agent_message m SET conversation_id=r.conversation_id FROM tb_agent_run r WHERE"
+            + " m.run_id=r.id AND m.run_id=?::uuid AND m.message_seq=?",
         runId,
-        seq,
-        role,
-        body,
-        callId,
-        toolCallId,
-        executionId);
+        seq);
+    if ("TOOL".equals(role)) {
+      var data = com.mojie.common.model.JsonSupport.tree(body);
+      var step =
+          db.first("SELECT tool_name FROM tb_agent_step WHERE tool_execution_id=?", executionId);
+      if (step != null
+          && "read_skill".equals(step.get("toolName"))
+          && data.path("success").asBoolean()
+          && !data.path("data").path("alreadyLoaded").asBoolean()) {
+        String skill = data.path("data").path("skillId").asText();
+        db.update(
+            "UPDATE tb_run_skill SET"
+                + " loaded=true,loaded_message_seq=?,guidance=?::jsonb,guidance_hash=? WHERE"
+                + " run_id=?::uuid AND skill_id=?::uuid",
+            seq,
+            com.mojie.common.model.JsonSupport.encode(data.path("data")),
+            com.mojie.common.model.JsonSupport.hash(
+                com.mojie.common.model.JsonSupport.encode(data.path("data"))),
+            runId,
+            skill);
+        long event =
+            ((Number)
+                    db.first(
+                            "UPDATE tb_agent_run SET last_event_seq=last_event_seq+1 WHERE"
+                                + " id=?::uuid RETURNING last_event_seq",
+                            runId)
+                        .get("lastEventSeq"))
+                .longValue();
+        db.update(
+            "INSERT INTO tb_agent_event(run_id,seq,type,payload)"
+                + " VALUES(?::uuid,?,'skill.loaded',?::jsonb)",
+            runId,
+            event,
+            com.mojie.common.model.JsonSupport.encode(
+                java.util.Map.of(
+                    "skillId",
+                    skill,
+                    "versionId",
+                    data.path("data").path("versionId").asText(),
+                    "providedToModel",
+                    false)));
+      }
+    }
+    return changed;
   }
 
   @Override
@@ -118,7 +211,8 @@ public final class JdbcRunTraceRepository implements RunTraceRepository {
         db.first(
             "UPDATE tb_agent_run SET tool_call_count = tool_call_count + 1, updated_at = now()"
                 + " WHERE id = ?::uuid AND status = 'RUNNING' AND cancel_requested = false AND"
-                + " tool_call_count < ? RETURNING tool_call_count",
+                + " tool_call_count < COALESCE((config_snapshot->>'maxToolCalls')::int,?) RETURNING"
+                + " tool_call_count",
             runId,
             max);
     return r == null ? null : ((Number) r.get("toolCallCount")).intValue();
@@ -152,17 +246,19 @@ public final class JdbcRunTraceRepository implements RunTraceRepository {
       String status,
       String result,
       String code) {
-    return db.update(
-        "UPDATE tb_agent_step SET status = ?, result = ?::jsonb, error_code = ?, finished_at ="
-            + " now() WHERE run_id = ?::uuid AND tool_execution_id = ?::uuid AND model_call_id = ?"
-            + " AND tool_call_id = ? AND status = 'STARTED'",
-        status,
-        result,
-        code,
-        runId,
-        executionId,
-        callId,
-        toolCallId);
+    int changed =
+        db.update(
+            "UPDATE tb_agent_step SET status = ?, result = ?::jsonb, error_code = ?, finished_at ="
+                + " now() WHERE run_id = ?::uuid AND tool_execution_id = ?::uuid AND model_call_id"
+                + " = ? AND tool_call_id = ? AND status = 'STARTED'",
+            status,
+            result,
+            code,
+            runId,
+            executionId,
+            callId,
+            toolCallId);
+    return changed;
   }
 
   @Override

@@ -14,7 +14,7 @@ MOJIE_TEST_JDBC_URL=jdbc:postgresql://localhost:5432/postgres \
 MOJIE_TEST_DB_USER=postgres MOJIE_TEST_DB_PASSWORD=your_test_password mvn verify
 ```
 
-The integration tests create and drop their own random schemas. They apply V1–V7 through Flyway and verify chapter view pinning, trace atomicity, terminal success, proposal publication and adoption, idempotent admission, bounded scheduling, cancellation and timeout precedence.
+The integration tests create and drop their own random schemas. They apply V1–V9 through Flyway and verify chapter view pinning, trace atomicity, terminal success, proposal publication and adoption, idempotent admission, bounded scheduling, cancellation and timeout precedence.
 
 Both model adapters have opt-in local HTTP tests:
 
@@ -81,4 +81,6 @@ The script uses Python's standard library only as an HTTP test client; the appli
 
 ## Single-author schema migration
 
-V6 removes `owner_id` from projects and runs without deleting content or history. All previously separated owners' resources become visible to this instance. Task idempotency is now instance-wide via `UNIQUE(client_request_id)`. Migration reports conflicting historical request IDs and rolls back if different owners reused a key; resolve those records explicitly before retrying. Existing V1–V5 migrations remain unchanged. V7 adds the metadata cache. Stop the old backend before deploying the new schema and application together; an older backend cannot use the schema after V6.
+V8 removes `owner_id` from projects and runs without deleting content or history. All previously separated owners' resources become visible to this instance. Task idempotency is now instance-wide via `UNIQUE(client_request_id)`. Migration reports conflicting historical request IDs and rolls back if different owners reused a key; resolve those records explicitly before retrying. Existing upstream V1–V7 migrations remain unchanged. V9 adds the metadata cache. Stop the old backend before deploying the new schema and application together; an older backend cannot use the schema after V8.
+
+The merged migration sequence keeps upstream V6/V7 for conversations and Skills, with single-author conversion in V8 and model metadata in V9. V8 also removes owner columns from conversations, Skills, uploads and artifacts, and aggregates storage quotas into one instance-wide row. Duplicate enabled Skill names stop migration for explicit resolution. Databases initialized from the earlier local branch using V6 `single_author` / V7 `model_metadata_cache` have a different Flyway history; do not run `repair` or rename history entries to bypass validation. Back up that database and migrate it separately before using this merged build.

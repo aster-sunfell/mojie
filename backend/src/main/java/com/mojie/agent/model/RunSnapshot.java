@@ -21,11 +21,26 @@ public record RunSnapshot(
     int toolCallCount,
     int toolTextCodepoints,
     long lastEventSeq,
-    String proposalId)
+    String proposalId,
+    String conversationId,
+    String taskType,
+    com.fasterxml.jackson.databind.JsonNode configSnapshot)
     implements QueryResult {
   public Map<String, Object> fields() {
     Map<String, Object> fields = new LinkedHashMap<>();
     fields.put("id", id);
+    fields.put("conversationId", conversationId);
+    fields.put("taskType", taskType);
+    if (configSnapshot != null)
+      fields.put(
+          "budget",
+          Map.of(
+              "maxModelCalls",
+              configSnapshot.path("maxModelCalls").asInt(8),
+              "maxToolCalls",
+              configSnapshot.path("maxToolCalls").asInt(12),
+              "maxToolTextCodePoints",
+              configSnapshot.path("maxToolTextCodePoints").asInt(30000)));
     fields.put("projectId", projectId);
     fields.put("targetChapterId", targetChapterId);
     fields.put("baseVersion", baseVersion);

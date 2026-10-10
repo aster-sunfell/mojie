@@ -18,6 +18,10 @@ export async function api(path, method = 'GET', body) {
 
 export function readableError(error) {
   const names = {
+    CONVERSATION_VERSION_CONFLICT: '对话已有新内容，请刷新后重发。',
+    CONVERSATION_MODEL_UNAVAILABLE: '此对话原来的模型配置不可用，请新建对话。',
+    SKILL_VERSION_CONFLICT: 'Skill 版本或名称冲突，请检查本轮选择与固定版本。',
+    SKILL_UNAVAILABLE: '选择的 Skill 已停用，请取消选择或重新启用。',
     VERSION_CONFLICT: '章节版本已变化，请先查看最新正文。',
     RESOURCE_BUSY: '作品有正在运行的任务或待确认建议。',
     RUN_CAPACITY_EXCEEDED: '任务队列已满，请稍后重试。',

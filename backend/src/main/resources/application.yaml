@@ -7,6 +7,10 @@ spring:
       maximum-pool-size: 12
       minimum-idle: 2
       connection-timeout: "${MOJIE_DB_CONNECTION_TIMEOUT_MS:5000}"
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
   flyway:
     enabled: false
   jackson:

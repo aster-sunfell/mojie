@@ -47,6 +47,22 @@ public final class RunTraceService implements LoopTrace {
   }
 
   @Override
+  public void modelRequest(
+      String runId,
+      int index,
+      List<Long> inputs,
+      Request request,
+      List<String> history,
+      String phase) {
+    transactions.required(
+        () -> {
+          modelStarted(runId, index, inputs);
+          trace.snapshot(runId, index, encode(request), history, inputs, phase);
+          return null;
+        });
+  }
+
+  @Override
   public long modelFinished(String runId, int callIndex, Response response) {
     return transactions.required(
         () -> {

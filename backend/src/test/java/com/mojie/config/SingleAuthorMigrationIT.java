@@ -22,6 +22,13 @@ class SingleAuthorMigrationIT {
           second = historicalProject(source, "second-author");
       historicalRun(source, first, "first-author", UUID.randomUUID());
       historicalRun(source, second, "second-author", UUID.randomUUID());
+      Flyway.configure().dataSource(source).target("7").load().migrate();
+      try (var c = source.getConnection(); var statement = c.createStatement()) {
+        statement.execute("INSERT INTO tb_skill_quota(owner_id,used_bytes,reserved_bytes)"
+            + " VALUES('first-author',100,40),('second-author',200,60)");
+        statement.execute("INSERT INTO tb_skill(owner_id,name)"
+            + " VALUES('first-author','first-skill'),('second-author','second-skill')");
+      }
       Flyway.configure().dataSource(source).load().migrate();
       var content = TestServices.content(source);
       assertEquals(
@@ -38,6 +45,20 @@ class SingleAuthorMigrationIT {
                     + " current_schema() AND column_name = 'owner_id'")) {
           rs.next();
           assertEquals(0, rs.getInt(1));
+        }
+        try (var rs = s.executeQuery("SELECT used_bytes,reserved_bytes FROM tb_skill_quota")) {
+          assertTrue(rs.next());
+          assertEquals(300, rs.getLong(1));
+          assertEquals(100, rs.getLong(2));
+          assertFalse(rs.next());
+        }
+        try (var rs = s.executeQuery("SELECT count(*) FROM tb_conversation")) {
+          rs.next();
+          assertEquals(2, rs.getInt(1));
+        }
+        try (var rs = s.executeQuery("SELECT count(*) FROM tb_skill")) {
+          rs.next();
+          assertEquals(2, rs.getInt(1));
         }
         try (var rs =
             s.executeQuery(

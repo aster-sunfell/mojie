@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "fileVerification": {
+    "verifiedFiles": 5,
+    "status": "PASS"
+  },
+  "restoredCounts": {
+    "conversations": 2,
+    "messages": 12,
+    "snapshots": 45,
+    "artifacts": 1
+  },
+  "restoreDatabase": "mojie_cs_restore",
+  "restoreDataDir": "/tmp/mojie-cs-restore-3gx2yqh4/data",
+  "scope": "Separate database and file root restored; hashes, old version export, existing artifact download, pinned guidance delivery and live-model continuation verified.",
+  "artifactDownloadVerified": true,
+  "oldVersionExportVerified": true,
+  "continuedRunId": "01a0fc71-0d41-7ff3-a980-a7cddc162261",
+  "continuedStatus": "SUCCEEDED",
+  "continuedAnswer": "林舟不会游泳，遇到深水只能走桥或乘船，并且怕火。",
+  "pinnedOldVersionVerified": true
+}

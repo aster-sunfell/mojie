@@ -6,6 +6,12 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 `backend/` 包含 Java 21 显式 Agent loop、七个工具、PostgreSQL 持久化、有界调度、Messages 与 Chat Completions 模型适配器、内容管理和 HTTP/SSE 接口。后端现已按业务模块采用 `api → service → repository` 三层结构，事务、SQL 与运行资源分别管理；验证结果见 [三层重构记录](docs/verification/backend-three-layer-refactoring-2026-10-02.md)。`web/` 包含作者工作台、任务面板、历史来源和建议采纳界面。运行方式与已验证范围见 [backend/README.md](backend/README.md)、[联调记录](docs/verification/agent-loop-http-and-web-2026-09-29.md)、[真实模型核查](docs/verification/agent-loop-real-model-2026-09-30.md)、[浏览器核查](docs/verification/browser-agent-loop-2026-09-30.md) 和 [数据库恢复核查](docs/verification/agent-loop-db-recovery-2026-09-30.md)。核心链路可用；正式发布验收仍有部分浏览器竞争与故障组合待签收。
 
+## 连续对话与 Skill
+
+工作台助手面板的“连续对话”支持新建、切换、归档及连续消息。普通聊天不需要章节；章节审阅与修改须选择并保存目标章。Skill 库支持 Markdown、ZIP 和目录文件上传、文件树预览、启停、不可变版本、文本编辑、回滚及完整导出；显式选择或固定版本与每轮自动发现共存。
+
+Skill 脚本使用独立执行器，需要预拉固定 Python/Node 镜像并配置 `MOJIE_SKILL_EXECUTOR_URL`；见 [执行器说明](executor/README.md)。未配置执行器时仍能读取指导及参考。部署新增 `mojie_files` 文件卷；备份须同时包含 PG 和文件，见 [恢复说明](docs/design/conversation-skills-operations.md)。验收证据与尚未签收的故障组合见 [验证记录](docs/verification/conversation-skills-2026-10-02.md)。
+
 ## 本地运行
 
 本地需要 Java 21、Maven、Node 20+ 和 Docker。PostgreSQL 与 Nginx 在容器中按需运行；Java 后端和 Vite 在本机按需启动。从仓库根目录执行，后端与前端分别在自己的终端运行：
@@ -60,6 +66,9 @@ HTTP 取消回归可运行 `node scripts/check-http-cancel.mjs`：同样先构�
 | 文档 | 用途 |
 | --- | --- |
 | [MVP PRD v0.3](docs/prd/MVP_PRD_v0.3.md) | 当前开发与验收依据 |
+| [连续对话与完整 Skill PRD v0.1](docs/prd/Conversation_and_Skills_PRD_v0.1.md) | 新功能需求与验收门槛 |
+| [连续对话与 Skill 设计](docs/design/conversation-skills.md) | 隔离、输入快照、版本与执行器边界 |
+| [Skill 部署及恢复](docs/design/conversation-skills-operations.md) | 文件卷、执行器、协调备份与独立恢复 |
 | [显式 Agent 工具循环 PRD v0.1](docs/prd/Agent_Tool_Loop_PRD_v0.1.md) | 章节检查的工具循环、预算边界、异常规则与专项验收 |
 | [架构决策 v0.3](docs/adr/MVP_ADR_v0.3.md) | 选型、取舍与重评条件 |
 | [工程框架设计 v0.1](docs/design/Framework_Design_v0.1.md) | 仓库结构、模块边界、核心接口、线程/事务骨架与测试框架 |

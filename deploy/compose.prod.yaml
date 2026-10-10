@@ -14,13 +14,41 @@ services:
       timeout: 3s
       retries: 20
 
+  files-init:
+    image: alpine:3.22
+    user: "0:0"
+    command: ["sh", "-c", "mkdir -p /data/skills /data/artifacts && chown -R 10001:10001 /data"]
+    volumes:
+      - mojie_files:/data
+    restart: "no"
+
+  skill-executor:
+    image: "${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-executor:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG}"
+    restart: always
+    environment:
+      MOJIE_EXECUTOR_BIND: 0.0.0.0
+      MOJIE_EXECUTOR_WORK_DIR: "${MOJIE_EXECUTOR_WORK_DIR:-/var/lib/mojie-executor}"
+      MOJIE_PYTHON_IMAGE: "${MOJIE_PYTHON_IMAGE:-python@sha256:a3ab0b966bc4e91546a033e22093cb840908979487a9fc0e6e38295747e49ac0}"
+      MOJIE_NODE_IMAGE: "${MOJIE_NODE_IMAGE:-node@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - "${MOJIE_EXECUTOR_WORK_DIR:-/var/lib/mojie-executor}:${MOJIE_EXECUTOR_WORK_DIR:-/var/lib/mojie-executor}"
+    networks: [execution]
+
   backend:
     image: "${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-backend:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG to a successful CI commit SHA in deploy/.env.prod}"
     restart: always
     depends_on:
       postgres:
         condition: service_healthy
+      files-init:
+        condition: service_completed_successfully
+    volumes:
+      - mojie_files:/data
+    networks: [default, execution]
     environment:
+      MOJIE_DATA_DIR: /data
+      MOJIE_SKILL_EXECUTOR_URL: http://skill-executor:8091
       MOJIE_DB_URL: jdbc:postgresql://postgres:5432/mojie
       MOJIE_DB_USER: mojie
       MOJIE_DB_PASSWORD: "${MOJIE_DB_PASSWORD:?Set MOJIE_DB_PASSWORD in deploy/.env.prod}"
@@ -41,7 +69,7 @@ services:
       start_period: 30s
 
   nginx:
-    image: "${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-web:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG to a successful CI commit SHA in deploy/.env.prod}"
+    image: "${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-web:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG}"
     restart: always
     depends_on:
       backend:
@@ -56,3 +84,8 @@ services:
 
 volumes:
   mojie_pgdata:
+  mojie_files:
+
+networks:
+  execution:
+    internal: true

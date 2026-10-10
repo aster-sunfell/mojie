@@ -121,7 +121,7 @@ public final class RunQueryService {
     return new RunData(
         row.get("id").toString(),
         row.get("projectId").toString(),
-        row.get("targetChapterId").toString(),
+        row.get("targetChapterId") == null ? null : row.get("targetChapterId").toString(),
         ((Number) row.get("baseVersion")).intValue(),
         (String) row.get("baseContent"),
         (String) row.get("instruction"),

@@ -3,6 +3,14 @@ package com.mojie.agent.repository;
 import java.util.*;
 
 public interface RunTraceRepository {
+  default void snapshot(
+      String run,
+      int call,
+      String request,
+      List<String> historyIds,
+      List<Long> inputs,
+      String phase) {}
+
   long countInputMessages(String runId, List<Long> sequences);
 
   Integer reserveModelCall(String runId, int max);

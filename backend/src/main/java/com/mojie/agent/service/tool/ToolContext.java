@@ -13,9 +13,27 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   private final String runId, projectId, targetChapterId, baseContent;
   private final long baseVersion;
   private final Map<String, Chapter> readChapters = new HashMap<>();
+  private final Map<String, SettingInput> readSettings = new HashMap<>();
+
+  public Map<String, SettingInput> readSettings() {
+    return readSettings;
+  }
+
+  public record SettingInput(String title, String content, String hash) {}
+
   private Map<String, Long> chapterView;
   private String chapterViewId;
   private Candidate candidate;
+  private String toolExecutionId;
+
+  public String toolExecutionId() {
+    return toolExecutionId;
+  }
+
+  public void toolExecutionId(String value) {
+    toolExecutionId = value;
+  }
+
   private boolean targetRead;
   private Instant deadline = Instant.MAX;
   private Clock clock = Clock.systemUTC();

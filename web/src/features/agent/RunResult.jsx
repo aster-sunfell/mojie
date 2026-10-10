@@ -11,7 +11,7 @@ export function RunResult({ task, review, onSource }) {
     {run.instruction && <section className="requestMessage">
       <h3>本次要求</h3><ScrollArea as="p" tabIndex={0} aria-label="本次要求">{run.instruction}</ScrollArea>
     </section>}
-    <p className="muted">基准版本 {run.baseVersion} · 模型 {run.modelCallCount ?? 0}/8 · 工具 {run.toolCallCount ?? 0}/12</p>
+    <p className="muted">{run.targetChapterId ? `基准版本 ${run.baseVersion} · ` : ''}模型 {run.modelCallCount ?? 0}/{run.budget?.maxModelCalls || 8} · 工具 {run.toolCallCount ?? 0}/{run.budget?.maxToolCalls || 12}</p>
     {active(run.status) && <p className="hint">{connection === 'reconnecting'
       ? '事件连接中断，正在重连并查询状态…'
       : task.cancelRequested ? '正在停止…' : '正在处理，页面关闭后任务继续运行。'}</p>}

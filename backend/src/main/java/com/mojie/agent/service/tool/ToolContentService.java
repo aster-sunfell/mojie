@@ -148,7 +148,7 @@ public final class ToolContentService implements ToolContentReader {
           chapter.id(),
           chapter.id().equals(target) ? base : seen == null ? chapter.version() : seen.version());
     }
-    if (!proposed.containsKey(target))
+    if (target != null && !proposed.containsKey(target))
       throw new IllegalStateException("Target chapter is unavailable");
     return read(
         () ->

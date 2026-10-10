@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api, readableError } from '../../shared/api/client.js'
+import { ConversationPanel } from '../conversation/ConversationPanel.jsx'
 import { AgentPanel } from '../agent/AgentPanel.jsx'
 import { AgentComposer } from '../agent/AgentComposer.jsx'
 import { useAgentTask } from '../agent/useAgentTask.js'
@@ -19,6 +20,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [draft, setDraft] = useState('')
   const [saveStatus, setSaveStatus] = useState('已保存')
   const [error, setError] = useState('')
+  const [assistantMode, setAssistantMode] = useState('legacy')
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
@@ -154,7 +156,10 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onLeave={leave} onAddChapter={addChapter}
     onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}
     onSettingsToggle={() => { setShowSettings(!showSettings); setShowChapters(false) }} />
-  const panel = <AgentPanel task={task} chapter={chapter} review={review} embedded={compact} />
+  const panel = <div className="assistantContainer">
+    <nav className="assistantTabs" aria-label="助手模式"><button className="secondary" aria-pressed={assistantMode === 'legacy'} onClick={() => setAssistantMode('legacy')}>章节任务</button><button className="secondary" aria-pressed={assistantMode === 'conversation'} onClick={() => setAssistantMode('conversation')}>连续对话</button></nav>
+    {assistantMode === 'conversation' ? <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty} projectBusy={runBusy} review={review} onSelectRun={task.selectRun} /> : <AgentPanel task={task} chapter={chapter} review={review} embedded={compact} />}
+  </div>
 
   return <div className="workspace">
     {!mobile && sidebar}
@@ -173,7 +178,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onHistoryChange={setShowHistory} onSave={save}
     review={review}
     onDraftChange={changeDraft} />
-      {chapter && chapter.id === selectedChapterId && !showSettings && (review.proposal && !showComposer
+      {assistantMode === 'legacy' && chapter && chapter.id === selectedChapterId && !showSettings && (review.proposal && !showComposer
         ? <div className="reviewFooter"><button className="secondary" onClick={() => setShowComposer(true)}>向助手提要求</button></div>
         : <>{review.proposal && <div className="reviewFooter"><button className="link" onClick={() => setShowComposer(false)}>收起输入框</button></div>}
           <AgentComposer chapter={chapter} task={task} dirty={dirty} onSave={save} saveStatus={saveStatus} /></>)}
