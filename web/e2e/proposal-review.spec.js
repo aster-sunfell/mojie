@@ -32,6 +32,7 @@ async function mockReview(page, { baseContent = base, currentContent = baseConte
         : applied ? 'PARTIALLY_APPLIED' : 'PENDING'
       return data(chapter)
     }
+    if (path === '/system/maintenance') return data({ active: false })
     if (path === '/system/capabilities') return data({ agentConfigured: true })
     if (path === '/agent/runs') return data({ items: [run], nextCursor: null })
     if (path === '/agent/runs/r') return data(run)

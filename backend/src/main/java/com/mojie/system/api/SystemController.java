@@ -11,10 +11,12 @@ import org.springframework.web.bind.annotation.*;
 public final class SystemController {
   private final HealthService health;
   private final CapabilityService capabilities;
+  private final MaintenanceService maintenance;
 
-  public SystemController(HealthService health, CapabilityService capabilities) {
+  public SystemController(HealthService health, CapabilityService capabilities, MaintenanceService maintenance) {
     this.health = health;
     this.capabilities = capabilities;
+    this.maintenance = maintenance;
   }
 
   @GetMapping("/health")
@@ -27,5 +29,11 @@ public final class SystemController {
   @GetMapping("/system/capabilities")
   public Map<String, Object> capabilities() {
     return Map.of("data", capabilities.capabilities());
+  }
+
+  @GetMapping("/system/maintenance")
+  public ResponseEntity<Map<String, Object>> maintenance() {
+    return ResponseEntity.ok().header("Cache-Control", "no-store")
+        .body(Map.of("data", maintenance.status()));
   }
 }

@@ -8,6 +8,7 @@ const projects = Array.from({ length: 25 }, (_, index) => ({
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/**', async route => {
     const url = new URL(route.request().url())
+    if (url.pathname === '/api/v1/system/maintenance') return route.fulfill({ json: { data: { active: false } } })
     if (url.pathname === '/api/v1/projects' && route.request().method() === 'GET') {
       const keyword = url.searchParams.get('keyword') || ''
       const items = projects.filter(project => project.title.includes(keyword))

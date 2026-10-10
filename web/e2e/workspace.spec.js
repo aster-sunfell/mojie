@@ -16,6 +16,7 @@ async function mockWorkspace(page, { history = true,
     const url = new URL(request.url())
     const path = url.pathname.replace('/api/v1', '')
     const data = value => route.fulfill({ json: { data: value } })
+    if (path === '/system/maintenance') return data({ active: false })
     if (path === '/projects/p') return data({ id: 'p', title: '林舟演示' })
     if (path === '/projects/p/chapters') return data({ items: chapters, nextCursor: null })
     if (path === '/system/capabilities') return data({ agentConfigured: true, maxInstructionCodePoints: 2000 })
