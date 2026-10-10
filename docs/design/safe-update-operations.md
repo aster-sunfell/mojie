@@ -1,6 +1,6 @@
 # 自动更新与回退操作说明
 
-**状态：已加入维护界面、后端拦截、独立入口、发布清单和本地部署程序；生产服务器尚未安装和联调。** 设计边界见 [安全更新与回退方案](safe-update-and-rollback.md)。本文件适用于 Linux、Docker Engine、Compose v2 和 systemd。
+**状态：2026-10-10 已完成生产接入，真实发布验签、完整更新和提交后恢复验证通过；自动更新定时器已启用。** 设计边界见 [安全更新与回退方案](safe-update-and-rollback.md)，实际结果见 [生产验收记录](../verification/safe-update-and-maintenance-2026-10-10.md#生产接入验收)。本文件适用于 Linux、Docker Engine、Compose v2 和 systemd。
 
 ## 用户在维护期间看到什么
 

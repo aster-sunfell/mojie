@@ -1,0 +1,38 @@
+{
+  "checks": [
+    "GitHub deployment-release attestation verified against repository, main workflow, source SHA and three image digests",
+    "initial health, V9, maintenance false, Caddy preserved",
+    "test chapter and READY Skill ZIP created",
+    "attested run 5 full production update committed",
+    "chapter content and both Skill ZIP files retained after update",
+    "committed recovery after container stop preserves new writes",
+    "only test-generated project/chapter and Skill removed from active resources",
+    "systemd updater poll with installed credential succeeded; update timer enabled and active",
+    "final app/executor healthy, only current writers running, loopback app ports, private config permissions, HTTPS auth preserved"
+  ],
+  "runId": 38043027477,
+  "runNumber": 5,
+  "commit": "36c20b223da85029171443fa812c9b5c78d28f82",
+  "currentProject": "mojie-r38043027477-1-0c9b4aa7",
+  "testResourcesCleaned": true,
+  "status": "PASS",
+  "verifiedAt": "2026-10-10T10:46:53.989906+00:00",
+  "phase": "COMMITTED",
+  "schemaVersion": 9,
+  "services": {
+    "postgres": "healthy",
+    "backend": "healthy",
+    "skill-executor": "healthy",
+    "nginx": "healthy"
+  },
+  "https": {
+    "tlsVerified": true,
+    "status": 401,
+    "accessControlPreserved": true
+  },
+  "timerActive": true,
+  "recoveryEnabled": true,
+  "maintenance": false,
+  "memAvailableMiB": 814,
+  "dockerDiskAvailableGiB": 29.85
+}

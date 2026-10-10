@@ -1,6 +1,6 @@
 # 安全自动更新、迁移与失败回退方案
 
-**状态：设计基线，首版代码已加入；生产服务器尚未安装或联调。** 本文基于 2026-10-10 的仓库实现，说明自动更新与失败回退的保证边界。维护模式、发布清单、独立入口与部署状态机的安装步骤见 [操作说明](safe-update-operations.md)，本地验证范围见 [实施验证记录](../verification/safe-update-and-maintenance-2026-10-10.md)。尚未接入自动更新的服务器仍按 [环境与部署方案](development-deployment-environment.md) 手动更新。
+**状态：首版已完成本地故障演练及生产接入；真实发布更新、验签和提交后恢复通过，定时器已启用。** 本文基于 2026-10-10 的仓库实现，说明自动更新与失败回退的保证边界。维护模式、发布清单、独立入口与部署状态机的安装步骤见 [操作说明](safe-update-operations.md)，实际验证范围见 [实施验证记录](../verification/safe-update-and-maintenance-2026-10-10.md)。尚未接入自动更新的服务器仍按 [环境与部署方案](development-deployment-environment.md) 手动更新。
 
 ## 目标与保证边界
 
