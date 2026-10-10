@@ -59,6 +59,9 @@ jobs:
           MOJIE_TEST_EXECUTOR_URL: http://127.0.0.1:8091
         run: mvn -B -ntp verify
 
+      - name: Deployment failure and recovery tests
+        run: python3 -m unittest discover -s scripts -p 'test_mojie_deploy.py' -v
+
   web-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -134,9 +137,56 @@ jobs:
             echo
             echo "Digest: \`$IMAGE_DIGEST\`"
             echo
-            echo "Deploy after both image builds succeed:"
+            echo "Deploy after all three image builds succeed:"
             echo '```dotenv'
             echo "MOJIE_IMAGE_PREFIX=$IMAGE_PREFIX"
             echo "MOJIE_IMAGE_TAG=$IMAGE_TAG"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Save immutable image reference
+        env:
+          IMAGE_PREFIX: ${{ steps.image.outputs.prefix }}
+          IMAGE_NAME: ${{ matrix.name }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          mkdir -p release-parts
+          python3 - <<'PY'
+          import json, os, pathlib
+          name = os.environ['IMAGE_NAME']
+          pathlib.Path(f'release-parts/{name}.json').write_text(json.dumps({name: os.environ['IMAGE_PREFIX'] + '-' + name + '@' + os.environ['IMAGE_DIGEST']}))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.name }}
+          path: release-parts/*.json
+          retention-days: 7
+          overwrite: true
+
+  release:
+    needs: [build]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          path: release-parts
+          merge-multiple: true
+      - name: Assemble complete deployment release
+        run: python3 scripts/create-deployment-release.py --parts release-parts --output release.json
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: release.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployment-release
+          path: release.json
+          retention-days: 90
+          overwrite: true
