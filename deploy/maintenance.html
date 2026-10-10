@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>墨界正在维护</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f5f4ef;color:#21302c;font-family:system-ui,sans-serif}
+    main{min-height:100dvh;display:grid;place-items:center;padding:24px}.card{width:min(100%,480px);text-align:center}
+    .mark{display:grid;place-items:center;margin:0 auto 28px;width:72px;height:72px;border:1px solid #245b502e;border-radius:22px;background:white;color:#245b50;font:32px serif;box-shadow:0 8px 25px #2443350b}
+    .brand{color:#687c72;font-size:13px;letter-spacing:2px}h1{margin:16px 0;font:600 30px serif}p{color:#617268;line-height:1.9;font-size:15px}
+    .status{margin:28px 0 18px;font-size:13px;color:#687c72}.status::before{content:'●';color:#245b50;margin-right:8px}
+    button{padding:10px 20px;border:1px solid #245b50;border-radius:8px;background:#245b50;color:white;cursor:pointer;font:inherit}
+    button:focus-visible{outline:3px solid #93b6a6;outline-offset:4px}
+  </style>
+</head>
+<body>
+  <main><section class="card" aria-labelledby="title">
+    <div class="mark" aria-hidden="true">墨</div><span class="brand">墨界 · 写作工作台</span>
+    <h1 id="title">墨界正在维护</h1>
+    <p>正在更新服务，操作已暂时停用。<br>恢复后会自动返回工作台。</p>
+    <div class="status" id="status" role="status">每 5 秒自动检查</div>
+    <button id="check" type="button">检查恢复状态</button>
+    <noscript><p>恢复后请刷新页面返回工作台。</p></noscript>
+  </section></main>
+  <script>
+    let checking = false;
+    async function check() {
+      if (checking) return;
+      checking = true;
+      try {
+        const response = await fetch('/api/v1/system/maintenance', {cache:'no-store', signal:AbortSignal.timeout(8000)});
+        const value = await response.json();
+        if (response.ok && value.data?.active === false) location.reload();
+        else document.getElementById('status').textContent = '服务仍在维护，每 5 秒自动检查';
+      } catch { document.getElementById('status').textContent = '正在等待服务恢复，每 5 秒自动检查'; }
+      finally { checking = false; }
+    }
+    document.getElementById('check').addEventListener('click', check);
+    setInterval(check, 5000);
+  </script>
+</body>
+</html>

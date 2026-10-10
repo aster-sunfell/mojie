@@ -1,0 +1,11 @@
+[Unit]
+Description=Check and deploy an attested Mojie release
+Requires=mojie-recover.service
+After=mojie-recover.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/mojie/github.env
+ExecStart=/usr/bin/python3 /opt/mojie/scripts/mojie_deploy.py --config /etc/mojie/deploy.json poll
+TimeoutStartSec=60min
+UMask=0077

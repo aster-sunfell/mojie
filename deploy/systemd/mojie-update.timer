@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodically check for a Mojie release
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+Unit=mojie-update.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+{
+  "repository": "aster-sunfell/mojie",
+  "root": "/var/lib/mojie-deploy",
+  "composeFile": "/opt/mojie/deploy/compose.prod.yaml",
+  "envFile": "/etc/mojie/production.env",
+  "applicationPorts": [18088, 18089],
+  "gatewayPort": 8088,
+  "gatewayContainer": "mojie-gateway",
+  "drainTimeoutSeconds": 360,
+  "minFreeBytes": 1073741824
+}

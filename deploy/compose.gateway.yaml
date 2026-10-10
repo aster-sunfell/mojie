@@ -1,0 +1,15 @@
+# Linux host networking keeps both application slots bound to loopback.
+services:
+  gateway:
+    image: nginx:1.28-alpine
+    container_name: mojie-gateway
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      MOJIE_GATEWAY_BIND: "${MOJIE_GATEWAY_BIND:-127.0.0.1}"
+      MOJIE_GATEWAY_PORT: "${MOJIE_GATEWAY_PORT:-8088}"
+      NGINX_ENVSUBST_FILTER: "MOJIE_GATEWAY_BIND|MOJIE_GATEWAY_PORT"
+    volumes:
+      - "${MOJIE_CONTROL_DIR:?Set an absolute MOJIE_CONTROL_DIR}:/control:ro,z"
+      - ./gateway:/etc/nginx/templates:ro,z
+      - ./maintenance.html:/usr/share/nginx/html/maintenance.html:ro,z
