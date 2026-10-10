@@ -14,7 +14,7 @@
 ## 当前实现与调整范围
 
 - [本地 Compose](../../deploy/compose.yaml) 定义按需启动的 PostgreSQL 和 Nginx；PostgreSQL 端口绑定 `127.0.0.1:5432`。
-- [后端配置](../../backend/src/main/resources/application.properties) 默认连接 `localhost:5432`，监听 `127.0.0.1:8080`；生产 Compose 为容器覆盖这两个地址。
+- [后端配置](../../backend/src/main/resources/application.yaml) 默认连接 `localhost:5432`，监听 `127.0.0.1:8080`；生产 Compose 为容器覆盖这两个地址。
 - [Vite 配置](../../web/vite.config.js) 将 `/api` 代理到本机 8080；[前端 API](../../web/src/shared/api/client.js) 使用相对路径，适合让本地与远程浏览器统一从 Nginx 入口访问。
 - [Nginx 本地配置](../../deploy/nginx.conf) 代理本机 Vite 和 Java；[生产配置](../../deploy/nginx.prod.conf) 提供静态页面并代理容器后端。
 - [生产 Compose](../../deploy/compose.prod.yaml) 定义 PostgreSQL、后端和 Nginx 三个持续运行的服务，前后端只声明 `image`，不包含 `build`。
@@ -51,7 +51,11 @@
 
 远程 PostgreSQL 不发布主机端口，后端也只在 Compose 网络内供 Nginx 访问；默认只有 Nginx 绑定服务器的 `127.0.0.1:8088`。要从其他机器访问，应在其前面配置受保护的 HTTPS 入口；需要调整绑定地址与端口时，可在 `deploy/.env.prod` 中设置可选的 `MOJIE_HTTP_BIND` 和 `MOJIE_HTTP_PORT`，生产 Compose 未设置时使用默认值。Nginx 代理保留原始 `/api` 路径，并为 SSE 关闭缓冲、设置较长的读取超时。
 
-生产环境必须在 `deploy/.env.prod` 中显式提供数据库密码，以及稳定且私密的 `MOJIE_CURSOR_KEY`；启用模型任务时再提供 `MOJIE_MODEL_API_KEY`。还需设置 `MOJIE_IMAGE_TAG` 为 Actions 全部成功的完整提交 SHA；`MOJIE_IMAGE_PREFIX` 默认为 `ghcr.io/aster-sunfell/mojie`，迁移仓库时同步修改。前后端必须使用同一标签。可从 [共用示例](../../deploy/.env.example) 复制，取消注释并填入真实值后保留在服务器，不提交到 Git。CI 无需生产密钥，前后端构建产物不得包含模型密钥。`MOJIE_OWNER_ID`、`MOJIE_MODEL_ID` 等按部署需要配置。更改已有 PostgreSQL 数据卷对应的 `POSTGRES_PASSWORD` 环境变量不会自动修改数据库中已有用户的密码，轮换密码需要单独操作。
+生产环境必须在 `deploy/.env.prod` 中显式提供数据库密码，以及稳定且私密的 `MOJIE_CURSOR_KEY`；启用模型任务时再提供 `MOJIE_MODEL_API_KEY`。还需设置 `MOJIE_IMAGE_TAG` 为 Actions 全部成功的完整提交 SHA；`MOJIE_IMAGE_PREFIX` 默认为 `ghcr.io/aster-sunfell/mojie`，迁移仓库时同步修改。前后端必须使用同一标签。可从 [共用示例](../../deploy/.env.example) 复制，取消注释并填入真实值后保留在服务器，不提交到 Git。CI 无需生产密钥，前后端构建产物不得包含模型密钥。`MOJIE_MODEL_ID` 等按部署需要配置。更改已有 PostgreSQL 数据卷对应的 `POSTGRES_PASSWORD` 环境变量不会自动修改数据库中已有用户的密码，轮换密码需要单独操作。
+
+模型配置通过 `application.yaml` 绑定。上下文窗口优先读取供应商元数据，缺少该字段时查询 models.dev 中与供应商和完整模型 ID 对应的条目；结果存入 PostgreSQL 缓存，默认每 24 小时刷新，获取失败时可继续使用 7 天内的缓存。无可用元数据时仍提供内容编辑和健康检查，暂停受理新的模型任务。自定义服务可选用 `MOJIE_MODEL_CONTEXT_TOKENS` 覆盖窗口，目录请求不携带模型密钥。
+
+V6 数据库迁移移除作者身份，保留历史内容并改为实例范围的任务幂等约束；历史请求键冲突时迁移回滚。升级时先停止旧后端，再启动新版本执行迁移。V7 新增模型元数据缓存。
 
 生产配置在 PostgreSQL 健康后启动后端，后端健康后再开放 Nginx。后端启动时由 `StartupLifecycle.start()` 执行 Flyway 迁移和旧进程任务清理。[健康接口](../../backend/src/main/java/com/mojie/system/api/SystemController.java) 在调度器为 `DEGRADED` 时仍返回 HTTP 200，因此容器健康检查解析响应体，只接受 `UP`。Compose 的 `depends_on` 处理初次启动顺序，不能代替运行期健康监控；`restart: always` 只会重启已退出的容器。
 

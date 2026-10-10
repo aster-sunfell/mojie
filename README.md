@@ -14,7 +14,7 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 docker compose -f deploy/compose.yaml -p deploy up -d postgres nginx
 ```
 
-新检出的仓库先将 `deploy/.env.example` 复制为 `deploy/.env`，填写 `MOJIE_MODEL_API_KEY` 即可启用示例模型；通过 `MOJIE_MODEL_API_PATH` 在 `/v1/messages` 与 `/v1/chat/completions` 间切换。若换成其他模型，按该模型文档设置 `MOJIE_MODEL_CONTEXT_TOKENS`。后端终端运行以下脚本。它会构建 JAR，并从 `deploy/.env` 导出配置后启动 Java：
+新检出的仓库先将 `deploy/.env.example` 复制为 `deploy/.env`，填写 `MOJIE_MODEL_API_KEY` 即可启用示例模型；通过 `MOJIE_MODEL_API_PATH` 在 `/v1/messages` 与 `/v1/chat/completions` 间切换。模型上下文窗口默认联网获取并缓存；自定义服务无法提供元数据时，可设置 `MOJIE_MODEL_CONTEXT_TOKENS` 覆盖。后端终端运行以下脚本。它会构建 JAR，并从 `deploy/.env` 导出配置后启动 Java：
 
 ```bash
 sh scripts/start-local-backend.sh

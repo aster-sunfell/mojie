@@ -46,7 +46,7 @@ mojie/
 │   └── src/
 │       ├── main/java/com/mojie/...        # 见第 3 节
 │       ├── main/resources/
-│       │   ├── application.properties
+│       │   ├── application.yaml
 │       │   ├── db/migration/V*.sql        # Flyway
 │       │   └── prompts/system-v1.md       # 系统提示词（进版本库，按哈希快照）
 │       └── test/
@@ -297,6 +297,8 @@ PRD 第 8 节的 10 个逻辑实体落为 13 张表，拆表不删除任何约�
 | | `tb_agent_step` | `tool_execution_id PK`、`UNIQUE(model_call_id, tool_call_id)`、`args jsonb`、`result jsonb`、`summary`、`status`（含 ABORTED） |
 | V4__proposal_event | `tb_edit_proposal` | `UNIQUE(run_id)`、`base_version`、`base_content`、`proposed_content`、`reason`、`status`、`applied_version` |
 | | `tb_agent_event` | `PK(run_id, seq)`、`type`、`payload jsonb`、`occurred_at` |
+
+后续迁移 V6 将当前单作者实例的 `owner_id` 字段移除，任务幂等约束变更为 `UNIQUE(client_request_id)`；上述 V1–V4 定义作为历史迁移保留。V7 新增 `tb_model_metadata_cache`，按供应商、服务地址和模型 ID 存储联网获取的窗口、来源与时间。
 
 每次保存正文都会写入 `tb_chapter_revision`，包括当前版本。因此检索和历史查看只需读取 `tb_chapter_revision`，不必区分“最新正文”和“历史正文”两条路径（ADR-005）。
 

@@ -15,7 +15,7 @@ paths:
   /system/capabilities:
     get:
       operationId: capabilities
-      description: Includes agentConfigured and the server's selected modelId, allowing clients to verify the expected model before submitting a run.
+      description: Includes agentConfigured, modelMetadataAvailable and the server's selected modelId. Missing metadata temporarily blocks new task admission while content editing remains available.
       responses:
         '200': { $ref: '#/components/responses/Data' }
   /projects:
@@ -170,6 +170,7 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
     post:
       operationId: submitRun
+      description: Uses an instance-wide clientRequestId. New submissions return MODEL_METADATA_UNAVAILABLE (503) while model context metadata is unavailable; existing idempotent receipts remain readable.
       requestBody:
         required: true
         content:
@@ -216,7 +217,7 @@ paths:
       - { $ref: '#/components/parameters/Id' }
     get:
       operationId: getDevelopmentTrace
-      description: Available only when MOJIE_DEV_TRACE=true. Includes the run's persisted modelId and an allowlisted modelConfig (apiPath, maxOutputTokens, contextWindowTokens); no API key or opaque reasoning content.
+      description: Available only when MOJIE_DEV_TRACE=true. Includes the run's persisted modelId and an allowlisted modelConfig (apiPath, maxOutputTokens, contextWindowTokens, contextWindowSource, contextWindowFetchedAt); no API key or opaque reasoning content.
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }
