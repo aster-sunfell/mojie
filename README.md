@@ -43,9 +43,9 @@ MOJIE_TEST_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/mojie_browser_e2e \
 
 ## 远程部署
 
-采用 GitHub Actions 构建镜像 → GHCR 发布 → 服务器拉取运行。推送 `main` 后，[镜像工作流](.github/workflows/images.yml) 执行后端单元 / PostgreSQL 集成 / 本地模拟模型测试、前端测试与静态构建，通过后发布 `ghcr.io/aster-sunfell/mojie-backend:<完整提交SHA>` 和 `ghcr.io/aster-sunfell/mojie-web:<完整提交SHA>`。PR 只测试，不发布镜像；手动运行工作流时也只发布 `main`。当前镜像平台是 `linux/amd64`。
+采用 GitHub Actions 构建镜像 → GHCR 发布 → 服务器拉取运行。推送 `main` 后，[镜像工作流](.github/workflows/images.yml) 执行后端单元 / PostgreSQL 集成 / 本地模拟模型测试、部署故障测试、前端测试与静态构建，通过后发布 backend、executor、web 三个镜像。全部构建成功后生成包含三个 digest 的 `deployment-release`，并用 GitHub artifact attestation 证明来源。PR 只测试，不发布镜像；手动运行工作流时也只发布 `main`。当前镜像平台是 `linux/amd64`。
 
-远程主机只需 Docker 和 Compose，无需安装 Maven、Java 或 Node，也不在服务器构建镜像。首次部署选择 Actions 全部成功的提交，服务器检出同一提交后，复制 `deploy/.env.example` 为 `deploy/.env.prod`，填写数据库密码、稳定的 `MOJIE_CURSOR_KEY` 和 `MOJIE_IMAGE_TAG`（该提交的完整 SHA），按需填写 `MOJIE_MODEL_API_KEY`。GHCR 包默认可能为私有；私有包先执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有 `read:packages` 权限的 PAT。公开包无需登录。从仓库根目录启动：
+首次手动部署需要 Docker 和 Compose，无需在服务器安装 Maven、Java、Node 或构建镜像。接入自动更新还需要 Python 3、GitHub CLI 和 systemd。首次部署选择 Actions 全部成功的提交，服务器检出同一提交后，复制 `deploy/.env.example` 为 `deploy/.env.prod`，填写数据库密码、稳定的 `MOJIE_CURSOR_KEY` 和 `MOJIE_IMAGE_TAG`（该提交的完整 SHA），按需填写 `MOJIE_MODEL_API_KEY`。GHCR 包默认可能为私有；私有包先执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有 `read:packages` 权限的 PAT。公开包无需登录。从仓库根目录启动：
 
 ```bash
 cp deploy/.env.example deploy/.env.prod
@@ -54,7 +54,7 @@ docker compose --env-file deploy/.env.prod -f deploy/compose.prod.yaml -p mojie-
 docker compose --env-file deploy/.env.prod -f deploy/compose.prod.yaml -p mojie-prod up -d --no-build --wait --wait-timeout 180
 ```
 
-CI 使用仓库自带的 `GITHUB_TOKEN` 发布镜像，不需要配置服务器 SSH 或生产模型密钥。推送不会自动更新服务器；后续选择新的成功提交，更新服务器配置文件和 `MOJIE_IMAGE_TAG` 后再次执行上述两条 Compose 命令。生产配置让 PostgreSQL、Java 后端和 Nginx 持续运行，并默认只把 Nginx 发布到服务器的 `127.0.0.1:8088`。公开访问前须配置受保护的 HTTPS 入口；当前 API 没有完整鉴权。首次部署、更新、回退及数据库备份约束见 [环境与部署方案](docs/design/development-deployment-environment.md)。
+CI 使用仓库自带的 `GITHUB_TOKEN` 发布镜像，不需要配置服务器 SSH 或生产模型密钥。按 [自动更新操作说明](docs/design/safe-update-operations.md) 完成服务器的一次性接入后，定时器会验签并拉取成功发布，在维护期间用独立数据库和文件卷迁移，失败则恢复旧环境。维护页面阻止操作并保留已打开页面的草稿；开放新版本写入后，恢复会保留新数据。未安装定时器的服务器仍需手动更新。生产入口默认只监听回环地址；公开访问前须配置受保护的 HTTPS 入口，当前 API 没有完整鉴权。保证边界见 [更新与回退方案](docs/design/safe-update-and-rollback.md)，实际验证范围见 [验证记录](docs/verification/safe-update-and-maintenance-2026-10-10.md)。
 
 实际进程重启回归可运行 `node scripts/check-active-run-restart.mjs`：先构建 Java 可执行 JAR，并将 `MOJIE_TEST_JDBC_URL` 指向专用可丢弃的 PostgreSQL 数据库；使用 Java 21。脚本会启动和强制中断它自己的 Java 进程，验证活动任务标为 `SERVICE_RESTARTED`，并核对已成功任务、建议及 SSE 事件；不会调用真实模型。
 
@@ -74,6 +74,8 @@ HTTP 取消回归可运行 `node scripts/check-http-cancel.mjs`：同样先构�
 | [工程框架设计 v0.1](docs/design/Framework_Design_v0.1.md) | 仓库结构、模块边界、核心接口、线程/事务骨架与测试框架 |
 | [后端三层架构与重构方案 v0.1](docs/design/Backend_Three_Layer_Refactoring_v0.1.md) | 已实施的三层职责、包结构、事务约束与验收标准 |
 | [环境与部署方案](docs/design/development-deployment-environment.md) | 本地容器按需启动、远程持续运行与代码更新步骤 |
+| [安全自动更新与失败回退方案](docs/design/safe-update-and-rollback.md) | 自动拉取发布版本、隔离迁移、数据保护与失败回退的保证边界 |
+| [自动更新与回退操作说明](docs/design/safe-update-operations.md) | 维护界面、服务器首次接入、定时更新与故障恢复 |
 | [项目亮点与简历素材 v0.1](docs/resume/Project_Highlights_v0.1.md) | 设计亮点、面试素材与实现前置条件 |
 
 历史文档：[PRD v0.1](docs/prd/MVP_PRD_v0.1.md)、[PRD v0.2](docs/prd/MVP_PRD_v0.2.md)。它们保留用于追溯，不与 v0.3 并行作为开发依据。

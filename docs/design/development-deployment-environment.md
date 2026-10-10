@@ -2,6 +2,8 @@
 
 **状态：远程部署改为 CI 构建并发布 GHCR 镜像，服务器只拉取运行。** 本文说明当前的本地与远程配置及操作方式。快速启动方式见 [项目 README](../../README.md)。历史本地容器验证记录保留在下文，不能代替新 CI 链路与实际服务器验证。
 
+自动更新、隔离迁移与失败回退的设计见 [安全自动更新与失败回退方案](safe-update-and-rollback.md)，首版代码的安装与维护界面说明见 [操作说明](safe-update-operations.md)。生产服务器尚未接入或验证，未安装更新服务时仍按本文的手动流程操作。
+
 ## 目标与生命周期
 
 | 场景 | PostgreSQL | Nginx | Java 后端 | 前端构建 / 开发 | 生命周期 |
@@ -81,18 +83,21 @@ sh scripts/start-local-backend.sh
 
 [工作流](../../.github/workflows/images.yml) 在 `main` 的 push、面向 `main` 的 PR 和手动触发时运行。后端测试 job 启动独立 PostgreSQL 18，执行 `mvn verify`，覆盖单元测试、数据库集成和本地模拟模型 HTTP 测试；不会调用真实模型。前端 job 执行 `npm ci`、`npm test` 和 `npm run build`。浏览器端到端测试仍按 README 单独运行，不包含在本工作流中。
 
-两个测试 job 全部通过后，只对 `main` 发布镜像。构建 job 使用现有 Dockerfile 并行发布 `backend` 和 `web`，平台为 `linux/amd64`，使用 GitHub Actions 缓存。ARM 服务器需先调整构建平台。CI 仅使用自带的 `GITHUB_TOKEN`，测试 job 只有 `contents: read`，发布 job 增加 `packages: write`，无需额外 PAT 或服务器 SSH 密钥。
+两个测试 job 全部通过后，只对 `main` 发布镜像。构建 job 使用现有 Dockerfile 并行发布 `backend`、`executor` 和 `web`，平台为 `linux/amd64`，使用 GitHub Actions 缓存。ARM 服务器需先调整构建平台。CI 使用自带的 `GITHUB_TOKEN`；镜像发布增加 `packages: write`，清单证明 job 使用 `id-token: write` 和 `attestations: write`，无需服务器 SSH 密钥。
 
 | 镜像 | 内容 |
 | --- | --- |
 | `ghcr.io/aster-sunfell/mojie-backend:<完整提交SHA>` | Java 21 JRE 与可执行 JAR |
+| `ghcr.io/aster-sunfell/mojie-executor:<完整提交SHA>` | 可信 Skill 执行协调器 |
 | `ghcr.io/aster-sunfell/mojie-web:<完整提交SHA>` | Nginx、静态页面与 API / SSE 代理配置 |
 
-每个发布 job 的 Summary 显示镜像地址、digest 和可复制的镜像环境变量。必须等待整个工作流成功，确认两镜像都发布完成；部分成功或被取消的工作流不能作为发布依据。不使用 `latest`，新推送不会改变旧版本标签。手动重跑同一提交可能重新构建该标签，审计时结合 Summary 的 digest 确认实际镜像。
+每个发布 job 的 Summary 显示镜像地址、digest 和可复制的镜像环境变量。必须等待整个工作流成功，确认三个镜像及统一发布清单都完成；部分成功或被取消的工作流不能作为发布依据。自动部署使用已证明来源的 digest；手动重跑同一提交可能重新构建 SHA 标签，审计时结合 digest 确认实际镜像。
 
 GHCR 新包默认可能为私有，即使源码仓库公开也不代表包公开。私有包拉取前在服务器执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有包读取权限和 `read:packages` scope 的 PAT（classic），不使用 GitHub 登录密码。公开包无需登录；是否公开由用户在包设置中选择。构建推送遇到包权限错误时，检查 Actions 是否允许运行、发布 job 的 `packages: write` 权限，以及已有包是否向本仓库授予 Actions 写权限。
 
 ## 服务器首次部署与更新
+
+本节适用于首次部署或尚未接入自动更新的环境。登记到部署程序后，更新与恢复使用 [自动更新操作说明](safe-update-operations.md) 中的指令，避免手动 Compose 操作与管理中的独立环境冲突。
 
 `git push origin main` 自动测试并发布镜像，不会自动登录或更新服务器。首次部署先等待 [Actions](https://github.com/aster-sunfell/mojie/actions/workflows/images.yml) 全部成功，然后在服务器克隆仓库：
 
@@ -136,7 +141,7 @@ curl --fail http://127.0.0.1:8088/api/v1/health
 
 回退应用时选择此前成功的完整 SHA，检出对应部署文件，将 `MOJIE_IMAGE_TAG` 改回该 SHA，再执行同样的 pull / up / 检查命令。应用回退不回滚数据库迁移；先确认旧版本与当前数据库兼容，不兼容时按备份恢复方案处理。正常发布不要删除旧版本 GHCR 镜像，以便回退。
 
-当前只有自动构建发布镜像，服务器更新保持手动。后续如需自动部署，可再添加受控部署任务，仍需保留数据库备份、健康检查和单实例发布约束。`restart: always` 只负责容器退出或宿主机重启后的恢复，不会自动获取新镜像。
+首版已提供签名发布清单、服务器主动轮询、维护模式及隔离迁移失败回退；服务器需按 [操作说明](safe-update-operations.md) 一次性安装后才会自动更新。未接入时仍按本节手动部署。管理中的应用服务使用 `restart: "no"` 并由恢复服务启动当前环境；手动 Compose 中的 `restart: always` 只负责重启，不会自动获取新镜像。
 
 ## CI 配置本地验证（2026-10-01）
 

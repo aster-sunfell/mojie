@@ -1,0 +1,14 @@
+{
+  "root": "/tmp/mojie-rollback-check-mrxqdx23",
+  "scope": "Disposable Docker environments; local fixture images, no GitHub attestation verification",
+  "checks": [
+    "Independent gateway serves maintenance while API is blocked",
+    "Actual failing V10 migration rolls back to untouched V9 environment and chapter content",
+    "Post-switch failure restores the old upstream and data",
+    "Successful V10 commit preserves chapter data and restored Skill package",
+    "Committed recovery retains new writes and restarts the current environment"
+  ],
+  "migrationFailure": "Expected fixture migration failure",
+  "switchFailure": "Injected failure after a real gateway switch",
+  "status": "PASS"
+}

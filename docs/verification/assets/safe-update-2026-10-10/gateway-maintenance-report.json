@@ -1,0 +1,12 @@
+[
+  {
+    "path": "/",
+    "status": 503,
+    "retryAfter": "5"
+  },
+  {
+    "path": "/api/v1/projects",
+    "status": 503,
+    "retryAfter": "5"
+  }
+]
