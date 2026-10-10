@@ -50,8 +50,11 @@
     {
       "label": "启动后端",
       "type": "shell",
-      "command": "sh",
-      "args": ["scripts/start-local-backend.sh"],
+      "command": "bash",
+      "args": [
+        "-c",
+        "source \"$HOME/.sdkman/bin/sdkman-init.sh\" && sdk env && exec sh scripts/start-local-backend.sh"
+      ],
       "options": { "cwd": "${workspaceFolder}" },
       "isBackground": true,
       "problemMatcher": {
