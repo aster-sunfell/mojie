@@ -6,26 +6,18 @@ public final class RunAdmission {
   private RunAdmission() {}
 
   public record Request(
-      String ownerId,
       String projectId,
       String targetChapterId,
       Long expectedVersion,
       String instruction,
       String clientRequestId) {
     public Request(
-        String ownerId,
         String projectId,
         String targetChapterId,
         long expectedVersion,
         String instruction,
         String clientRequestId) {
-      this(
-          ownerId,
-          projectId,
-          targetChapterId,
-          Long.valueOf(expectedVersion),
-          instruction,
-          clientRequestId);
+      this(projectId, targetChapterId, Long.valueOf(expectedVersion), instruction, clientRequestId);
     }
   }
 

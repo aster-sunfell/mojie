@@ -1,6 +1,5 @@
 package com.mojie.content.api;
 
-import com.mojie.common.web.ActorProvider;
 import com.mojie.content.service.*;
 import com.mojie.proposal.model.ProposalReview.*;
 import com.mojie.proposal.service.ChapterSaveCoordinator;
@@ -12,13 +11,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1")
 public final class ChapterController {
   private final ChapterService chapters;
-  private final ActorProvider actor;
+
   private final ChapterSaveCoordinator saves;
 
-  public ChapterController(
-      ChapterService chapters, ActorProvider actor, ChapterSaveCoordinator saves) {
+  public ChapterController(ChapterService chapters, ChapterSaveCoordinator saves) {
     this.chapters = chapters;
-    this.actor = actor;
     this.saves = saves;
   }
 
@@ -51,24 +48,23 @@ public final class ChapterController {
       @PathVariable String id,
       @RequestParam(required = false) String cursor,
       @RequestParam(required = false) Integer limit) {
-    return data(chapters.chapterPage(actor.ownerId(), id, cursor, limit));
+    return data(chapters.chapterPage(id, cursor, limit));
   }
 
   @PostMapping("/projects/{id}/chapters")
   public ResponseEntity<Map<String, Object>> createChapter(
       @PathVariable String id, @RequestBody Title body) {
-    return ResponseEntity.status(201)
-        .body(data(chapters.createChapter(actor.ownerId(), id, body.title())));
+    return ResponseEntity.status(201).body(data(chapters.createChapter(id, body.title())));
   }
 
   @GetMapping("/chapters/{id}")
   public Map<String, Object> chapter(@PathVariable String id) {
-    return data(chapters.chapter(actor.ownerId(), id));
+    return data(chapters.chapter(id));
   }
 
   @PatchMapping("/chapters/{id}")
   public Map<String, Object> renameChapter(@PathVariable String id, @RequestBody Title body) {
-    return data(chapters.renameChapter(actor.ownerId(), id, body.title()));
+    return data(chapters.renameChapter(id, body.title()));
   }
 
   @PutMapping("/chapters/{id}/content")
@@ -77,7 +73,6 @@ public final class ChapterController {
       throw new IllegalArgumentException("expectedVersion is required");
     return data(
         saves.saveChapter(
-            actor.ownerId(),
             id,
             body.content(),
             body.expectedVersion(),
@@ -90,7 +85,7 @@ public final class ChapterController {
 
   @DeleteMapping("/chapters/{id}")
   public ResponseEntity<Void> deleteChapter(@PathVariable String id) {
-    chapters.deleteChapter(actor.ownerId(), id);
+    chapters.deleteChapter(id);
     return ResponseEntity.noContent().build();
   }
 
@@ -99,11 +94,11 @@ public final class ChapterController {
       @PathVariable String id,
       @RequestParam(required = false) String cursor,
       @RequestParam(required = false) Integer limit) {
-    return data(chapters.revisionPage(actor.ownerId(), id, cursor, limit));
+    return data(chapters.revisionPage(id, cursor, limit));
   }
 
   @GetMapping("/chapters/{id}/revisions/{version}")
   public Map<String, Object> revision(@PathVariable String id, @PathVariable int version) {
-    return data(chapters.revision(actor.ownerId(), id, version));
+    return data(chapters.revision(id, version));
   }
 }

@@ -24,22 +24,21 @@ public final class ChapterSaveCoordinator {
     this.transactions = transactions;
   }
 
-  public Map<String, Object> saveChapter(
-      String owner, String id, String content, int expectedVersion) {
-    return saveChapter(owner, id, content, expectedVersion, null);
+  public Map<String, Object> saveChapter(String id, String content, int expectedVersion) {
+    return saveChapter(id, content, expectedVersion, null);
   }
 
   public Map<String, Object> saveChapter(
-      String owner, String id, String content, int expectedVersion, List<Review> decisions) {
+      String id, String content, int expectedVersion, List<Review> decisions) {
     String chapterId = uuid(id), body = text(content, "content", 0, 6000);
     if (expectedVersion < 1) throw error("VALIDATION_ERROR", "Invalid expectedVersion");
     return transactions.required(
         () -> {
-          String projectId = chapters.projectForChapter(owner, chapterId);
-          access.lock(owner, projectId, false);
+          String projectId = chapters.projectForChapter(chapterId);
+          access.lock(projectId, false);
           // Every writer locks project -> proposals in stable ID order -> chapter.
-          var locked = reviews.lockReviews(owner, chapterId, decisions);
-          Map<String, Object> old = chapters.lock(owner, chapterId);
+          var locked = reviews.lockReviews(chapterId, decisions);
+          Map<String, Object> old = chapters.lock(chapterId);
           if (((Number) old.get("version")).intValue() != expectedVersion)
             throw error("VERSION_CONFLICT", "Chapter version changed");
           boolean changed = !body.equals(old.get("content"));
@@ -60,7 +59,7 @@ public final class ChapterSaveCoordinator {
                 proposalId);
           }
           reviews.link(chapterId, version, saved);
-          return chapters.chapter(owner, chapterId);
+          return chapters.chapter(chapterId);
         });
   }
 }

@@ -15,12 +15,10 @@ public final class JdbcRunRepository implements RunRepository {
   }
 
   @Override
-  public Existing findExisting(String owner, String key) {
+  public Existing findExisting(String key) {
     Map<String, Object> r =
         db.first(
-            "SELECT id, status, request_digest FROM tb_agent_run WHERE owner_id = ? AND"
-                + " client_request_id = ?::uuid",
-            owner,
+            "SELECT id, status, request_digest FROM tb_agent_run WHERE client_request_id = ?::uuid",
             key);
     return r == null
         ? null
@@ -109,12 +107,11 @@ public final class JdbcRunRepository implements RunRepository {
       UUID processId) {
     return db.first(
             """
-INSERT INTO tb_agent_run(owner_id, project_id, target_chapter_id, instruction, client_request_id,
+INSERT INTO tb_agent_run(project_id, target_chapter_id, instruction, client_request_id,
     request_digest, base_version, base_content, status, queued_at, deadline_at, process_instance_id,
     model_id, prompt_hash, tool_schema_hash, config_snapshot)
-VALUES (?, ?::uuid, ?::uuid, ?, ?::uuid, ?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?::jsonb) RETURNING id
+VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?::jsonb) RETURNING id
 """,
-            request.ownerId(),
             request.projectId(),
             request.targetChapterId(),
             instruction,

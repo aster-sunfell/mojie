@@ -6,7 +6,7 @@ import java.util.*;
 public interface ChapterRepository {
   List<ChapterSummary> findPage(String projectId, Integer afterOrder, String afterId, int size);
 
-  Chapter findOwned(String owner, String chapterId);
+  Chapter findVisible(String chapterId);
 
   CreatedChapter findById(String chapterId);
 
@@ -14,15 +14,15 @@ public interface ChapterRepository {
 
   int rename(String chapterId, String title);
 
-  ChapterProject findOwnedProject(String owner, String chapterId);
+  ChapterProject findVisibleProject(String chapterId);
 
   int softDelete(String chapterId);
 
-  ChapterProject findOwnedProjectForDelete(String owner, String chapterId);
+  ChapterProject findVisibleProjectForDelete(String chapterId);
 
-  ChapterIdentity findRevisionChapter(String owner, String chapterId);
+  ChapterIdentity findRevisionChapter(String chapterId);
 
-  LockedChapter lockOwned(String owner, String chapterId);
+  LockedChapter lockVisible(String chapterId);
 
   int updateContentIfVersionMatches(String chapterId, int expectedVersion, String content);
 }

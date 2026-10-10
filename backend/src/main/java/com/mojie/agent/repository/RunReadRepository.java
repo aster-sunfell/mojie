@@ -4,7 +4,7 @@ import com.mojie.agent.model.*;
 import java.util.*;
 
 public interface RunReadRepository {
-  RunSnapshot scoped(String owner, String runId);
+  RunSnapshot scoped(String runId);
 
   List<RunSource> listSources(String runId);
 
@@ -21,7 +21,6 @@ public interface RunReadRepository {
   ModelSelection modelSelection(String runId);
 
   List<RunSummary> page(
-      String owner,
       String projectId,
       String chapterId,
       String status,

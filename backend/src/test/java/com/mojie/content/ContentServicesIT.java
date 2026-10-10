@@ -25,69 +25,69 @@ class ContentServicesIT {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();
             ContentFixture content = new ContentFixture(source);
-            String owner = "inline-author";
-            String project = (String) content.createProject(owner, "行内编辑").get("id");
-            String chapter = (String) content.createChapter(owner, project, "第一章").get("id");
+
+            String project = (String) content.createProject("行内编辑").get("id");
+            String chapter = (String) content.createChapter(project, "第一章").get("id");
             String base = "林舟游过河。\n\n他拿起红灯。\n";
-            content.saveChapter(owner, chapter, base, 1);
+            content.saveChapter(chapter, base, 1);
             String candidate = base.replace("游过河", "走过桥").replace("红", "蓝");
-            String proposal = proposal(source, owner, project, chapter, 2, candidate);
+            String proposal = proposal(source, project, chapter, 2, candidate);
             String edited = "傍晚，林舟沿山路走到旧桥。";
             var reviews = List.of(new ProposalReview.Review(proposal,
                     List.of(new ProposalReview.Choice(0, "APPLIED", edited))));
             String body = base.replace("林舟游过河。", edited + "他检查了桥板。");
-            content.saveChapter(owner, chapter, body, 2, reviews);
-            Map<String,Object> detail = new QueryFixture(source).proposal(owner, proposal);
+            content.saveChapter(chapter, body, 2, reviews);
+            Map<String,Object> detail = new QueryFixture(source).proposal(proposal);
             assertEquals(candidate, detail.get("proposedContent"));
             assertEquals("PARTIALLY_APPLIED", detail.get("status"));
             @SuppressWarnings("unchecked") var items = (List<Map<String,Object>>) detail.get("items");
             assertEquals(edited, items.getFirst().get("editedContent"));
             assertEquals("APPLIED", items.getFirst().get("status"));
             assertEquals("PENDING", items.getLast().get("status"));
-            assertEquals(3, content.saveChapter(owner, chapter, body, 3, reviews).get("version"));
+            assertEquals(3, content.saveChapter(chapter, body, 3, reviews).get("version"));
             var changedReview = List.of(new ProposalReview.Review(proposal,
                     List.of(new ProposalReview.Choice(0, "APPLIED", "改变已保存的确认稿"))));
             assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(BusinessException.class,
-                    () -> content.saveChapter(owner, chapter, "不得覆盖", 3, changedReview)).code());
-            assertEquals(body, content.chapter(owner, chapter).get("content"));
+                    () -> content.saveChapter(chapter, "不得覆盖", 3, changedReview)).code());
+            assertEquals(body, content.chapter(chapter).get("content"));
             var invalid = List.of(new ProposalReview.Review(proposal,
                     List.of(new ProposalReview.Choice(1, "IGNORED", "忽略不能提交确认稿"))));
             assertEquals("VALIDATION_ERROR", assertThrows(BusinessException.class,
-                    () -> content.saveChapter(owner, chapter, body, 3, invalid)).code());
+                    () -> content.saveChapter(chapter, body, 3, invalid)).code());
         });
     }
     @Test void partialReviewSavesSurviveManualEditsAndKeepEveryRelatedRevision() throws Exception {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();
             ContentFixture content = new ContentFixture(source);
-            String owner = "review-author";
-            String project = (String) content.createProject(owner, "修改审阅").get("id");
-            String chapter = (String) content.createChapter(owner, project, "第一章").get("id");
+
+            String project = (String) content.createProject("修改审阅").get("id");
+            String chapter = (String) content.createChapter(project, "第一章").get("id");
             String base = "林舟游过河。\n\n他拿起红灯。\n";
-            content.saveChapter(owner, chapter, base, 1);
-            String proposal = proposal(source, owner, project, chapter, 2, base.replace("游过河", "走过桥").replace("红", "蓝"));
+            content.saveChapter(chapter, base, 1);
+            String proposal = proposal(source, project, chapter, 2, base.replace("游过河", "走过桥").replace("红", "蓝"));
             QueryFixture query = new QueryFixture(source);
-            assertEquals(2, ((List<?>) query.proposal(owner, proposal).get("items")).size());
+            assertEquals(2, ((List<?>) query.proposal(proposal).get("items")).size());
             var first = List.of(new ProposalReview.Review(proposal, List.of(new ProposalReview.Choice(0, "APPLIED"))));
             String partial = base.replace("游过河", "走过桥") + "用户自己补写。";
-            assertEquals(3, content.saveChapter(owner, chapter, partial, 2, first).get("version"));
-            assertEquals("PARTIALLY_APPLIED", query.proposal(owner, proposal).get("status"));
-            assertEquals("MIXED", content.revision(owner, chapter, 3).get("source"));
-            assertEquals(proposal, content.revision(owner, chapter, 3).get("proposalId"));
+            assertEquals(3, content.saveChapter(chapter, partial, 2, first).get("version"));
+            assertEquals("PARTIALLY_APPLIED", query.proposal(proposal).get("status"));
+            assertEquals("MIXED", content.revision(chapter, 3).get("source"));
+            assertEquals(proposal, content.revision(chapter, 3).get("proposalId"));
             // A retry cannot create another revision or reverse a saved decision.
-            assertEquals(3, content.saveChapter(owner, chapter, partial, 3, first).get("version"));
+            assertEquals(3, content.saveChapter(chapter, partial, 3, first).get("version"));
             assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(BusinessException.class,
-                    () -> TestServices.proposals(source).accept(owner, proposal)).code());
+                    () -> TestServices.proposals(source).accept(proposal)).code());
             String manual = partial + "继续手动完善。";
-            content.saveChapter(owner, chapter, manual, 3);
-            assertEquals("PARTIALLY_APPLIED", query.proposal(owner, proposal).get("status"));
+            content.saveChapter(chapter, manual, 3);
+            assertEquals("PARTIALLY_APPLIED", query.proposal(proposal).get("status"));
             var second = List.of(new ProposalReview.Review(proposal, List.of(new ProposalReview.Choice(1, "APPLIED"))));
-            assertEquals(5, content.saveChapter(owner, chapter, manual.replace("红", "蓝"), 4, second).get("version"));
-            assertEquals("APPLIED", query.proposal(owner, proposal).get("status"));
-            assertEquals(5, query.proposal(owner, proposal).get("appliedVersion"));
-            assertEquals("MIXED", content.revision(owner, chapter, 5).get("source"));
-            assertEquals(1, ((List<?>) content.revision(owner, chapter, 5).get("proposalReviews")).size());
-            assertTrue(content.chapter(owner, chapter).get("content").toString().endsWith("用户自己补写。继续手动完善。"));
+            assertEquals(5, content.saveChapter(chapter, manual.replace("红", "蓝"), 4, second).get("version"));
+            assertEquals("APPLIED", query.proposal(proposal).get("status"));
+            assertEquals(5, query.proposal(proposal).get("appliedVersion"));
+            assertEquals("MIXED", content.revision(chapter, 5).get("source"));
+            assertEquals(1, ((List<?>) content.revision(chapter, 5).get("proposalReviews")).size());
+            assertTrue(content.chapter(chapter).get("content").toString().endsWith("用户自己补写。继续手动完善。"));
         });
     }
 
@@ -95,39 +95,39 @@ class ContentServicesIT {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();
             ContentFixture content = new ContentFixture(source);
-            String owner = "review-author";
-            String project = (String) content.createProject(owner, "修改审阅").get("id");
-            String chapter = (String) content.createChapter(owner, project, "第一章").get("id");
-            content.saveChapter(owner, chapter, "旧文", 1);
-            String proposal = proposal(source, owner, project, chapter, 2, "新文");
+
+            String project = (String) content.createProject("修改审阅").get("id");
+            String chapter = (String) content.createChapter(project, "第一章").get("id");
+            content.saveChapter(chapter, "旧文", 1);
+            String proposal = proposal(source, project, chapter, 2, "新文");
             var accepted = List.of(new ProposalReview.Review(proposal, List.of(new ProposalReview.Choice(0, "APPLIED"))));
             assertEquals("VERSION_CONFLICT", assertThrows(BusinessException.class,
-                    () -> content.saveChapter(owner, chapter, "不能覆盖", 1, accepted)).code());
+                    () -> content.saveChapter(chapter, "不能覆盖", 1, accepted)).code());
             assertEquals("VALIDATION_ERROR", assertThrows(BusinessException.class,
-                    () -> content.saveChapter(owner, chapter, "不能覆盖", 2,
+                    () -> content.saveChapter(chapter, "不能覆盖", 2,
                             List.of(new ProposalReview.Review(proposal, List.of(new ProposalReview.Choice(99, "APPLIED")))))).code());
             assertEquals("RESOURCE_NOT_FOUND", assertThrows(BusinessException.class,
-                    () -> content.saveChapter("another-author", chapter, "不能覆盖", 2, accepted)).code());
-            String other = (String) content.createChapter(owner, project, "第二章").get("id");
+                    () -> content.saveChapter(UUID.randomUUID().toString(), "不能覆盖", 2, accepted)).code());
+            String other = (String) content.createChapter(project, "第二章").get("id");
             assertEquals("RESOURCE_NOT_FOUND", assertThrows(BusinessException.class,
-                    () -> content.saveChapter(owner, other, "不能覆盖", 1, accepted)).code());
-            assertEquals("旧文", content.chapter(owner, chapter).get("content"));
-            assertEquals("PENDING", new QueryFixture(source).proposal(owner, proposal).get("status"));
+                    () -> content.saveChapter(other, "不能覆盖", 1, accepted)).code());
+            assertEquals("旧文", content.chapter(chapter).get("content"));
+            assertEquals("PENDING", new QueryFixture(source).proposal(proposal).get("status"));
             var ignored = List.of(new ProposalReview.Review(proposal, List.of(new ProposalReview.Choice(0, "IGNORED"))));
             // Ignoring a suggestion alone keeps the text and chapter version unchanged.
-            assertEquals(2, content.saveChapter(owner, chapter, "旧文", 2, ignored).get("version"));
-            assertEquals("REJECTED", new QueryFixture(source).proposal(owner, proposal).get("status"));
+            assertEquals(2, content.saveChapter(chapter, "旧文", 2, ignored).get("version"));
+            assertEquals("REJECTED", new QueryFixture(source).proposal(proposal).get("status"));
             assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(BusinessException.class,
-                    () -> content.saveChapter(owner, chapter, "不能覆盖", 2, accepted)).code());
-            assertEquals(2, content.chapter(owner, chapter).get("version"));
-            assertEquals(2, content.revisions(owner, chapter, 20).size());
+                    () -> content.saveChapter(chapter, "不能覆盖", 2, accepted)).code());
+            assertEquals(2, content.chapter(chapter).get("version"));
+            assertEquals(2, content.revisions(chapter, 20).size());
         });
     }
 
-    private static String proposal(PGSimpleDataSource source, String owner, String project, String chapter,
+    private static String proposal(PGSimpleDataSource source, String project, String chapter,
                                     int version, String proposed) throws Exception {
         var admission = TestServices.admission(source, Clock.systemUTC(), UUID.randomUUID());
-        var receipt = admission.create(new Request(owner, project, chapter, version,
+        var receipt = admission.create(new Request(project, chapter, version,
                 "检查正文", UUID.randomUUID().toString()), new Config("System", "[]", "model", Map.of()));
         String id = UUID.randomUUID().toString();
         try (Connection c = source.getConnection()) {
@@ -152,28 +152,27 @@ class ContentServicesIT {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();
             ContentFixture content = new ContentFixture(source);
-            String owner = "search-author";
-            String first = (String) content.createProject(owner, "林舟 First").get("id");
-            String second = (String) content.createProject(owner, "林舟 Second").get("id");
-            content.createProject(owner, "其他作品");
-            content.createProject("another-author", "林舟 Third");
-            String deleted = (String) content.createProject(owner, "林舟 Deleted").get("id");
-            content.deleteProject(owner, deleted);
-            Page<Map<String,Object>> page = content.projectPage(owner, "林舟", null, 1);
+
+            String first = (String) content.createProject("林舟 First").get("id");
+            String second = (String) content.createProject("林舟 Second").get("id");
+            content.createProject("其他作品");
+            String deleted = (String) content.createProject("林舟 Deleted").get("id");
+            content.deleteProject(deleted);
+            Page<Map<String,Object>> page = content.projectPage("林舟", null, 1);
             assertNotNull(page.nextCursor());
-            Page<Map<String,Object>> next = content.projectPage(owner, "林舟", page.nextCursor(), 1);
+            Page<Map<String,Object>> next = content.projectPage("林舟", page.nextCursor(), 1);
             assertEquals(Set.of(first, second), Set.of(page.items().getFirst().get("id"), next.items().getFirst().get("id")));
             assertNull(next.nextCursor());
             assertThrows(IllegalArgumentException.class,
-                    () -> content.projectPage(owner, "其他", page.nextCursor(), 1));
+                    () -> content.projectPage("其他", page.nextCursor(), 1));
             assertThrows(IllegalArgumentException.class,
-                    () -> content.projectPage(owner, null, page.nextCursor(), 1));
-            assertEquals(first, content.projectPage(owner, " first ", null, 20).items().getFirst().get("id"));
-            assertTrue(content.projectPage(owner, "不存在", null, 20).items().isEmpty());
-            String literal = (String) content.createProject(owner, "完成 100%_初稿").get("id");
-            assertEquals(literal, content.projectPage(owner, "%_", null, 20).items().getFirst().get("id"));
+                    () -> content.projectPage(null, page.nextCursor(), 1));
+            assertEquals(first, content.projectPage(" first ", null, 20).items().getFirst().get("id"));
+            assertTrue(content.projectPage("不存在", null, 20).items().isEmpty());
+            String literal = (String) content.createProject("完成 100%_初稿").get("id");
+            assertEquals(literal, content.projectPage("%_", null, 20).items().getFirst().get("id"));
             assertThrows(BusinessException.class,
-                    () -> content.projectPage(owner, "墨".repeat(81), null, 20));
+                    () -> content.projectPage("墨".repeat(81), null, 20));
         });
     }
 
@@ -181,66 +180,66 @@ class ContentServicesIT {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();
             ContentFixture content = new ContentFixture(source);
-            String owner = "author";
-            String project = (String) content.createProject(owner, "作品").get("id");
-            String otherProject = (String) content.createProject(owner, "另一本").get("id");
-            Page<Map<String,Object>> firstProjectPage = content.projectPage(owner, null, 1);
-            Page<Map<String,Object>> secondProjectPage = content.projectPage(owner, firstProjectPage.nextCursor(), 1);
+
+            String project = (String) content.createProject("作品").get("id");
+            String otherProject = (String) content.createProject("另一本").get("id");
+            Page<Map<String,Object>> firstProjectPage = content.projectPage(null, 1);
+            Page<Map<String,Object>> secondProjectPage = content.projectPage(firstProjectPage.nextCursor(), 1);
             assertEquals(Set.of(project, otherProject), Set.of(firstProjectPage.items().getFirst().get("id"),
                     secondProjectPage.items().getFirst().get("id")));
             assertNull(secondProjectPage.nextCursor());
             assertDoesNotThrow(() -> java.time.Instant.parse((String) firstProjectPage.items().getFirst().get("updatedAt")));
-            String chapter = (String) content.createChapter(owner, project, "第一章").get("id");
-            String secondChapter = (String) content.createChapter(owner, project, "第二章").get("id");
-            Page<Map<String,Object>> firstChapterPage = content.chapterPage(owner, project, null, 1);
+            String chapter = (String) content.createChapter(project, "第一章").get("id");
+            String secondChapter = (String) content.createChapter(project, "第二章").get("id");
+            Page<Map<String,Object>> firstChapterPage = content.chapterPage(project, null, 1);
             assertEquals(chapter, firstChapterPage.items().getFirst().get("id"));
-            Page<Map<String,Object>> secondChapterPage = content.chapterPage(owner, project, firstChapterPage.nextCursor(), 1);
+            Page<Map<String,Object>> secondChapterPage = content.chapterPage(project, firstChapterPage.nextCursor(), 1);
             assertEquals(secondChapter, secondChapterPage.items().getFirst().get("id"));
             assertNull(secondChapterPage.nextCursor());
-            assertThrows(IllegalArgumentException.class, () -> content.chapterPage(owner, project,
+            assertThrows(IllegalArgumentException.class, () -> content.chapterPage(project,
                     firstChapterPage.nextCursor() + "tampered", 1));
-            assertEquals(1, content.chapter(owner, chapter).get("version"));
-            Map<String,Object> saved = content.saveChapter(owner, chapter, "林舟不会游泳。", 1);
+            assertEquals(1, content.chapter(chapter).get("version"));
+            Map<String,Object> saved = content.saveChapter(chapter, "林舟不会游泳。", 1);
             assertEquals(2, saved.get("version"));
-            assertEquals(2, content.saveChapter(owner, chapter, "林舟不会游泳。", 2).get("version"));
-            assertEquals(2, content.revisions(owner, chapter, 20).size());
-            Page<Map<String,Object>> firstRevisionPage = content.revisionPage(owner, chapter, null, 1);
+            assertEquals(2, content.saveChapter(chapter, "林舟不会游泳。", 2).get("version"));
+            assertEquals(2, content.revisions(chapter, 20).size());
+            Page<Map<String,Object>> firstRevisionPage = content.revisionPage(chapter, null, 1);
             assertEquals(2, firstRevisionPage.items().getFirst().get("version"));
-            Page<Map<String,Object>> secondRevisionPage = content.revisionPage(owner, chapter, firstRevisionPage.nextCursor(), 1);
+            Page<Map<String,Object>> secondRevisionPage = content.revisionPage(chapter, firstRevisionPage.nextCursor(), 1);
             assertEquals(1, secondRevisionPage.items().getFirst().get("version"));
             assertNull(secondRevisionPage.nextCursor());
-            assertEquals("", content.revision(owner, chapter, 1).get("content"));
-            assertEquals("林舟不会游泳。", content.revision(owner, chapter, 2).get("content"));
+            assertEquals("", content.revision(chapter, 1).get("content"));
+            assertEquals("林舟不会游泳。", content.revision(chapter, 2).get("content"));
             BusinessException conflict = assertThrows(BusinessException.class,
-                    () -> content.saveChapter(owner, chapter, "覆盖", 1));
+                    () -> content.saveChapter(chapter, "覆盖", 1));
             assertEquals("VERSION_CONFLICT", conflict.code());
-            String setting = (String) content.createSetting(owner, project, "CHARACTER", "林舟", "不会游泳").get("id");
-            content.createSetting(owner, project, "WORLD", "河流", "水很深");
-            assertEquals(2, content.settings(owner, project, null, null, null).size());
-            Page<Map<String,Object>> firstSettingPage = content.settingPage(owner, project, null, null, null, 1);
+            String setting = (String) content.createSetting(project, "CHARACTER", "林舟", "不会游泳").get("id");
+            content.createSetting(project, "WORLD", "河流", "水很深");
+            assertEquals(2, content.settings(project, null, null, null).size());
+            Page<Map<String,Object>> firstSettingPage = content.settingPage(project, null, null, null, 1);
             assertNotNull(firstSettingPage.nextCursor());
-            assertEquals(1, content.settingPage(owner, project, null, null, firstSettingPage.nextCursor(), 1).items().size());
-            assertThrows(IllegalArgumentException.class, () -> content.settingPage(owner, project, "CHARACTER", null,
+            assertEquals(1, content.settingPage(project, null, null, firstSettingPage.nextCursor(), 1).items().size());
+            assertThrows(IllegalArgumentException.class, () -> content.settingPage(project, "CHARACTER", null,
                     firstSettingPage.nextCursor(), 1));
             UUID processId = UUID.randomUUID();
             RunAdmissionService admission = TestServices.admission(source, Clock.systemUTC(), processId);
-            Receipt receipt = admission.create(new Request(owner, project, chapter, 2,
+            Receipt receipt = admission.create(new Request(project, chapter, 2,
                     "检查设定", UUID.randomUUID().toString()), new Config("System", "[]", "model", Map.of("maxOutputTokens", 1000)));
             assertEquals("QUEUED", receipt.status());
-            Map<String,Object> queuedTrace = new QueryFixture(source).trace(owner, receipt.runId());
+            Map<String,Object> queuedTrace = new QueryFixture(source).trace(receipt.runId());
             assertTrue(queuedTrace.get("messages").toString().contains(chapter));
             assertEquals("RESOURCE_BUSY", assertThrows(BusinessException.class,
-                    () -> content.updateSetting(owner, setting, "CHARACTER", "林舟", "会游泳")).code());
+                    () -> content.updateSetting(setting, "CHARACTER", "林舟", "会游泳")).code());
             assertEquals("RESOURCE_BUSY", assertThrows(BusinessException.class,
-                    () -> content.createChapter(owner, project, "第二章")).code());
-            assertEquals(3, content.saveChapter(owner, chapter, "林舟学会了游泳。", 2).get("version"));
+                    () -> content.createChapter(project, "第二章")).code());
+            assertEquals(3, content.saveChapter(chapter, "林舟学会了游泳。", 2).get("version"));
             QueryFixture query = new QueryFixture(source);
-            assertEquals(1, query.list(owner, project, chapter, null, 20).size());
-            Map<String,Object> detail = query.detail(owner, receipt.runId());
+            assertEquals(1, query.list(project, chapter, null, 20).size());
+            Map<String,Object> detail = query.detail(receipt.runId());
             assertEquals(1L, detail.get("lastEventSeq"));
-            assertEquals("run.queued", query.events(owner, receipt.runId(), 0, 20).getFirst().type());
-            assertEquals(0, query.events(owner, receipt.runId(), 1, 20).size());
-            assertThrows(BusinessException.class, () -> query.detail("other-author", receipt.runId()));
+            assertEquals("run.queued", query.events(receipt.runId(), 0, 20).getFirst().type());
+            assertEquals(0, query.events(receipt.runId(), 1, 20).size());
+            assertThrows(BusinessException.class, () -> query.detail(UUID.randomUUID().toString()));
             RunLifecycleService lifecycle = TestServices.lifecycle(source, TestServices.completion(source, Clock.systemUTC()));
             assertTrue(lifecycle.start(project, receipt.runId(), processId));
             ToolContentService repository = TestServices.toolContent(source);

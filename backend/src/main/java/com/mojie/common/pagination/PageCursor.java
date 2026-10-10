@@ -7,7 +7,7 @@ import java.util.Base64;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-/** Opaque keyset cursor bound to a list's owner, resource and filters. */
+/** Opaque keyset cursor bound to a list's resource and filters. */
 public final class PageCursor {
     private static final int MAC_LENGTH = 32;
     private final byte[] secret;

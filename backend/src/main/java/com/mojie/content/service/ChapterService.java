@@ -32,15 +32,14 @@ public final class ChapterService {
     this.cursors = cursors;
   }
 
-  public List<Map<String, Object>> chapters(String owner, String id, Integer requestedLimit) {
-    return chapterPage(owner, id, null, requestedLimit).items();
+  public List<Map<String, Object>> chapters(String id, Integer requestedLimit) {
+    return chapterPage(id, null, requestedLimit).items();
   }
 
-  public Page<Map<String, Object>> chapterPage(
-      String owner, String id, String cursor, Integer requestedLimit) {
+  public Page<Map<String, Object>> chapterPage(String id, String cursor, Integer requestedLimit) {
     String projectId = uuid(id);
     int size = limit(requestedLimit);
-    String scope = "chapters:" + owner + ":" + projectId;
+    String scope = "chapters:" + projectId;
     String[] marker = pair(cursors.decode(scope, cursor));
     Integer order = null;
     if (marker[0] != null) {
@@ -55,7 +54,7 @@ public final class ChapterService {
     final Integer afterOrder = order;
     return transactions.required(
         () -> {
-          required(fields(projects.findOwnedId(owner, projectId)));
+          required(fields(projects.findVisibleId(projectId)));
           return page(
               fields(chapters.findPage(projectId, afterOrder, marker[1], size + 1)),
               size,
@@ -65,16 +64,16 @@ public final class ChapterService {
         });
   }
 
-  public Map<String, Object> chapter(String owner, String id) {
+  public Map<String, Object> chapter(String id) {
     String chapterId = uuid(id);
-    return transactions.required(() -> required(fields(chapters.findOwned(owner, chapterId))));
+    return transactions.required(() -> required(fields(chapters.findVisible(chapterId))));
   }
 
-  public Map<String, Object> createChapter(String owner, String id, String title) {
+  public Map<String, Object> createChapter(String id, String title) {
     String projectId = uuid(id), name = text(title, "title", 1, 120);
     return transactions.required(
         () -> {
-          access.lock(owner, projectId, true);
+          access.lock(projectId, true);
           Map<String, Object> order = required(fields(projects.allocateChapterOrder(projectId)));
           String chapterId =
               chapters.insert(projectId, ((Number) order.get("chapterOrder")).intValue(), name);
@@ -83,43 +82,42 @@ public final class ChapterService {
         });
   }
 
-  public Map<String, Object> renameChapter(String owner, String id, String title) {
+  public Map<String, Object> renameChapter(String id, String title) {
     String chapterId = uuid(id), name = text(title, "title", 1, 120);
     return transactions.required(
         () -> {
           String projectId =
               String.valueOf(
-                  required(fields(chapters.findOwnedProject(owner, chapterId))).get("projectId"));
-          access.lock(owner, projectId, true);
+                  required(fields(chapters.findVisibleProject(chapterId))).get("projectId"));
+          access.lock(projectId, true);
           requireOne(chapters.rename(chapterId, name));
           return required(fields(chapters.findById(chapterId)));
         });
   }
 
-  public void deleteChapter(String owner, String id) {
+  public void deleteChapter(String id) {
     String chapterId = uuid(id);
     transactions.required(
         () -> {
           String projectId =
               String.valueOf(
-                  required(fields(chapters.findOwnedProjectForDelete(owner, chapterId)))
+                  required(fields(chapters.findVisibleProjectForDelete(chapterId)))
                       .get("projectId"));
-          access.lock(owner, projectId, true);
+          access.lock(projectId, true);
           access.requireNoChapterProposals(chapterId);
           requireOne(chapters.softDelete(chapterId));
           return null;
         });
   }
 
-  public List<Map<String, Object>> revisions(String owner, String id, Integer requestedLimit) {
-    return revisionPage(owner, id, null, requestedLimit).items();
+  public List<Map<String, Object>> revisions(String id, Integer requestedLimit) {
+    return revisionPage(id, null, requestedLimit).items();
   }
 
-  public Page<Map<String, Object>> revisionPage(
-      String owner, String id, String cursor, Integer requestedLimit) {
+  public Page<Map<String, Object>> revisionPage(String id, String cursor, Integer requestedLimit) {
     String chapterId = uuid(id);
     int size = limit(requestedLimit);
-    String scope = "revisions:" + owner + ":" + chapterId;
+    String scope = "revisions:" + chapterId;
     String marker = cursors.decode(scope, cursor);
     Integer before = null;
     if (marker != null) {
@@ -133,7 +131,7 @@ public final class ChapterService {
     final Integer beforeVersion = before;
     return transactions.required(
         () -> {
-          required(fields(chapters.findRevisionChapter(owner, chapterId)));
+          required(fields(chapters.findRevisionChapter(chapterId)));
           return page(
               fields(revisions.findPage(chapterId, beforeVersion, size + 1)),
               size,
@@ -143,23 +141,23 @@ public final class ChapterService {
         });
   }
 
-  public Map<String, Object> revision(String owner, String id, int version) {
+  public Map<String, Object> revision(String id, int version) {
     String chapterId = uuid(id);
     return transactions.required(
         () -> {
           Map<String, Object> revision =
-              required(fields(revisions.findOwned(owner, chapterId, version)));
+              required(fields(revisions.findVisible(chapterId, version)));
           revision.put("proposalReviews", fields(revisions.reviewLinks(chapterId, version)));
           return revision;
         });
   }
 
-  public String projectForChapter(String owner, String id) {
-    return chapter(owner, id).get("projectId").toString();
+  public String projectForChapter(String id) {
+    return chapter(id).get("projectId").toString();
   }
 
-  public Map<String, Object> lock(String owner, String id) {
-    return required(fields(chapters.lockOwned(owner, uuid(id))));
+  public Map<String, Object> lock(String id) {
+    return required(fields(chapters.lockVisible(uuid(id))));
   }
 
   public int persist(

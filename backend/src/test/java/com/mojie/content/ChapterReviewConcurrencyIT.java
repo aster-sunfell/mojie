@@ -21,10 +21,10 @@ class ChapterReviewConcurrencyIT {
       DataSource source = database.source();
       Flyway.configure().dataSource(source).load().migrate();
       var content = TestServices.content(source);
-      String project = content.projects().createProject("owner", "并发审核").get("id").toString();
+      String project = content.projects().createProject("并发审核").get("id").toString();
       String chapter =
-          content.chapters().createChapter("owner", project, "目标章").get("id").toString();
-      content.saves().saveChapter("owner", chapter, "原文", 1);
+          content.chapters().createChapter(project, "目标章").get("id").toString();
+      content.saves().saveChapter(chapter, "原文", 1);
       String first = proposal(source, project, chapter, "第一份建议");
       String second = proposal(source, project, chapter, "第二份建议");
       List<Review> forward =
@@ -43,7 +43,7 @@ class ChapterReviewConcurrencyIT {
                     try {
                       return content
                           .saves()
-                          .saveChapter("owner", chapter, "两份建议合并后的正文", 2, reviews);
+                          .saveChapter(chapter, "两份建议合并后的正文", 2, reviews);
                     } catch (BusinessException conflict) {
                       return conflict.code();
                     }
@@ -55,11 +55,11 @@ class ChapterReviewConcurrencyIT {
         assertEquals(1, outcomes.stream().filter(Map.class::isInstance).count());
         assertEquals(1, outcomes.stream().filter("VERSION_CONFLICT"::equals).count());
       }
-      assertEquals(3, content.chapters().chapter("owner", chapter).get("version"));
-      Map<String, Object> revision = content.chapters().revision("owner", chapter, 3);
+      assertEquals(3, content.chapters().chapter(chapter).get("version"));
+      Map<String, Object> revision = content.chapters().revision(chapter, 3);
       assertEquals("MIXED", revision.get("source"));
       assertEquals(2, ((List<?>) revision.get("proposalReviews")).size());
-      assertEquals(3, content.chapters().revisions("owner", chapter, 20).size());
+      assertEquals(3, content.chapters().revisions(chapter, 20).size());
     }
   }
 
@@ -69,10 +69,10 @@ class ChapterReviewConcurrencyIT {
       DataSource source = database.source();
       Flyway.configure().dataSource(source).load().migrate();
       var content = TestServices.content(source);
-      String project = content.projects().createProject("owner", "原子审核").get("id").toString();
+      String project = content.projects().createProject("原子审核").get("id").toString();
       String chapter =
-          content.chapters().createChapter("owner", project, "目标章").get("id").toString();
-      content.saves().saveChapter("owner", chapter, "原文", 1);
+          content.chapters().createChapter(project, "目标章").get("id").toString();
+      content.saves().saveChapter(chapter, "原文", 1);
       String first = proposal(source, project, chapter, "第一份建议");
       String second = proposal(source, project, chapter, "第二份建议");
       var reviews =
@@ -83,13 +83,13 @@ class ChapterReviewConcurrencyIT {
           "VALIDATION_ERROR",
           assertThrows(
                   BusinessException.class,
-                  () -> content.saves().saveChapter("owner", chapter, "应当回滚的正文", 2, reviews))
+                  () -> content.saves().saveChapter(chapter, "应当回滚的正文", 2, reviews))
               .code());
-      assertEquals("原文", content.chapters().chapter("owner", chapter).get("content"));
-      assertEquals(2, content.chapters().chapter("owner", chapter).get("version"));
-      assertEquals(2, content.chapters().revisions("owner", chapter, 20).size());
+      assertEquals("原文", content.chapters().chapter(chapter).get("content"));
+      assertEquals(2, content.chapters().chapter(chapter).get("version"));
+      assertEquals(2, content.chapters().revisions(chapter, 20).size());
       for (String proposal : List.of(first, second))
-        assertEquals("PENDING", content.proposals().detail("owner", proposal).get("status"));
+        assertEquals("PENDING", content.proposals().detail(proposal).get("status"));
       var db = new JdbcAccess(source);
       assertTrue(
           db.query("SELECT * FROM tb_chapter_revision_review WHERE chapter_id = ?::uuid", chapter)
@@ -102,7 +102,7 @@ class ChapterReviewConcurrencyIT {
     var admission = TestServices.admission(source, Clock.systemUTC(), UUID.randomUUID());
     var receipt =
         admission.create(
-            new Request("owner", project, chapter, 2L, "审核", UUID.randomUUID().toString()),
+            new Request(project, chapter, 2L, "审核", UUID.randomUUID().toString()),
             new Config("System", "[]", "scripted", Map.of()));
     var db = new JdbcAccess(source);
     String proposal = UUID.randomUUID().toString();

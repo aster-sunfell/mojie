@@ -40,25 +40,25 @@ class ProposalReviewServiceTest {
     var reviews =
         new ProposalReviewService(repository, (chapter, version, proposal, decisions) -> 1);
     var first = List.of(new Review(id, List.of(new Choice(0, "APPLIED", "自定义\r\n文本"))));
-    List<Saved> saved = reviews.save(3, first, reviews.lockReviews("owner", "chapter", first));
+    List<Saved> saved = reviews.save(3, first, reviews.lockReviews("chapter", first));
     assertEquals(1, saved.size());
     assertTrue(saved.getFirst().applied());
     assertEquals("PARTIALLY_APPLIED", stored.get().status());
     assertTrue(stored.get().reviewDecisions().contains("自定义\\n文本"));
     String committed = stored.get().reviewDecisions();
-    assertTrue(reviews.save(4, first, reviews.lockReviews("owner", "chapter", first)).isEmpty());
+    assertTrue(reviews.save(4, first, reviews.lockReviews("chapter", first)).isEmpty());
     assertEquals(committed, stored.get().reviewDecisions());
     var changed = List.of(new Review(id, List.of(new Choice(0, "APPLIED", "替换已确认文本"))));
     assertEquals(
         "PROPOSAL_STATE_CONFLICT",
         assertThrows(
                 BusinessException.class,
-                () -> reviews.save(4, changed, reviews.lockReviews("owner", "chapter", changed)))
+                () -> reviews.save(4, changed, reviews.lockReviews("chapter", changed)))
             .code());
     var ignore = List.of(new Review(id, List.of(new Choice(1, "IGNORED"))));
     assertFalse(
         reviews
-            .save(4, ignore, reviews.lockReviews("owner", "chapter", ignore))
+            .save(4, ignore, reviews.lockReviews("chapter", ignore))
             .getFirst()
             .applied());
     assertEquals("APPLIED", stored.get().status());

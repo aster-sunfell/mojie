@@ -52,7 +52,7 @@ class ToolContentServiceIT {
             dataSource.setURL(baseUrl + (baseUrl.contains("?") ? "&" : "?") + "currentSchema=" + schema);
             dataSource.setUser(user);
             dataSource.setPassword(password);
-            assertEquals(5, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
+            assertEquals(6, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
             try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
                 try (ResultSet rows = statement.executeQuery("SELECT count(*) FROM pg_tables WHERE schemaname = '" + schema + "' AND tablename LIKE 'tb_%'")) {
                     rows.next(); assertEquals(14, rows.getInt(1));
@@ -67,7 +67,7 @@ class ToolContentServiceIT {
             try (Connection connection = dataSource.getConnection()) {
                 connection.setAutoCommit(false);
                 try (Statement sql = connection.createStatement()) {
-                    sql.execute("INSERT INTO tb_project(id, owner_id, name) VALUES ('" + project + "', 'owner', 'book')");
+                    sql.execute("INSERT INTO tb_project(id, name) VALUES ('" + project + "', 'book')");
                     sql.execute("INSERT INTO tb_chapter(id, project_id, chapter_order, title, content) VALUES " +
                             "('" + prior + "','" + project + "',1,'prior','old prior')," +
                             "('" + target + "','" + project + "',2,'target','old target')");
@@ -75,10 +75,10 @@ class ToolContentServiceIT {
                             "('" + prior + "',1,'old prior','CREATE'),('" + target + "',1,'old target','CREATE')");
                     sql.execute("INSERT INTO tb_agent_prompt_snapshot(hash, kind, content) VALUES " +
                             "('" + promptHash + "','SYSTEM_PROMPT','prompt'),('" + schemaHash + "','TOOL_SCHEMA','tools')");
-                    sql.execute("INSERT INTO tb_agent_run(id, owner_id, project_id, target_chapter_id, instruction, " +
+                    sql.execute("INSERT INTO tb_agent_run(id, project_id, target_chapter_id, instruction, " +
                             "client_request_id, request_digest, base_version, base_content, status, deadline_at, model_id, " +
                             "prompt_hash, tool_schema_hash, config_snapshot) VALUES (" +
-                            "'" + run + "','owner','" + project + "','" + target + "','check'," +
+                            "'" + run + "','" + project + "','" + target + "','check'," +
                             "'" + UUID.randomUUID() + "','" + "c".repeat(64) + "',1,'old target','RUNNING',now()+interval '3 minutes'," +
                             "'scripted','" + promptHash + "','" + schemaHash + "','{}'::jsonb)");
                     sql.execute("INSERT INTO tb_agent_message(run_id, message_seq, role, content) VALUES " +
@@ -217,10 +217,10 @@ class ToolContentServiceIT {
                         "base_content, proposed_content, reason, status) VALUES ('" + rejectedId + "','" + run + "','" +
                         project + "','" + target + "',1,'old target','rejected text','unneeded','PENDING')");
             }
-            assertEquals("REJECTED", decisions.reject("owner", rejectedId).status());
-            assertEquals("REJECTED", decisions.reject("owner", rejectedId).status());
+            assertEquals("REJECTED", decisions.reject(rejectedId).status());
+            assertEquals("REJECTED", decisions.reject(rejectedId).status());
             assertEquals("PROPOSAL_STATE_CONFLICT", assertThrows(BusinessException.class,
-                    () -> decisions.accept("owner", rejectedId)).code());
+                    () -> decisions.accept(rejectedId)).code());
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
                 try (ResultSet rows = sql.executeQuery("SELECT status, proposed_content FROM tb_edit_proposal WHERE id='" + published.proposalId() + "'")) {
                     rows.next(); assertEquals("PENDING", rows.getString(1)); assertEquals("new target", rows.getString(2));
@@ -229,8 +229,8 @@ class ToolContentServiceIT {
                     rows.next(); assertEquals("old target", rows.getString(1)); assertEquals(1, rows.getInt(2));
                 }
             }
-            assertEquals(new ProposalDecision("APPLIED", 2), decisions.accept("owner", published.proposalId()));
-            assertEquals(new ProposalDecision("APPLIED", 2), decisions.accept("owner", published.proposalId()));
+            assertEquals(new ProposalDecision("APPLIED", 2), decisions.accept(published.proposalId()));
+            assertEquals(new ProposalDecision("APPLIED", 2), decisions.accept(published.proposalId()));
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
                 try (ResultSet rows = sql.executeQuery("SELECT content, version FROM tb_chapter WHERE id='" + target + "'")) {
                     rows.next(); assertEquals("new target", rows.getString(1)); assertEquals(2, rows.getInt(2));
@@ -242,17 +242,17 @@ class ToolContentServiceIT {
 
             String staleRun = UUID.randomUUID().toString(), staleProposal = UUID.randomUUID().toString();
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
-                sql.execute("INSERT INTO tb_agent_run(id, owner_id, project_id, target_chapter_id, instruction, " +
+                sql.execute("INSERT INTO tb_agent_run(id, project_id, target_chapter_id, instruction, " +
                         "client_request_id, request_digest, base_version, base_content, status, deadline_at, finished_at, " +
                         "model_id, prompt_hash, tool_schema_hash, config_snapshot) VALUES (" +
-                        "'" + staleRun + "','owner','" + project + "','" + target + "','stale'," +
+                        "'" + staleRun + "','" + project + "','" + target + "','stale'," +
                         "'" + UUID.randomUUID() + "','" + "e".repeat(64) + "',1,'old target','SUCCEEDED',now(),now()," +
                         "'scripted','" + promptHash + "','" + schemaHash + "','{}'::jsonb)");
                 sql.execute("INSERT INTO tb_edit_proposal(id, run_id, project_id, target_chapter_id, base_version, " +
                         "base_content, proposed_content, reason, status) VALUES ('" + staleProposal + "','" + staleRun + "','" +
                         project + "','" + target + "',1,'old target','stale text','stale','PENDING')");
             }
-            assertEquals("CONFLICTED", decisions.accept("owner", staleProposal).status());
+            assertEquals("CONFLICTED", decisions.accept(staleProposal).status());
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
                 try (ResultSet rows = sql.executeQuery("SELECT status FROM tb_edit_proposal WHERE id='" + staleProposal + "'")) {
                     rows.next(); assertEquals("CONFLICTED", rows.getString(1));
@@ -264,10 +264,10 @@ class ToolContentServiceIT {
 
             String raceRun = UUID.randomUUID().toString(), raceProposal = UUID.randomUUID().toString();
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
-                sql.execute("INSERT INTO tb_agent_run(id, owner_id, project_id, target_chapter_id, instruction, " +
+                sql.execute("INSERT INTO tb_agent_run(id, project_id, target_chapter_id, instruction, " +
                         "client_request_id, request_digest, base_version, base_content, status, deadline_at, finished_at, " +
                         "model_id, prompt_hash, tool_schema_hash, config_snapshot) VALUES (" +
-                        "'" + raceRun + "','owner','" + project + "','" + target + "','race'," +
+                        "'" + raceRun + "','" + project + "','" + target + "','race'," +
                         "'" + UUID.randomUUID() + "','" + "f".repeat(64) + "',2,'new target','SUCCEEDED',now(),now()," +
                         "'scripted','" + promptHash + "','" + schemaHash + "','{}'::jsonb)");
                 sql.execute("INSERT INTO tb_edit_proposal(id, run_id, project_id, target_chapter_id, base_version, " +
@@ -279,12 +279,12 @@ class ToolContentServiceIT {
             try {
                 Future<Object> accept = contenders.submit(() -> {
                     startRace.await();
-                    try { return decisions.accept("owner", raceProposal); }
+                    try { return decisions.accept(raceProposal); }
                     catch (BusinessException e) { return e.code(); }
                 });
                 Future<Object> reject = contenders.submit(() -> {
                     startRace.await();
-                    try { return decisions.reject("owner", raceProposal); }
+                    try { return decisions.reject(raceProposal); }
                     catch (BusinessException e) { return e.code(); }
                 });
                 startRace.countDown();
@@ -321,7 +321,7 @@ class ToolContentServiceIT {
             String admittedProject = UUID.randomUUID().toString();
             String admittedChapter = UUID.randomUUID().toString();
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
-                sql.execute("INSERT INTO tb_project(id, owner_id, name) VALUES ('" + admittedProject + "','owner','admitted')");
+                sql.execute("INSERT INTO tb_project(id, name) VALUES ('" + admittedProject + "','admitted')");
                 sql.execute("INSERT INTO tb_chapter(id, project_id, chapter_order, title, content) VALUES " +
                         "('" + admittedChapter + "','" + admittedProject + "',1,'chapter','base')");
                 sql.execute("INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES " +
@@ -329,7 +329,7 @@ class ToolContentServiceIT {
             }
             UUID processId = UUID.randomUUID();
             RunAdmissionService admission = TestServices.admission(dataSource, Clock.systemUTC(), processId);
-            Request request = new Request("owner", admittedProject, admittedChapter,
+            Request request = new Request(admittedProject, admittedChapter,
                     1, "检查章节", UUID.randomUUID().toString());
             Config config = new Config("prompt", "{\"tools\":[]}", "scripted", Map.of("maxTokens", 100));
             Receipt accepted = admission.create(request, config);
@@ -343,11 +343,11 @@ class ToolContentServiceIT {
             assertEquals(accepted.runId(), admission.create(request, config).runId());
             assertFalse(admission.create(request, config).created());
             BusinessException conflict = assertThrows(BusinessException.class,
-                    () -> admission.create(new Request("owner", admittedProject, admittedChapter, 1,
+                    () -> admission.create(new Request(admittedProject, admittedChapter, 1,
                             "不同要求", request.clientRequestId()), config));
             assertEquals("IDEMPOTENCY_CONFLICT", conflict.code());
             BusinessException busy = assertThrows(BusinessException.class,
-                    () -> admission.create(new Request("owner", admittedProject, admittedChapter, 2,
+                    () -> admission.create(new Request(admittedProject, admittedChapter, 2,
                             "新任务", UUID.randomUUID().toString()), config));
             assertEquals("RESOURCE_BUSY", busy.code());
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
@@ -366,13 +366,13 @@ class ToolContentServiceIT {
             assertEquals("CANCELLED", terminal.finish(admittedProject, accepted.runId(),
                     new LoopOutcome.Completed("late", null, 0, 0, 0)).status());
 
-            Receipt queued = admission.create(new Request("owner", admittedProject,
+            Receipt queued = admission.create(new Request(admittedProject,
                     admittedChapter, 2, "queued", UUID.randomUUID().toString()), config);
             assertEquals(new CancelResult("CANCELLED", true),
                     lifecycle.requestCancel(admittedProject, queued.runId()));
             assertFalse(lifecycle.start(admittedProject, queued.runId(), processId));
 
-            Receipt overdue = admission.create(new Request("owner", admittedProject,
+            Receipt overdue = admission.create(new Request(admittedProject,
                     admittedChapter, 2, "overdue", UUID.randomUUID().toString()), config);
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
                 sql.execute("UPDATE tb_agent_run SET deadline_at = now() - interval '1 second' WHERE id='" + overdue.runId() + "'");
@@ -383,7 +383,7 @@ class ToolContentServiceIT {
                 rows.next(); assertEquals("FAILED", rows.getString(1)); assertEquals("RUN_TIMEOUT", rows.getString(2));
             }
 
-            Receipt abandoned = admission.create(new Request("owner", admittedProject,
+            Receipt abandoned = admission.create(new Request(admittedProject,
                     admittedChapter, 2, "abandoned", UUID.randomUUID().toString()), config);
             assertTrue(lifecycle.failPreviousProcessRuns(UUID.randomUUID()).contains(abandoned.runId()));
             try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement();
@@ -391,16 +391,16 @@ class ToolContentServiceIT {
                 rows.next(); assertEquals("FAILED", rows.getString(1)); assertEquals("SERVICE_RESTARTED", rows.getString(2));
             }
             QueryFixture runQuery = new QueryFixture(dataSource);
-            var firstRunPage = runQuery.page("owner", admittedProject, null, null, null, 2);
-            var secondRunPage = runQuery.page("owner", admittedProject, null, null, firstRunPage.nextCursor(), 2);
+            var firstRunPage = runQuery.page(admittedProject, null, null, null, 2);
+            var secondRunPage = runQuery.page(admittedProject, null, null, firstRunPage.nextCursor(), 2);
             assertEquals(2, firstRunPage.items().size());
             assertEquals(2, secondRunPage.items().size());
             assertNotNull(firstRunPage.nextCursor());
             assertTrue(Collections.disjoint(firstRunPage.items().stream().map(item -> item.get("id")).toList(),
                     secondRunPage.items().stream().map(item -> item.get("id")).toList()));
-            assertThrows(IllegalArgumentException.class, () -> runQuery.page("owner", admittedProject, null,
+            assertThrows(IllegalArgumentException.class, () -> runQuery.page(admittedProject, null,
                     null, firstRunPage.nextCursor() + "tampered", 2));
-            assertThrows(IllegalArgumentException.class, () -> runQuery.page("owner", admittedProject, null,
+            assertThrows(IllegalArgumentException.class, () -> runQuery.page(admittedProject, null,
                     "FAILED", firstRunPage.nextCursor(), 2));
         } finally {
             try (Connection admin = DriverManager.getConnection(baseUrl, user, password);
@@ -444,10 +444,10 @@ class ToolContentServiceIT {
                                     String promptHash, String schemaHash) throws SQLException {
         String run = UUID.randomUUID().toString();
         try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement()) {
-            sql.execute("INSERT INTO tb_agent_run(id, owner_id, project_id, target_chapter_id, instruction, " +
+            sql.execute("INSERT INTO tb_agent_run(id, project_id, target_chapter_id, instruction, " +
                     "client_request_id, request_digest, base_version, base_content, status, deadline_at, model_id, " +
                     "prompt_hash, tool_schema_hash, config_snapshot) VALUES (" +
-                    "'" + run + "','owner','" + project + "','" + target + "','check'," +
+                    "'" + run + "','" + project + "','" + target + "','check'," +
                     "'" + UUID.randomUUID() + "','" + "d".repeat(64) + "',1,'old target','RUNNING',now()+interval '3 minutes'," +
                     "'scripted','" + promptHash + "','" + schemaHash + "','{}'::jsonb)");
             sql.execute("INSERT INTO tb_agent_message(run_id, message_seq, role, content) VALUES " +

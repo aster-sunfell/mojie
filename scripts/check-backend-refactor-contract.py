@@ -61,7 +61,7 @@ def scenario(name, port, jar):
     schemas.append(schema)
     sql('CREATE SCHEMA ' + schema)
     env = dict(os.environ)
-    env.update(MOJIE_DB_URL=url + ('&' if '?' in url else '?') + 'currentSchema=' + schema, MOJIE_DB_USER=os.environ['MOJIE_TEST_DB_USER'], MOJIE_DB_PASSWORD=os.environ['MOJIE_TEST_DB_PASSWORD'], MOJIE_PORT=str(port), MOJIE_MODEL_API_KEY='contract-test-key', MOJIE_MODEL_BASE_URL='http://127.0.0.1:' + str(provider.server_port), MOJIE_MODEL_API_PATH='/v1/messages', MOJIE_MODEL_ID='contract-test', MOJIE_MODEL_CONTEXT_TOKENS='200000', MOJIE_DEV_TRACE='true', MOJIE_OWNER_ID='contract-owner')
+    env.update(MOJIE_DB_URL=url + ('&' if '?' in url else '?') + 'currentSchema=' + schema, MOJIE_DB_USER=os.environ['MOJIE_TEST_DB_USER'], MOJIE_DB_PASSWORD=os.environ['MOJIE_TEST_DB_PASSWORD'], MOJIE_PORT=str(port), MOJIE_MODEL_API_KEY='contract-test-key', MOJIE_MODEL_BASE_URL='http://127.0.0.1:' + str(provider.server_port), MOJIE_MODEL_API_PATH='/v1/messages', MOJIE_MODEL_ID='contract-test', MOJIE_MODEL_CONTEXT_TOKENS='200000', MOJIE_DEV_TRACE='true')
     log = open('/tmp/mojie-http-' + name + '.log', 'w')
     proc = subprocess.Popen(['java', '-jar', jar], env=env, stdout=log, stderr=subprocess.STDOUT)
     procs.append(proc)

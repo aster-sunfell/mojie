@@ -13,18 +13,18 @@ public final class RunEventQueryService {
     this.events = events;
   }
 
-  public void requireOwned(String owner, String runId) {
-    runs.scoped(owner, runId);
+  public void requireExists(String runId) {
+    runs.scoped(runId);
   }
 
-  public Map<String, Object> detail(String owner, String runId) {
-    return runs.scoped(owner, runId);
+  public Map<String, Object> detail(String runId) {
+    return runs.scoped(runId);
   }
 
-  public List<RunEvent> events(String owner, String runId, long afterSeq, int limit) {
+  public List<RunEvent> events(String runId, long afterSeq, int limit) {
     if (afterSeq < 0 || limit < 1 || limit > 100)
       throw new IllegalArgumentException("Invalid event cursor");
-    requireOwned(owner, runId);
+    requireExists(runId);
     return events.after(runId, afterSeq, limit);
   }
 }

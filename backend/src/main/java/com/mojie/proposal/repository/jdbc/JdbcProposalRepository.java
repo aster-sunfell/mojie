@@ -14,17 +14,16 @@ public final class JdbcProposalRepository implements ProposalRepository {
   }
 
   @Override
-  public EditProposal lockOwned(String owner, String id) {
+  public EditProposal lockVisible(String id) {
     Map<String, Object> p =
         db.first(
             """
             SELECT p.id, p.project_id, p.target_chapter_id, p.base_version, p.proposed_content,
                    p.status, p.applied_version, p.base_content, p.review_decisions
               FROM tb_edit_proposal p JOIN tb_agent_run r ON r.id = p.run_id
-             WHERE p.id = ?::uuid AND r.owner_id = ? AND r.status = 'SUCCEEDED' FOR UPDATE OF p
+             WHERE p.id = ?::uuid AND r.status = 'SUCCEEDED' FOR UPDATE OF p
             """,
-            id,
-            owner);
+            id);
     return p == null
         ? null
         : new EditProposal(
@@ -40,27 +39,25 @@ public final class JdbcProposalRepository implements ProposalRepository {
   }
 
   @Override
-  public String projectId(String owner, String id) {
+  public String projectId(String id) {
     Map<String, Object> p =
         db.first(
             "SELECT p.project_id FROM tb_edit_proposal p JOIN tb_agent_run r ON r.id = p.run_id"
-                + " WHERE p.id = ?::uuid AND r.owner_id = ? AND r.status = 'SUCCEEDED'",
-            id,
-            owner);
+                + " WHERE p.id = ?::uuid AND r.status = 'SUCCEEDED'",
+            id);
     return p == null ? null : p.get("projectId").toString();
   }
 
   @Override
-  public ProposalReview.Locked lockReview(String owner, String chapterId, String id) {
+  public ProposalReview.Locked lockReview(String chapterId, String id) {
     Map<String, Object> p =
         db.first(
             "SELECT p.base_content, p.proposed_content, p.status, p.review_decisions FROM"
                 + " tb_edit_proposal p JOIN tb_agent_run r ON r.id = p.run_id WHERE p.id = ?::uuid"
-                + " AND p.target_chapter_id = ?::uuid AND r.owner_id = ? AND r.status = 'SUCCEEDED'"
+                + " AND p.target_chapter_id = ?::uuid AND r.status = 'SUCCEEDED'"
                 + " FOR UPDATE OF p",
             id,
-            chapterId,
-            owner);
+            chapterId);
     return p == null
         ? null
         : new ProposalReview.Locked(
@@ -99,7 +96,7 @@ public final class JdbcProposalRepository implements ProposalRepository {
   }
 
   @Override
-  public ProposalDetail detail(String owner, String id) {
+  public ProposalDetail detail(String id) {
     return db.firstRecord(
         ProposalDetail.class,
         """
@@ -107,10 +104,9 @@ public final class JdbcProposalRepository implements ProposalRepository {
                p.base_content, p.proposed_content, p.reason, p.status, p.applied_version,
                p.created_at, p.updated_at, p.review_decisions
           FROM tb_edit_proposal p JOIN tb_agent_run r ON r.id = p.run_id
-         WHERE p.id = ?::uuid AND r.owner_id = ?
+         WHERE p.id = ?::uuid
         """,
-        id,
-        owner);
+        id);
   }
 
   @Override

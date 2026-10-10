@@ -18,29 +18,29 @@ public final class QueryFixture {
     events = TestServices.events(source);
   }
 
-  public Map<String, Object> detail(String owner, String id) {
-    return query.detail(owner, id);
+  public Map<String, Object> detail(String id) {
+    return query.detail(id);
   }
 
-  public Map<String, Object> trace(String owner, String id) {
-    return query.trace(owner, id);
+  public Map<String, Object> trace(String id) {
+    return query.trace(id);
   }
 
-  public Map<String, Object> proposal(String owner, String id) {
-    return proposals.detail(owner, id);
+  public Map<String, Object> proposal(String id) {
+    return proposals.detail(id);
   }
 
-  public List<RunEvent> events(String owner, String id, long after, int limit) {
-    return events.events(owner, id, after, limit);
+  public List<RunEvent> events(String id, long after, int limit) {
+    return events.events(id, after, limit);
   }
 
   public List<Map<String, Object>> list(
-      String owner, String project, String chapter, String status, int limit) {
-    return query.list(owner, project, chapter, status, limit);
+      String project, String chapter, String status, int limit) {
+    return query.list(project, chapter, status, limit);
   }
 
   public Page<Map<String, Object>> page(
-      String owner, String project, String chapter, String status, String cursor, int limit) {
-    return query.page(owner, project, chapter, status, cursor, limit);
+      String project, String chapter, String status, String cursor, int limit) {
+    return query.page(project, chapter, status, cursor, limit);
   }
 }

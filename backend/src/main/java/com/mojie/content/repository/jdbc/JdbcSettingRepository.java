@@ -71,13 +71,12 @@ public final class JdbcSettingRepository implements SettingRepository {
   }
 
   @Override
-  public SettingProject findOwnedProject(String owner, String settingId) {
+  public SettingProject findVisibleProject(String settingId) {
     return db.firstRecord(
         SettingProject.class,
         "SELECT s.project_id FROM tb_setting s JOIN tb_project p ON p.id = s.project_id WHERE s.id"
-            + " = ?::uuid AND s.deleted_at IS NULL AND p.owner_id = ? AND p.deleted_at IS NULL",
-        settingId,
-        owner);
+            + " = ?::uuid AND s.deleted_at IS NULL AND p.deleted_at IS NULL",
+        settingId);
   }
 
   @Override

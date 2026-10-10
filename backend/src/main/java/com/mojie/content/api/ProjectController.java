@@ -1,6 +1,5 @@
 package com.mojie.content.api;
 
-import com.mojie.common.web.ActorProvider;
 import com.mojie.content.service.*;
 import com.mojie.proposal.model.ProposalReview.*;
 import java.util.*;
@@ -11,11 +10,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1")
 public final class ProjectController {
   private final ProjectService projects;
-  private final ActorProvider actor;
 
-  public ProjectController(ProjectService projects, ActorProvider actor) {
+  public ProjectController(ProjectService projects) {
     this.projects = projects;
-    this.actor = actor;
   }
 
   private static Map<String, Object> data(Object value) {
@@ -29,28 +26,27 @@ public final class ProjectController {
       @RequestParam(required = false) String cursor,
       @RequestParam(required = false) Integer limit,
       @RequestParam(required = false) String keyword) {
-    return data(projects.projectPage(actor.ownerId(), keyword, cursor, limit));
+    return data(projects.projectPage(keyword, cursor, limit));
   }
 
   @PostMapping("/projects")
   public ResponseEntity<Map<String, Object>> createProject(@RequestBody Title body) {
-    return ResponseEntity.status(201)
-        .body(data(projects.createProject(actor.ownerId(), body.title())));
+    return ResponseEntity.status(201).body(data(projects.createProject(body.title())));
   }
 
   @GetMapping("/projects/{id}")
   public Map<String, Object> project(@PathVariable String id) {
-    return data(projects.project(actor.ownerId(), id));
+    return data(projects.project(id));
   }
 
   @PatchMapping("/projects/{id}")
   public Map<String, Object> renameProject(@PathVariable String id, @RequestBody Title body) {
-    return data(projects.renameProject(actor.ownerId(), id, body.title()));
+    return data(projects.renameProject(id, body.title()));
   }
 
   @DeleteMapping("/projects/{id}")
   public ResponseEntity<Void> deleteProject(@PathVariable String id) {
-    projects.deleteProject(actor.ownerId(), id);
+    projects.deleteProject(id);
     return ResponseEntity.noContent().build();
   }
 }

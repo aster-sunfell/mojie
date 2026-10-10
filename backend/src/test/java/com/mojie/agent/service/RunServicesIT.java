@@ -47,15 +47,15 @@ class RunServicesIT {
         withDatabase(dataSource -> {
             Flyway.configure().dataSource(dataSource).load().migrate();
             ContentFixture content = new ContentFixture(dataSource);
-            String project = (String) content.createProject("owner", "林舟演示").get("id");
-            String prior = (String) content.createChapter("owner", project, "河边").get("id");
-            content.saveChapter("owner", prior, "林舟不会游泳。\n林舟再次说他不会游泳。", 1);
-            String target = (String) content.createChapter("owner", project, "深水").get("id");
+            String project = (String) content.createProject("林舟演示").get("id");
+            String prior = (String) content.createChapter(project, "河边").get("id");
+            content.saveChapter(prior, "林舟不会游泳。\n林舟再次说他不会游泳。", 1);
+            String target = (String) content.createChapter(project, "深水").get("id");
             String original = "林舟潜入深水，独自游到对岸。";
-            content.saveChapter("owner", target, original, 1);
-            String firstSetting = (String) content.createSetting("owner", project, "CHARACTER", "林舟", "林舟不会游泳。").get("id");
-            String secondSetting = (String) content.createSetting("owner", project, "CHARACTER", "向导", "向导提醒林舟别游泳。").get("id");
-            content.createSetting("owner", project, "WORLD", "河流", "雨后水位上涨。");
+            content.saveChapter(target, original, 1);
+            String firstSetting = (String) content.createSetting(project, "CHARACTER", "林舟", "林舟不会游泳。").get("id");
+            String secondSetting = (String) content.createSetting(project, "CHARACTER", "向导", "向导提醒林舟别游泳。").get("id");
+            content.createSetting(project, "WORLD", "河流", "雨后水位上涨。");
             int[] turn = {0};
             ModelGateway scripted = request -> {
                 int index = ++turn[0];
@@ -107,10 +107,10 @@ class RunServicesIT {
             };
             try (RuntimeFixture scheduler = scheduler(dataSource, scripted)) {
                 scheduler.start();
-                String runId = scheduler.submit(new Request("owner", project, target, 2,
+                String runId = scheduler.submit(new Request(project, target, 2,
                         "检查第三章与人物设定及前文是否矛盾", UUID.randomUUID().toString())).runId();
                 await(() -> "SUCCEEDED".equals(status(dataSource, runId)));
-                Map<String,Object> detail = new QueryFixture(dataSource).detail("owner", runId);
+                Map<String,Object> detail = new QueryFixture(dataSource).detail(runId);
                 assertEquals(5, detail.get("modelCallCount"));
                 assertEquals(11, detail.get("toolCallCount"));
                 assertEquals(11, count(dataSource, "SELECT count(*) FROM tb_agent_step s JOIN tb_agent_message m "
@@ -123,10 +123,10 @@ class RunServicesIT {
                         "read_chapter", "propose_edit"),
                         steps.stream().map(item -> ((Map<?,?>) item).get("toolName")).toList());
                 assertNotNull(detail.get("proposalId"));
-                Map<String,Object> proposal = new QueryFixture(dataSource).proposal("owner", detail.get("proposalId").toString());
+                Map<String,Object> proposal = new QueryFixture(dataSource).proposal(detail.get("proposalId").toString());
                 assertEquals("PENDING", proposal.get("status"));
-                assertEquals(original, content.chapter("owner", target).get("content"));
-                assertEquals(2, content.chapter("owner", target).get("version"));
+                assertEquals(original, content.chapter(target).get("content"));
+                assertEquals(2, content.chapter(target).get("version"));
                 List<?> sources = (List<?>) detail.get("sources");
                 assertTrue(sources.stream().anyMatch(item -> "FULL_CHAPTER".equals(((Map<?,?>) item).get("kind"))
                         && target.equals(((Map<?,?>) item).get("chapterId"))));
@@ -143,14 +143,14 @@ class RunServicesIT {
         withDatabase(source -> {
             Flyway.configure().dataSource(source).load().migrate();
             ContentFixture content = new ContentFixture(source);
-            String project = (String) content.createProject("owner", "version-view").get("id");
-            String prior = (String) content.createChapter("owner", project, "prior").get("id");
-            String second = (String) content.createChapter("owner", project, "second").get("id");
-            String target = (String) content.createChapter("owner", project, "target").get("id");
+            String project = (String) content.createProject("version-view").get("id");
+            String prior = (String) content.createChapter(project, "prior").get("id");
+            String second = (String) content.createChapter(project, "second").get("id");
+            String target = (String) content.createChapter(project, "target").get("id");
             String priorOld = "needle prior old", secondOld = "needle second old", targetOld = "needle target old";
-            content.saveChapter("owner", prior, priorOld, 1);
-            content.saveChapter("owner", second, secondOld, 1);
-            content.saveChapter("owner", target, targetOld, 1);
+            content.saveChapter(prior, priorOld, 1);
+            content.saveChapter(second, secondOld, 1);
+            content.saveChapter(target, targetOld, 1);
             AtomicInteger turn = new AtomicInteger();
             String[] pinnedView = new String[1];
             ModelGateway scripted = request -> switch (turn.incrementAndGet()) {
@@ -160,8 +160,8 @@ class RunServicesIT {
                 case 2 -> {
                     assertEquals(targetOld, data(request, "target-first").get("content"));
                     assertEquals(priorOld, data(request, "prior-first").get("content"));
-                    content.saveChapter("owner", target, "changed target", 2);
-                    content.saveChapter("owner", prior, "changed prior", 2);
+                    content.saveChapter(target, "changed target", 2);
+                    content.saveChapter(prior, "changed prior", 2);
                     yield calls("search-after-edit", tool("page-one", "search_chapters",
                             Map.of("keyword", "needle", "scope", "ALL_CHAPTERS", "limit", 1)));
                 }
@@ -174,7 +174,7 @@ class RunServicesIT {
                     assertEquals(true, firstPage.get("hasMore"));
                     pinnedView[0] = (String) firstPage.get("viewId");
                     assertNotNull(pinnedView[0]);
-                    content.saveChapter("owner", second, "changed second", 2);
+                    content.saveChapter(second, "changed second", 2);
                     yield calls("page-and-read-after-edit",
                             tool("page-two", "search_chapters", Map.of("keyword", "needle", "scope", "ALL_CHAPTERS",
                                     "limit", 2, "cursor", firstPage.get("nextCursor"))),
@@ -200,19 +200,19 @@ class RunServicesIT {
             };
             try (RuntimeFixture scheduler = scheduler(source, scripted)) {
                 scheduler.start();
-                String runId = scheduler.submit(new Request("owner", project, target, 2,
+                String runId = scheduler.submit(new Request(project, target, 2,
                         "check version view", UUID.randomUUID().toString())).runId();
                 await(() -> "SUCCEEDED".equals(status(source, runId)));
                 assertEquals(4, turn.get());
-                Map<String,Object> detail = new QueryFixture(source).detail("owner", runId);
+                Map<String,Object> detail = new QueryFixture(source).detail(runId);
                 List<?> sources = (List<?>) detail.get("sources");
                 assertTrue(sources.stream().filter(item -> ((Map<?,?>) item).get("chapterId") != null)
                         .allMatch(item -> ((Number) ((Map<?,?>) item).get("chapterVersion")).intValue() == 2));
                 assertEquals(3, count(source, "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='"
                         + runId + "' AND version=2"));
-                assertEquals("changed target", content.chapter("owner", target).get("content"));
-                assertEquals("changed prior", content.chapter("owner", prior).get("content"));
-                assertEquals("changed second", content.chapter("owner", second).get("content"));
+                assertEquals("changed target", content.chapter(target).get("content"));
+                assertEquals("changed prior", content.chapter(prior).get("content"));
+                assertEquals("changed second", content.chapter(second).get("content"));
             }
         });
     }
@@ -258,7 +258,7 @@ class RunServicesIT {
                 scheduler.start();
                 String runId = scheduler.submit(fixture.request("correct malformed arguments")).runId();
                 await(() -> "SUCCEEDED".equals(status(source, runId)));
-                var detail = new QueryFixture(source).detail("owner", runId);
+                var detail = new QueryFixture(source).detail(runId);
                 assertEquals(3, calls.get());
                 assertEquals(3, detail.get("modelCallCount"));
                 assertEquals(2, detail.get("toolCallCount"));
@@ -324,9 +324,9 @@ class RunServicesIT {
                 await(() -> "FAILED".equals(status(source, runId)));
                 QueryFixture query = new QueryFixture(source);
                 assertEquals("MODEL_ERROR", errorCode(source, runId));
-                assertFalse(query.detail("owner", runId).toString().contains("sensitive-canary"));
-                assertFalse(query.trace("owner", runId).toString().contains("sensitive-canary"));
-                assertFalse(query.events("owner", runId, 0, 100).toString().contains("sensitive-canary"));
+                assertFalse(query.detail(runId).toString().contains("sensitive-canary"));
+                assertFalse(query.trace(runId).toString().contains("sensitive-canary"));
+                assertFalse(query.events(runId, 0, 100).toString().contains("sensitive-canary"));
             }
         });
     }
@@ -360,7 +360,7 @@ class RunServicesIT {
                     statement.executeUpdate("UPDATE tb_agent_run SET config_snapshot=config_snapshot || "
                             + "'{\"apiKey\":\"config-secret-canary\"}'::jsonb WHERE id='" + runId + "'");
                 }
-                Map<String,Object> trace = query.trace("owner", runId);
+                Map<String,Object> trace = query.trace(runId);
                 assertFalse(trace.toString().contains(hidden));
                 assertEquals("scripted", trace.get("modelId"));
                 Map<?,?> modelConfig = (Map<?,?>) trace.get("modelConfig");
@@ -372,8 +372,8 @@ class RunServicesIT {
                 var block = ((com.fasterxml.jackson.databind.JsonNode) assistant.get("content")).get(0).path("block");
                 assertEquals("chat_reasoning", block.path("type").asText());
                 assertTrue(block.path("redacted").asBoolean());
-                assertFalse(query.detail("owner", runId).toString().contains(hidden));
-                assertFalse(query.events("owner", runId, 0, 100).toString().contains(hidden));
+                assertFalse(query.detail(runId).toString().contains(hidden));
+                assertFalse(query.events(runId, 0, 100).toString().contains(hidden));
             }
         });
     }
@@ -577,7 +577,7 @@ class RunServicesIT {
             assertEquals(new CancelResult("RUNNING", true),
                     lifecycle.requestCancel(fixture.project(), runId));
             assertEquals("CANCELLED", terminal.finish(fixture.project(), runId, new LoopOutcome.Cancelled()).status());
-            Map<String,Object> detail = new QueryFixture(source).detail("owner", runId);
+            Map<String,Object> detail = new QueryFixture(source).detail(runId);
             assertEquals("CANCELLED", detail.get("status"));
             assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId
                     + "' AND status='SUCCEEDED'"));
@@ -659,7 +659,7 @@ class RunServicesIT {
                 assertEquals("RUN_CAPACITY_EXCEEDED", full.code());
                 assertEquals(10, count(dataSource, "SELECT count(*) FROM tb_agent_run"));
                 BusinessException busy = assertThrows(BusinessException.class,
-                        () -> new ContentFixture(dataSource).deleteProject("owner", fixtures.get(2).project()));
+                        () -> new ContentFixture(dataSource).deleteProject(fixtures.get(2).project()));
                 assertEquals("RESOURCE_BUSY", busy.code());
                 assertEquals(10, scheduler.occupiedCapacity());
 
@@ -763,7 +763,7 @@ class RunServicesIT {
             CountDownLatch releaseB = new CountDownLatch(1);
             Fixture fixture = fixture(dataSource, "same-project");
             String nextChapter = (String) new ContentFixture(dataSource)
-                    .createChapter("owner", fixture.project(), "下一章").get("id");
+                    .createChapter(fixture.project(), "下一章").get("id");
             ModelGateway delayed = request -> {
                 if (request.messages().size() == 1) {
                     String instruction = request.messages().getFirst().content().stream()
@@ -792,7 +792,7 @@ class RunServicesIT {
                 await(() -> "CANCELLED".equals(status(dataSource, runA)));
                 assertEquals(1, scheduler.occupiedCapacity());
 
-                String runB = scheduler.submit(new Request("owner", fixture.project(), nextChapter, 1,
+                String runB = scheduler.submit(new Request(fixture.project(), nextChapter, 1,
                         "check B " + nextChapter, UUID.randomUUID().toString())).runId();
                 assertTrue(enteredB.await(5, TimeUnit.SECONDS));
                 assertEquals(2, scheduler.occupiedCapacity());
@@ -822,8 +822,8 @@ class RunServicesIT {
             Fixture b = fixture(dataSource, "second-project");
             String firstBody = "甲项目独有的河岸线索";
             String secondBody = "乙项目独有的山谷线索";
-            content.saveChapter("owner", a.chapter(), firstBody, 1);
-            content.saveChapter("owner", b.chapter(), secondBody, 1);
+            content.saveChapter(a.chapter(), firstBody, 1);
+            content.saveChapter(b.chapter(), secondBody, 1);
             CountDownLatch bothStarted = new CountDownLatch(2);
             ModelGateway sharedIds = request -> {
                 String instruction = request.messages().getFirst().content().stream()
@@ -850,9 +850,9 @@ class RunServicesIT {
             };
             try (RuntimeFixture scheduler = scheduler(dataSource, sharedIds)) {
                 scheduler.start();
-                String runA = scheduler.submit(new Request("owner", a.project(), a.chapter(), 2,
+                String runA = scheduler.submit(new Request(a.project(), a.chapter(), 2,
                         "check A " + a.chapter(), UUID.randomUUID().toString())).runId();
-                String runB = scheduler.submit(new Request("owner", b.project(), b.chapter(), 2,
+                String runB = scheduler.submit(new Request(b.project(), b.chapter(), 2,
                         "check B " + b.chapter(), UUID.randomUUID().toString())).runId();
                 await(() -> "SUCCEEDED".equals(status(dataSource, runA))
                         && "SUCCEEDED".equals(status(dataSource, runB)) && scheduler.occupiedCapacity() == 0);
@@ -862,7 +862,7 @@ class RunServicesIT {
                     String ownBody = firstRun ? firstBody : secondBody;
                     String otherBody = firstRun ? secondBody : firstBody;
                     String chapterId = firstRun ? a.chapter() : b.chapter();
-                    Map<String,Object> trace = query.trace("owner", runId);
+                    Map<String,Object> trace = query.trace(runId);
                     List<?> calls = (List<?>) trace.get("modelCalls");
                     assertEquals(List.of("shared-provider-request", "shared-provider-final"), calls.stream()
                             .map(item -> ((Map<?,?>) item).get("providerRequestId")).toList());
@@ -909,7 +909,7 @@ class RunServicesIT {
                 scheduler.start();
                 String runId = scheduler.submit(fixture.request("scope check")).runId();
                 await(() -> "SUCCEEDED".equals(status(dataSource, runId)));
-                Map<String,Object> detail = new QueryFixture(dataSource).detail("owner", runId);
+                Map<String,Object> detail = new QueryFixture(dataSource).detail(runId);
                 assertEquals(2, detail.get("toolCallCount"));
                 List<?> steps = (List<?>) detail.get("steps");
                 assertEquals("SEARCH_SCOPE_TOO_LARGE", ((Map<?,?>) steps.getFirst()).get("errorCode"));
@@ -962,7 +962,7 @@ class RunServicesIT {
                 await(() -> "SUCCEEDED".equals(status(dataSource, runId)));
                 assertEquals(1000, count(dataSource,
                         "SELECT count(*) FROM tb_agent_run_chapter_view WHERE run_id='" + runId + "'"));
-                Map<String,Object> detail = new QueryFixture(dataSource).detail("owner", runId);
+                Map<String,Object> detail = new QueryFixture(dataSource).detail(runId);
                 assertEquals(2, detail.get("toolCallCount"));
                 assertEquals(1, ((List<?>) detail.get("sources")).size());
                 try (Connection connection = dataSource.getConnection(); Statement sql = connection.createStatement();
@@ -1116,17 +1116,17 @@ class RunServicesIT {
 
     private static void assertCandidateWasNotPublished(PGSimpleDataSource dataSource, Fixture fixture, String runId)
             throws SQLException {
-        Map<String,Object> detail = new QueryFixture(dataSource).detail("owner", runId);
+        Map<String,Object> detail = new QueryFixture(dataSource).detail(runId);
         assertNull(detail.get("proposalId"));
         assertTrue(((List<?>) detail.get("steps")).stream().anyMatch(item -> {
             Map<?,?> step = (Map<?,?>) item;
             return "propose_edit".equals(step.get("toolName")) && "SUCCEEDED".equals(step.get("status"));
         }));
-        assertEquals("body", new ContentFixture(dataSource).chapter("owner", fixture.chapter()).get("content"));
-        assertEquals(1, new ContentFixture(dataSource).chapter("owner", fixture.chapter()).get("version"));
+        assertEquals("body", new ContentFixture(dataSource).chapter(fixture.chapter()).get("content"));
+        assertEquals(1, new ContentFixture(dataSource).chapter(fixture.chapter()).get("version"));
         BusinessException missing = assertThrows(
                 BusinessException.class,
-                () -> TestServices.proposals(dataSource).accept("owner", runId));
+                () -> TestServices.proposals(dataSource).accept(runId));
         assertEquals("RESOURCE_NOT_FOUND", missing.code());
     }
 
@@ -1186,15 +1186,15 @@ class RunServicesIT {
     }
     private record Fixture(String project, String chapter) {
         Request request(String label) {
-            return new Request("owner", project, chapter, 1,
+            return new Request(project, chapter, 1,
                     label + " " + chapter, UUID.randomUUID().toString());
         }
     }
     private static Fixture fixture(PGSimpleDataSource source, String name) throws SQLException {
         String project = UUID.randomUUID().toString(), chapter = UUID.randomUUID().toString();
         try (Connection connection = source.getConnection(); Statement sql = connection.createStatement()) {
-            sql.execute("INSERT INTO tb_project(id, owner_id, name, next_chapter_order) VALUES ('" + project
-                    + "','owner','" + name + "',2)");
+            sql.execute("INSERT INTO tb_project(id, name, next_chapter_order) VALUES ('" + project
+                    + "','" + name + "',2)");
             sql.execute("INSERT INTO tb_chapter(id, project_id, chapter_order, title, content) VALUES " +
                     "('" + chapter + "','" + project + "',1,'chapter','body')");
             sql.execute("INSERT INTO tb_chapter_revision(chapter_id, version, content, source) VALUES " +

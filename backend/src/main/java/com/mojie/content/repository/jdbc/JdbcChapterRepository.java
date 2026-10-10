@@ -32,15 +32,14 @@ public final class JdbcChapterRepository implements ChapterRepository {
   }
 
   @Override
-  public Chapter findOwned(String owner, String chapterId) {
+  public Chapter findVisible(String chapterId) {
     return db.firstRecord(
         Chapter.class,
         "SELECT ch.id, ch.project_id, ch.chapter_order, ch.title, ch.content, ch.version,"
             + " ch.updated_at FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE"
-            + " ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.owner_id = ? AND p.deleted_at IS"
+            + " ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.deleted_at IS"
             + " NULL",
-        chapterId,
-        owner);
+        chapterId);
   }
 
   @Override
@@ -74,14 +73,13 @@ public final class JdbcChapterRepository implements ChapterRepository {
   }
 
   @Override
-  public ChapterProject findOwnedProject(String owner, String chapterId) {
+  public ChapterProject findVisibleProject(String chapterId) {
     return db.firstRecord(
         ChapterProject.class,
         "SELECT ch.project_id FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE"
-            + " ch.id = ?::uuid AND p.owner_id = ? AND ch.deleted_at IS NULL AND p.deleted_at IS"
+            + " ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.deleted_at IS"
             + " NULL",
-        chapterId,
-        owner);
+        chapterId);
   }
 
   @Override
@@ -93,35 +91,32 @@ public final class JdbcChapterRepository implements ChapterRepository {
   }
 
   @Override
-  public ChapterProject findOwnedProjectForDelete(String owner, String chapterId) {
+  public ChapterProject findVisibleProjectForDelete(String chapterId) {
     return db.firstRecord(
         ChapterProject.class,
         "SELECT ch.project_id FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE"
-            + " ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.owner_id = ? AND p.deleted_at IS"
+            + " ch.id = ?::uuid AND ch.deleted_at IS NULL AND p.deleted_at IS"
             + " NULL",
-        chapterId,
-        owner);
+        chapterId);
   }
 
   @Override
-  public ChapterIdentity findRevisionChapter(String owner, String chapterId) {
+  public ChapterIdentity findRevisionChapter(String chapterId) {
     return db.firstRecord(
         ChapterIdentity.class,
         "SELECT ch.id FROM tb_chapter ch JOIN tb_project p ON p.id = ch.project_id WHERE ch.id ="
-            + " ?::uuid AND p.owner_id = ?",
-        chapterId,
-        owner);
+            + " ?::uuid",
+        chapterId);
   }
 
   @Override
-  public LockedChapter lockOwned(String owner, String chapterId) {
+  public LockedChapter lockVisible(String chapterId) {
     return db.firstRecord(
         LockedChapter.class,
         "SELECT ch.id, ch.project_id, ch.version, ch.content FROM tb_chapter ch JOIN tb_project p"
             + " ON p.id = ch.project_id WHERE ch.id = ?::uuid AND ch.deleted_at IS NULL AND"
-            + " p.owner_id = ? AND p.deleted_at IS NULL FOR UPDATE OF ch",
-        chapterId,
-        owner);
+            + " p.deleted_at IS NULL FOR UPDATE OF ch",
+        chapterId);
   }
 
   @Override

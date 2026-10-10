@@ -12,7 +12,7 @@ public interface SettingRepository {
 
   int update(String settingId, String type, String title, String content);
 
-  SettingProject findOwnedProject(String owner, String settingId);
+  SettingProject findVisibleProject(String settingId);
 
   int softDelete(String settingId);
 }

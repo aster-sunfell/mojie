@@ -13,8 +13,8 @@ public final class ProjectAccessService {
     this.projects = projects;
   }
 
-  public void lock(String owner, String projectId, boolean requireIdle) {
-    Map<String, Object> project = required(fields(projects.lockOwned(owner, projectId)));
+  public void lock(String projectId, boolean requireIdle) {
+    Map<String, Object> project = required(fields(projects.lockVisible(projectId)));
     if (requireIdle && project.get("activeRunId") != null)
       throw error("RESOURCE_BUSY", "Project has an active run");
   }

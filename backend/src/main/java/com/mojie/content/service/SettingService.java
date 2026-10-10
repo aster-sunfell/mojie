@@ -30,21 +30,16 @@ public final class SettingService {
   }
 
   public List<Map<String, Object>> settings(
-      String owner, String id, String filterType, String keyword, Integer requestedLimit) {
-    return settingPage(owner, id, filterType, keyword, null, requestedLimit).items();
+      String id, String filterType, String keyword, Integer requestedLimit) {
+    return settingPage(id, filterType, keyword, null, requestedLimit).items();
   }
 
   public Page<Map<String, Object>> settingPage(
-      String owner,
-      String id,
-      String filterType,
-      String keyword,
-      String cursor,
-      Integer requestedLimit) {
+      String id, String filterType, String keyword, String cursor, Integer requestedLimit) {
     String projectId = uuid(id);
     int size = limit(requestedLimit);
     if (filterType != null) type(filterType);
-    String scope = "settings:" + owner + ":" + projectId + ":" + filterType + ":" + keyword;
+    String scope = "settings:" + projectId + ":" + filterType + ":" + keyword;
     String marker = cursors.decode(scope, cursor);
     if (marker != null) {
       try {
@@ -55,7 +50,7 @@ public final class SettingService {
     }
     return transactions.required(
         () -> {
-          required(fields(projects.findOwnedId(owner, projectId)));
+          required(fields(projects.findVisibleId(projectId)));
           return page(
               fields(settings.findPage(projectId, filterType, keyword, marker, size + 1)),
               size,
@@ -66,21 +61,21 @@ public final class SettingService {
   }
 
   public Map<String, Object> createSetting(
-      String owner, String id, String settingType, String title, String content) {
+      String id, String settingType, String title, String content) {
     String projectId = uuid(id),
         kind = type(settingType),
         name = text(title, "title", 1, 80),
         body = text(content, "content", 1, 2000);
     return transactions.required(
         () -> {
-          access.lock(owner, projectId, true);
+          access.lock(projectId, true);
           String settingId = settings.insert(projectId, kind, name, body);
           return required(fields(settings.findById(settingId)));
         });
   }
 
   public Map<String, Object> updateSetting(
-      String owner, String id, String settingType, String title, String content) {
+      String id, String settingType, String title, String content) {
     String settingId = uuid(id),
         kind = type(settingType),
         name = text(title, "title", 1, 80),
@@ -89,21 +84,21 @@ public final class SettingService {
         () -> {
           String projectId =
               String.valueOf(
-                  required(fields(settings.findOwnedProject(owner, settingId))).get("projectId"));
-          access.lock(owner, projectId, true);
+                  required(fields(settings.findVisibleProject(settingId))).get("projectId"));
+          access.lock(projectId, true);
           requireOne(settings.update(settingId, kind, name, body));
           return required(fields(settings.findById(settingId)));
         });
   }
 
-  public void deleteSetting(String owner, String id) {
+  public void deleteSetting(String id) {
     String settingId = uuid(id);
     transactions.required(
         () -> {
           String projectId =
               String.valueOf(
-                  required(fields(settings.findOwnedProject(owner, settingId))).get("projectId"));
-          access.lock(owner, projectId, true);
+                  required(fields(settings.findVisibleProject(settingId))).get("projectId"));
+          access.lock(projectId, true);
           requireOne(settings.softDelete(settingId));
           return null;
         });

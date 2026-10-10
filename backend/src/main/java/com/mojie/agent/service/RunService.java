@@ -75,8 +75,8 @@ public final class RunService {
     }
   }
 
-  public CancelResult cancel(String owner, String runId) {
-    String projectId = query.scoped(owner, runId).get("projectId").toString();
+  public CancelResult cancel(String runId) {
+    String projectId = query.scoped(runId).get("projectId").toString();
     return cancelProjectRun(projectId, runId);
   }
 

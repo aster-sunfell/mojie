@@ -49,9 +49,9 @@ public final class RunEventStream implements AutoCloseable {
     }
   }
 
-  public SseEmitter open(String owner, String runId, long cursor) {
+  public SseEmitter open(String runId, long cursor) {
     if (!capacity.tryAcquire()) throw new CapacityExceeded();
-    Subscription subscription = new Subscription(owner, runId, cursor);
+    Subscription subscription = new Subscription(runId, cursor);
     subscriptions.add(subscription);
     try {
       ScheduledFuture<?> task =
@@ -66,7 +66,7 @@ public final class RunEventStream implements AutoCloseable {
   }
 
   private final class Subscription {
-    final String owner;
+
     final String runId;
     final SseEmitter emitter = new SseEmitter(0L);
     final AtomicBoolean closed = new AtomicBoolean();
@@ -75,8 +75,7 @@ public final class RunEventStream implements AutoCloseable {
     long cursor;
     long lastHeartbeat = System.nanoTime();
 
-    Subscription(String owner, String runId, long cursor) {
-      this.owner = owner;
+    Subscription(String runId, long cursor) {
       this.runId = runId;
       this.cursor = cursor;
       emitter.onCompletion(this::stop);
@@ -106,7 +105,7 @@ public final class RunEventStream implements AutoCloseable {
     void send() {
       try {
         if (closed.get()) return;
-        var batch = query.events(owner, runId, cursor, 100);
+        var batch = query.events(runId, cursor, 100);
         for (RunEvent event : batch) {
           if (closed.get()) return;
           emitter.send(
@@ -133,7 +132,7 @@ public final class RunEventStream implements AutoCloseable {
           emitter.send(SseEmitter.event().comment("heartbeat"));
           lastHeartbeat = System.nanoTime();
         }
-        Map<String, Object> snapshot = batch.isEmpty() ? query.detail(owner, runId) : null;
+        Map<String, Object> snapshot = batch.isEmpty() ? query.detail(runId) : null;
         boolean terminalSnapshot =
             snapshot != null
                 && Set.of("SUCCEEDED", "FAILED", "CANCELLED").contains(snapshot.get("status"))

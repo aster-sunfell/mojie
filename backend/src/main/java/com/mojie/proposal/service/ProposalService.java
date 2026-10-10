@@ -29,10 +29,10 @@ public final class ProposalService {
     this.transactions = transactions;
   }
 
-  public Map<String, Object> detail(String owner, String id) {
+  public Map<String, Object> detail(String id) {
     return transactions.required(
         () -> {
-          var row = proposals.detail(owner, id);
+          var row = proposals.detail(id);
           if (row == null)
             throw new BusinessException("RESOURCE_NOT_FOUND", "Run or proposal unavailable");
           Map<String, Object> value = row.fields();
@@ -48,17 +48,17 @@ public final class ProposalService {
         });
   }
 
-  public ProposalDecision accept(String owner, String id) {
+  public ProposalDecision accept(String id) {
     return transactions.required(
         () -> {
-          String projectId = required(proposals.projectId(owner, id));
-          access.lock(owner, projectId, false);
-          EditProposal proposal = required(proposals.lockOwned(owner, id));
+          String projectId = required(proposals.projectId(id));
+          access.lock(projectId, false);
+          EditProposal proposal = required(proposals.lockVisible(id));
           if ("APPLIED".equals(proposal.status()))
             return new ProposalDecision("APPLIED", proposal.appliedVersion());
           if (!"PENDING".equals(proposal.status()) || !"{}".equals(proposal.reviewDecisions()))
             throw stateConflict();
-          Map<String, Object> chapter = chapters.lock(owner, proposal.targetChapterId());
+          Map<String, Object> chapter = chapters.lock(proposal.targetChapterId());
           int version = ((Number) chapter.get("version")).intValue();
           if (version != proposal.baseVersion()) {
             requireOne(proposals.markConflicted(id));
@@ -72,12 +72,12 @@ public final class ProposalService {
         });
   }
 
-  public ProposalDecision reject(String owner, String id) {
+  public ProposalDecision reject(String id) {
     return transactions.required(
         () -> {
-          String projectId = required(proposals.projectId(owner, id));
-          access.lock(owner, projectId, false);
-          EditProposal proposal = required(proposals.lockOwned(owner, id));
+          String projectId = required(proposals.projectId(id));
+          access.lock(projectId, false);
+          EditProposal proposal = required(proposals.lockVisible(id));
           if ("REJECTED".equals(proposal.status())) return new ProposalDecision("REJECTED", null);
           if (!Set.of("PENDING", "PARTIALLY_APPLIED", "CONFLICTED").contains(proposal.status()))
             throw stateConflict();

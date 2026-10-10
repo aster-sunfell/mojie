@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Scoped content service adapter. Implementations must enforce project ownership and immutable
+ * Scoped content service adapter. Implementations must enforce project scope and immutable
  * revisions.
  */
 public interface ToolContentReader {

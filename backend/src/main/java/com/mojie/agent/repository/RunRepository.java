@@ -5,7 +5,7 @@ import com.mojie.agent.model.RunAdmission.*;
 import java.util.*;
 
 public interface RunRepository {
-  Existing findExisting(String owner, String key);
+  Existing findExisting(String key);
 
   boolean lockProject(String projectId);
 

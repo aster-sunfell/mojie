@@ -27,20 +27,19 @@ public final class ProjectService {
     this.cursors = cursors;
   }
 
-  public List<Map<String, Object>> projects(String owner, Integer requestedLimit) {
-    return projectPage(owner, null, requestedLimit).items();
+  public List<Map<String, Object>> projects(Integer requestedLimit) {
+    return projectPage(null, requestedLimit).items();
+  }
+
+  public Page<Map<String, Object>> projectPage(String cursor, Integer requestedLimit) {
+    return projectPage(null, cursor, requestedLimit);
   }
 
   public Page<Map<String, Object>> projectPage(
-      String owner, String cursor, Integer requestedLimit) {
-    return projectPage(owner, null, cursor, requestedLimit);
-  }
-
-  public Page<Map<String, Object>> projectPage(
-      String owner, String keyword, String cursor, Integer requestedLimit) {
+      String keyword, String cursor, Integer requestedLimit) {
     int size = limit(requestedLimit);
     String query = keyword == null ? "" : text(keyword.trim(), "keyword", 0, 80);
-    String scope = "projects:" + owner + (query.isEmpty() ? "" : ":keyword:" + query);
+    String scope = "projects" + (query.isEmpty() ? "" : ":keyword:" + query);
     String[] marker = pair(cursors.decode(scope, cursor));
     if (marker[0] != null) {
       try {
@@ -53,42 +52,42 @@ public final class ProjectService {
     return transactions.required(
         () ->
             page(
-                fields(projects.findPage(owner, query, marker[0], marker[1], size + 1)),
+                fields(projects.findPage(query, marker[0], marker[1], size + 1)),
                 size,
                 scope,
                 item -> item.get("updatedAt") + "|" + item.get("id"),
                 cursors));
   }
 
-  public Map<String, Object> project(String owner, String id) {
+  public Map<String, Object> project(String id) {
     String projectId = uuid(id);
-    return transactions.required(() -> required(fields(projects.findOwned(owner, projectId))));
+    return transactions.required(() -> required(fields(projects.findVisible(projectId))));
   }
 
-  public Map<String, Object> createProject(String owner, String title) {
+  public Map<String, Object> createProject(String title) {
     String name = text(title, "title", 1, 80);
     return transactions.required(
         () -> {
-          String id = projects.insert(owner, name);
+          String id = projects.insert(name);
           return required(fields(projects.findById(id)));
         });
   }
 
-  public Map<String, Object> renameProject(String owner, String id, String title) {
+  public Map<String, Object> renameProject(String id, String title) {
     String projectId = uuid(id), name = text(title, "title", 1, 80);
     return transactions.required(
         () -> {
-          access.lock(owner, projectId, false);
+          access.lock(projectId, false);
           requireOne(projects.rename(projectId, name));
           return required(fields(projects.findById(projectId)));
         });
   }
 
-  public void deleteProject(String owner, String id) {
+  public void deleteProject(String id) {
     String projectId = uuid(id);
     transactions.required(
         () -> {
-          access.lock(owner, projectId, true);
+          access.lock(projectId, true);
           access.requireNoProjectProposals(projectId);
           requireOne(projects.softDelete(projectId));
           return null;

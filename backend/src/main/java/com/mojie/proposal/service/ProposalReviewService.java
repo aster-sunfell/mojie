@@ -54,7 +54,7 @@ public final class ProposalReviewService {
     return items;
   }
 
-  public Map<String, Locked> lockReviews(String owner, String chapterId, List<Review> reviews) {
+  public Map<String, Locked> lockReviews(String chapterId, List<Review> reviews) {
     if (reviews == null || reviews.isEmpty()) return Map.of();
     if (reviews.size() > 50) throw invalid();
     Map<String, Review> unique = new TreeMap<>();
@@ -71,8 +71,7 @@ public final class ProposalReviewService {
       if (unique.putIfAbsent(review.proposalId(), review) != null) throw invalid();
     }
     Map<String, Locked> locked = new LinkedHashMap<>();
-    for (String id : unique.keySet())
-      locked.put(id, required(proposals.lockReview(owner, chapterId, id)));
+    for (String id : unique.keySet()) locked.put(id, required(proposals.lockReview(chapterId, id)));
     return locked;
   }
 

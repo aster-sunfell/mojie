@@ -15,17 +15,16 @@ public final class JdbcProjectRepository implements ProjectRepository {
 
   @Override
   public List<ProjectSummary> findPage(
-      String owner, String keyword, String beforeTime, String beforeId, int size) {
+      String keyword, String beforeTime, String beforeId, int size) {
     return db.records(
         ProjectSummary.class,
         """
         SELECT id, name AS title, updated_at FROM tb_project
-         WHERE owner_id = ? AND deleted_at IS NULL
+         WHERE deleted_at IS NULL
            AND strpos(lower(name), lower(?)) > 0
            AND (?::timestamptz IS NULL OR (updated_at, id) < (?::timestamptz, ?::uuid))
          ORDER BY updated_at DESC, id DESC LIMIT ?
         """,
-        owner,
         keyword,
         beforeTime,
         beforeTime,
@@ -34,13 +33,12 @@ public final class JdbcProjectRepository implements ProjectRepository {
   }
 
   @Override
-  public Project findOwned(String owner, String projectId) {
+  public Project findVisible(String projectId) {
     return db.firstRecord(
         Project.class,
         "SELECT id, name AS title, active_run_id, created_at, updated_at FROM tb_project WHERE id ="
-            + " ?::uuid AND owner_id = ? AND deleted_at IS NULL",
-        projectId,
-        owner);
+            + " ?::uuid AND deleted_at IS NULL",
+        projectId);
   }
 
   @Override
@@ -53,9 +51,8 @@ public final class JdbcProjectRepository implements ProjectRepository {
   }
 
   @Override
-  public String insert(String owner, String title) {
-    return db.first(
-            "INSERT INTO tb_project(owner_id, name) VALUES (?, ?) RETURNING id", owner, title)
+  public String insert(String title) {
+    return db.first("INSERT INTO tb_project(name) VALUES (?) RETURNING id", title)
         .get("id")
         .toString();
   }
@@ -74,12 +71,11 @@ public final class JdbcProjectRepository implements ProjectRepository {
   }
 
   @Override
-  public ProjectIdentity findOwnedId(String owner, String projectId) {
+  public ProjectIdentity findVisibleId(String projectId) {
     return db.firstRecord(
         ProjectIdentity.class,
-        "SELECT id FROM tb_project WHERE id = ?::uuid AND owner_id = ? AND deleted_at IS NULL",
-        projectId,
-        owner);
+        "SELECT id FROM tb_project WHERE id = ?::uuid AND deleted_at IS NULL",
+        projectId);
   }
 
   @Override
@@ -92,13 +88,12 @@ public final class JdbcProjectRepository implements ProjectRepository {
   }
 
   @Override
-  public ProjectLock lockOwned(String owner, String projectId) {
+  public ProjectLock lockVisible(String projectId) {
     return db.firstRecord(
         ProjectLock.class,
-        "SELECT id, active_run_id FROM tb_project WHERE id = ?::uuid AND owner_id = ? AND"
+        "SELECT id, active_run_id FROM tb_project WHERE id = ?::uuid AND"
             + " deleted_at IS NULL FOR UPDATE",
-        projectId,
-        owner);
+        projectId);
   }
 
   @Override

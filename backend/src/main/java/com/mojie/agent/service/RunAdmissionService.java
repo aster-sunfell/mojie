@@ -48,7 +48,7 @@ public final class RunAdmissionService {
   }
 
   private Optional<Receipt> existing(Request request, String digest) {
-    Existing found = runs.findExisting(request.ownerId(), request.clientRequestId());
+    Existing found = runs.findExisting(request.clientRequestId());
     if (found == null) return Optional.empty();
     if (!digest.equals(found.digest()))
       throw new BusinessException(
@@ -71,13 +71,12 @@ public final class RunAdmissionService {
           () -> {
             Optional<Receipt> existing = existing(request, prepared.digest());
             if (existing.isPresent()) return existing.get();
-            access.lock(request.ownerId(), request.projectId(), false);
+            access.lock(request.projectId(), false);
             existing = existing(request, prepared.digest());
             if (existing.isPresent()) return existing.get();
             if (runs.activeSlot(request.projectId()) != null)
               throw new BusinessException("RESOURCE_BUSY", "Project already has an active run");
-            Map<String, Object> chapter =
-                chapters.lock(request.ownerId(), request.targetChapterId());
+            Map<String, Object> chapter = chapters.lock(request.targetChapterId());
             if (!UUID.fromString(request.projectId()).toString().equals(chapter.get("projectId")))
               throw new BusinessException("RESOURCE_NOT_FOUND", "Chapter unavailable");
             if (((Number) chapter.get("version")).longValue() != request.expectedVersion())
@@ -137,7 +136,6 @@ public final class RunAdmissionService {
 
   private static Prepared prepare(Request request) {
     Objects.requireNonNull(request);
-    if (request.ownerId() == null || request.ownerId().isBlank()) throw validation("ownerId");
     try {
       UUID.fromString(request.projectId());
       UUID.fromString(request.targetChapterId());

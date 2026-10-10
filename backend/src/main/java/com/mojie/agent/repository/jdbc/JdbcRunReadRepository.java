@@ -14,7 +14,7 @@ public final class JdbcRunReadRepository implements RunReadRepository {
   }
 
   @Override
-  public RunSnapshot scoped(String owner, String runId) {
+  public RunSnapshot scoped(String runId) {
     return db.firstRecord(
         RunSnapshot.class,
         """
@@ -24,10 +24,9 @@ public final class JdbcRunReadRepository implements RunReadRepository {
                r.tool_call_count, r.tool_text_codepoints, r.last_event_seq,
                p.id AS proposal_id
           FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
-         WHERE r.id = ?::uuid AND r.owner_id = ?
+         WHERE r.id = ?::uuid
         """,
-        runId,
-        owner);
+        runId);
   }
 
   @Override
@@ -111,7 +110,6 @@ public final class JdbcRunReadRepository implements RunReadRepository {
 
   @Override
   public List<RunSummary> page(
-      String owner,
       String projectId,
       String chapterId,
       String status,
@@ -126,13 +124,12 @@ public final class JdbcRunReadRepository implements RunReadRepository {
                r.analysis, r.error_code, r.error_detail, r.last_event_seq, p.id AS proposal_id,
                r.created_at
           FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
-         WHERE r.owner_id = ? AND r.project_id = ?::uuid
+         WHERE r.project_id = ?::uuid
            AND (?::uuid IS NULL OR r.target_chapter_id = ?::uuid)
            AND (?::text IS NULL OR r.status = ?)
            AND (?::timestamptz IS NULL OR (r.created_at, r.id) < (?::timestamptz, ?::uuid))
          ORDER BY r.created_at DESC, r.id DESC LIMIT ?
         """,
-        owner,
         projectId,
         chapterId,
         chapterId,

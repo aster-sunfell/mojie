@@ -47,16 +47,14 @@ public final class JdbcRevisionRepository implements RevisionRepository {
   }
 
   @Override
-  public ChapterRevision findOwned(String owner, String chapterId, int version) {
+  public ChapterRevision findVisible(String chapterId, int version) {
     return db.firstRecord(
         ChapterRevision.class,
         "SELECT r.chapter_id, r.version, r.content, r.source, r.proposal_id, r.created_at FROM"
             + " tb_chapter_revision r JOIN tb_chapter ch ON ch.id = r.chapter_id JOIN tb_project p"
-            + " ON p.id = ch.project_id WHERE r.chapter_id = ?::uuid AND r.version = ? AND"
-            + " p.owner_id = ?",
+            + " ON p.id = ch.project_id WHERE r.chapter_id = ?::uuid AND r.version = ?",
         chapterId,
-        version,
-        owner);
+        version);
   }
 
   @Override

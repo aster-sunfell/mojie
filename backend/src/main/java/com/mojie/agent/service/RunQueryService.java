@@ -32,16 +32,16 @@ public final class RunQueryService {
   }
 
   public List<Map<String, Object>> list(
-      String owner, String projectId, String chapterId, String status, int limit) {
-    return page(owner, projectId, chapterId, status, null, limit).items();
+      String projectId, String chapterId, String status, int limit) {
+    return page(projectId, chapterId, status, null, limit).items();
   }
 
   public Page<Map<String, Object>> page(
-      String owner, String projectId, String chapterId, String status, String cursor, int limit) {
+      String projectId, String chapterId, String status, String cursor, int limit) {
     if (limit < 1 || limit > 50) throw new IllegalArgumentException("Invalid limit");
     UUID.fromString(projectId);
     if (chapterId != null) UUID.fromString(chapterId);
-    String scope = "runs:" + owner + ":" + projectId + ":" + chapterId + ":" + status;
+    String scope = "runs:" + projectId + ":" + chapterId + ":" + status;
     String marker = cursors.decode(scope, cursor);
     String afterTime = null, afterId = null;
     if (marker != null) {
@@ -57,29 +57,29 @@ public final class RunQueryService {
       afterId = parts[1];
     }
     List<Map<String, Object>> rows =
-        fields(reads.page(owner, projectId, chapterId, status, afterTime, afterId, limit + 1));
+        fields(reads.page(projectId, chapterId, status, afterTime, afterId, limit + 1));
     if (rows.size() <= limit) return new Page<>(rows, null);
     List<Map<String, Object>> items = rows.subList(0, limit);
     Map<String, Object> last = items.getLast();
     return new Page<>(items, cursors.encode(scope, last.get("createdAt") + "|" + last.get("id")));
   }
 
-  public Map<String, Object> detail(String owner, String runId) {
+  public Map<String, Object> detail(String runId) {
     return transactions.readSnapshot(
         () -> {
-          Map<String, Object> run = scoped(owner, runId);
+          Map<String, Object> run = scoped(runId);
           run.put("steps", fields(reads.listSteps(runId)));
           run.put("sources", fields(reads.listSources(runId)));
           return run;
         });
   }
 
-  public Map<String, Object> trace(String owner, String runId) {
+  public Map<String, Object> trace(String runId) {
     if (!traceEnabled)
       throw new BusinessException("RESOURCE_NOT_FOUND", "Run or proposal unavailable");
     return transactions.readSnapshot(
         () -> {
-          Map<String, Object> result = scoped(owner, runId);
+          Map<String, Object> result = scoped(runId);
           Map<String, Object> selection = fields(reads.modelSelection(runId));
           result.put("modelId", selection.get("modelId"));
           JsonNode snapshot = (JsonNode) decode(selection.get("configSnapshot").toString());
@@ -98,8 +98,8 @@ public final class RunQueryService {
         });
   }
 
-  public Map<String, Object> scoped(String owner, String runId) {
-    Map<String, Object> value = fields(reads.scoped(owner, runId));
+  public Map<String, Object> scoped(String runId) {
+    Map<String, Object> value = fields(reads.scoped(runId));
     if (value == null)
       throw new BusinessException("RESOURCE_NOT_FOUND", "Run or proposal unavailable");
     return value;

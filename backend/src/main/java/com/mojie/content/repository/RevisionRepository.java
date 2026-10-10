@@ -10,7 +10,7 @@ public interface RevisionRepository {
 
   List<RevisionReview> reviewLinks(String chapterId, int version);
 
-  ChapterRevision findOwned(String owner, String chapterId, int version);
+  ChapterRevision findVisible(String chapterId, int version);
 
   int insert(String chapterId, int version, String content, String source, String proposalId);
 }
