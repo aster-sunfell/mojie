@@ -7,6 +7,7 @@ import com.mojie.agent.service.port.RunExecutor;
 import com.mojie.common.error.BusinessException;
 import java.util.*;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Supplier;
 
 public final class RunService {
   private final RunAdmissionService admission;
@@ -15,7 +16,7 @@ public final class RunService {
   private final RunQueryService query;
   private final RunExecutor executor;
   private final AgentRunner runner;
-  private final Config config;
+  private final Supplier<Config> config;
   private final boolean modelConfigured;
 
   public RunService(
@@ -25,7 +26,7 @@ public final class RunService {
       RunQueryService query,
       RunExecutor executor,
       AgentRunner runner,
-      Config config,
+      Supplier<Config> config,
       boolean modelConfigured) {
     this.admission = admission;
     this.lifecycle = lifecycle;
@@ -44,8 +45,9 @@ public final class RunService {
     ensureReady();
     Optional<Receipt> existing = admission.findExisting(request);
     if (existing.isPresent()) return existing.get();
+    Config selectedConfig = config.get();
     try (var reservation = executor.reserve()) {
-      Receipt receipt = admission.create(request, config);
+      Receipt receipt = admission.create(request, selectedConfig);
       if (!receipt.created()) return receipt;
       try {
         executor.schedule(

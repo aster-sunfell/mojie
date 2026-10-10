@@ -22,7 +22,8 @@ public final class ApiExceptionHandler {
                   "PROPOSAL_STATE_CONFLICT",
                   "RUN_CAPACITY_EXCEEDED" ->
               HttpStatus.CONFLICT;
-          case "SERVICE_UNAVAILABLE", "MODEL_ERROR" -> HttpStatus.SERVICE_UNAVAILABLE;
+          case "SERVICE_UNAVAILABLE", "MODEL_ERROR", "MODEL_METADATA_UNAVAILABLE" ->
+              HttpStatus.SERVICE_UNAVAILABLE;
           case "STREAM_CAPACITY_EXCEEDED" -> HttpStatus.TOO_MANY_REQUESTS;
           default -> HttpStatus.BAD_REQUEST;
         };

@@ -14,7 +14,7 @@ class FakeEventSource extends EventTarget {
   close() {}
 }
 
-function setup({ runs = [], create } = {}) {
+function setup({ runs = [], create, capabilities } = {}) {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
   vi.stubGlobal('EventSource', FakeEventSource)
   const chapters = [
@@ -27,7 +27,7 @@ function setup({ runs = [], create } = {}) {
     if (url === '/api/v1/projects/p') return reply({ id: 'p', title: '作品' })
     if (url === '/api/v1/projects/p/chapters?limit=50') return reply({ items: chapters, nextCursor: null })
     if (url === '/api/v1/projects/p/settings?limit=50') return reply({ items: [], nextCursor: null })
-    if (url === '/api/v1/system/capabilities') return reply({ agentConfigured: true, maxInstructionCodePoints: 2000 })
+    if (url === '/api/v1/system/capabilities') return reply({ agentConfigured: true, maxInstructionCodePoints: 2000, ...capabilities?.() })
     const chapter = chapters.find(item => url === `/api/v1/chapters/${item.id}` || url === `/api/v1/chapters/${item.id}/content`)
     if (chapter) {
       if (options.method === 'PUT') { chapter.content = JSON.parse(options.body).content; chapter.version++ }
@@ -60,7 +60,7 @@ const input = () => screen.getByRole('textbox', { name: '给写作助手的要�
 const send = () => screen.getByRole('button', { name: '发送要求', exact: true })
 async function ready() { await waitFor(() => expect(send().disabled).toBe(false)) }
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.replaceState({}, '', '/') })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.replaceState({}, '', '/') })
 
 test('Enter sends once with the saved chapter version and moves the requirement into the result panel', async () => {
   const state = setup()
@@ -200,4 +200,22 @@ test('a delayed running task list cannot reactivate a task whose event stream co
   expect(send().disabled).toBe(false)
   expect(screen.queryByRole('button', { name: '停止任务', exact: true })).toBeNull()
   expect(screen.getByText('完成后的分析')).toBeTruthy()
+})
+
+test('missing model metadata blocks submission and recovers without losing the requirement', async () => {
+  vi.useFakeTimers()
+  let available = false
+  let state
+  await act(async () => {
+    state = setup({ capabilities: () => ({ modelMetadataAvailable: available }) })
+  })
+  expect(send().disabled).toBe(true)
+  expect(screen.getByText('模型信息暂不可用，请稍后重试；章节和设定仍可编辑。')).toBeTruthy()
+  fireEvent.change(input(), { target: { value: '恢复后检查这段正文' } })
+  available = true
+  await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+  expect(send().disabled).toBe(false)
+  expect(input().value).toBe('恢复后检查这段正文')
+  await act(async () => { fireEvent.click(send()) })
+  expect(state.writes).toHaveLength(1)
 })

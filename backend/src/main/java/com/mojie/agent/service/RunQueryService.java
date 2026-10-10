@@ -84,7 +84,13 @@ public final class RunQueryService {
           result.put("modelId", selection.get("modelId"));
           JsonNode snapshot = (JsonNode) decode(selection.get("configSnapshot").toString());
           Map<String, Object> modelConfig = new LinkedHashMap<>();
-          for (String name : List.of("apiPath", "maxOutputTokens", "contextWindowTokens")) {
+          for (String name :
+              List.of(
+                  "apiPath",
+                  "maxOutputTokens",
+                  "contextWindowTokens",
+                  "contextWindowSource",
+                  "contextWindowFetchedAt")) {
             if (snapshot.has(name)) modelConfig.put(name, snapshot.get(name));
           }
           result.put("modelConfig", modelConfig);

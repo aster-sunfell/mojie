@@ -12,10 +12,10 @@ class ModelApiConfigTest {
         assertEquals("old-key", genericBase.apiKey());
         ModelApiConfig genericKey = ModelApiConfig.from(Map.of("MOJIE_MODEL_API_KEY", "new-key",
                 "ANTHROPIC_API_KEY", "old-key", "MOJIE_ANTHROPIC_BASE_URL", "https://legacy.example",
-                "MOJIE_MODEL_ID", "model", "MOJIE_MODEL_CONTEXT_TOKENS", "32768"));
+                "MOJIE_MODEL_ID", "model"));
         assertEquals("new-key", genericKey.apiKey());
         assertEquals("https://legacy.example", genericKey.baseUrl());
-        assertEquals(32_768, genericKey.contextWindowTokens());
+
     }
     @Test void bothPathsUseTheSameGenericCredentials() {
         for (String path : new String[]{ModelApiConfig.MESSAGES, ModelApiConfig.CHAT_COMPLETIONS}) {
@@ -27,7 +27,7 @@ class ModelApiConfigTest {
             assertTrue(config.configured());
             assertEquals(path, config.apiPath());
             assertEquals("https://api.siliconflow.cn", config.baseUrl());
-            assertEquals(1_000_000, config.contextWindowTokens());
+
             assertFalse(config.toString().contains("secret"));
         }
     }
@@ -44,12 +44,19 @@ class ModelApiConfigTest {
         assertThrows(IllegalArgumentException.class, () -> ModelApiConfig.from(Map.of(
                 "MOJIE_MODEL_API_PATH", ModelApiConfig.CHAT_COMPLETIONS,
                 "ANTHROPIC_API_KEY", "old-key")));
-        assertThrows(IllegalArgumentException.class, () -> ModelApiConfig.from(Map.of(
+        assertTrue(ModelApiConfig.from(Map.of(
                 "MOJIE_MODEL_API_KEY", "secret", "MOJIE_MODEL_BASE_URL", "https://api.example",
-                "MOJIE_MODEL_ID", "unknown-model")));
-        assertThrows(IllegalArgumentException.class, () -> ModelApiConfig.from(Map.of(
-                "MOJIE_MODEL_API_KEY", "secret", "MOJIE_MODEL_BASE_URL", "https://api.example",
-                "MOJIE_MODEL_ID", "unknown-model", "MOJIE_MODEL_CONTEXT_TOKENS", "invalid")));
+                "MOJIE_MODEL_ID", "unknown-model")).configured());
+    }
+
+    @Test void providerMatchingIsExactAndSeparatesChinaFromGlobal() {
+        assertEquals("siliconflow-cn", new ModelApiConfig(ModelApiConfig.MESSAGES,
+                "https://api.siliconflow.cn", "key", "model").provider());
+        assertEquals("siliconflow", new ModelApiConfig(ModelApiConfig.MESSAGES,
+                "https://api.siliconflow.com", "key", "model").provider());
+        for (String origin : new String[]{"https://api.siliconflow.cn.example", "http://api.siliconflow.cn",
+                "https://api.siliconflow.cn:9000", "https://proxy.example"})
+            assertEquals("custom", new ModelApiConfig(ModelApiConfig.MESSAGES, origin, "key", "model").provider());
     }
 
     @Test void legacyMessagesConfigurationRemainsAvailable() {
@@ -59,7 +66,7 @@ class ModelApiConfigTest {
         assertEquals("old-key", config.apiKey());
         assertEquals("http://127.0.0.1:9000", config.baseUrl());
         assertEquals("claude-sonnet-4-5", config.modelId());
-        assertEquals(200_000, config.contextWindowTokens());
+
         assertFalse(ModelApiConfig.from(Map.of("MOJIE_MODEL_API_PATH", ModelApiConfig.CHAT_COMPLETIONS)).configured());
     }
 }

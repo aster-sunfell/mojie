@@ -21,6 +21,7 @@ export function readableError(error) {
     VERSION_CONFLICT: '章节版本已变化，请先查看最新正文。',
     RESOURCE_BUSY: '作品有正在运行的任务或待确认建议。',
     RUN_CAPACITY_EXCEEDED: '任务队列已满，请稍后重试。',
+    MODEL_METADATA_UNAVAILABLE: '模型信息暂不可用，请稍后重试；章节和设定仍可编辑。',
     MODEL_ERROR: '模型尚未配置或本次模型请求失败。',
     PROPOSAL_STATE_CONFLICT: '建议状态已经变化，请刷新后重试。',
     IDEMPOTENCY_CONFLICT: '本次提交标识已用于不同内容。'

@@ -2,8 +2,11 @@ package com.mojie.config;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.mojie.agent.model.ModelMetadata;
+import com.mojie.agent.repository.jdbc.JdbcModelMetadataRepository;
 import com.mojie.support.*;
 import java.sql.*;
+import java.time.Instant;
 import java.util.*;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -65,6 +68,34 @@ class SingleAuthorMigrationIT {
         rs.next();
         assertEquals(2, rs.getInt(1));
       }
+    }
+  }
+
+  @Test
+  void metadataPersistsAcrossRepositoryInstancesAndKeepsProviderOriginAndModelSeparate()
+      throws Exception {
+    try (var database = new TestDatabase()) {
+      DataSource source = database.source();
+      Flyway.configure().dataSource(source).load().migrate();
+      var metadata =
+          new ModelMetadata(
+              164000, "catalog:https://models.dev/api.json", Instant.parse("2026-10-10T00:00:00Z"));
+      new JdbcModelMetadataRepository(source)
+          .save("siliconflow-cn", "https://api.siliconflow.cn", "model", metadata);
+      var repository = new JdbcModelMetadataRepository(source);
+      assertEquals(
+          metadata, repository.find("siliconflow-cn", "https://api.siliconflow.cn", "model"));
+      assertNull(repository.find("siliconflow", "https://api.siliconflow.com", "model"));
+      assertNull(repository.find("siliconflow-cn", "https://proxy.example", "model"));
+      assertNull(repository.find("siliconflow-cn", "https://api.siliconflow.cn", "Pro/model"));
+      var updated =
+          new ModelMetadata(
+              200000,
+              "provider:https://api.siliconflow.cn/v1/models",
+              metadata.fetchedAt().plusSeconds(1));
+      repository.save("siliconflow-cn", "https://api.siliconflow.cn", "model", updated);
+      assertEquals(
+          updated, repository.find("siliconflow-cn", "https://api.siliconflow.cn", "model"));
     }
   }
 

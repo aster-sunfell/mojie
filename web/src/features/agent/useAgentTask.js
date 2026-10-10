@@ -74,6 +74,15 @@ export function useAgentTask({ projectId, chapterId, chapter, dirty, accepting, 
     return () => { disposed = true }
   }, [])
 
+  useEffect(() => {
+    if (!capabilities?.agentConfigured || capabilities.modelMetadataAvailable !== false) return
+    let disposed = false
+    const timer = window.setInterval(() => {
+      api('/system/capabilities').then(value => { if (!disposed) setCapabilities(value) }).catch(() => {})
+    }, 5000)
+    return () => { disposed = true; window.clearInterval(timer) }
+  }, [capabilities?.agentConfigured, capabilities?.modelMetadataAvailable])
+
   const onRunChange = useCallback(snapshot => {
     if (currentScope.current !== scope) return
     setList(current => current.scope === scope
@@ -103,6 +112,7 @@ export function useAgentTask({ projectId, chapterId, chapter, dirty, accepting, 
   else if (!capabilities) blockedReason = '正在连接写作助手…'
   else if (capabilities.unavailable) blockedReason = '暂时无法连接写作助手，请刷新页面重试。'
   else if (!capabilities.agentConfigured) blockedReason = '模型尚未配置；章节和设定仍可编辑。'
+  else if (capabilities.modelMetadataAvailable === false) blockedReason = '模型信息暂不可用，请稍后重试；章节和设定仍可编辑。'
   else if (projectBusy && !taskActive) blockedReason = '作品有其他任务正在运行，请等待完成。'
   else if (!instruction.trim()) blockedReason = '请输入你想检查或改进的内容。'
   else if (cp(instruction) > maxLength) blockedReason = `要求不能超过 ${maxLength} 字。`
@@ -135,6 +145,8 @@ export function useAgentTask({ projectId, chapterId, chapter, dirty, accepting, 
       setDrafts(current => ({ ...current, [scope]: (current[scope] ?? DEFAULT_INSTRUCTION) === instruction ? '' : current[scope] }))
       await loadRuns()
     } catch (failure) {
+      if (failure.code === 'MODEL_METADATA_UNAVAILABLE')
+        setCapabilities(current => current ? { ...current, modelMetadataAvailable: false } : current)
       if (currentScope.current === scope) setError({ scope, message: readableError(failure) })
       if (failure.status && failure.status !== 503) pending.current.delete(scope)
     } finally { submitting.current = false; setBusy(false) }
