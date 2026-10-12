@@ -137,6 +137,24 @@ test('Chinese composition and Shift+Enter do not send', async () => {
   await waitFor(() => expect(state.writes).toHaveLength(1))
 })
 
+test('analysis-only is a per-turn preference and survives folding without selecting the legacy CHAT task', async () => {
+  const state = setup(); await ready('只分析人物动机')
+  const toggle = screen.getByRole('button', { name: '仅分析', exact: true })
+  expect(toggle.getAttribute('aria-pressed')).toBe('false')
+  fireEvent.click(toggle)
+  fireEvent.click(send())
+  await screen.findByText('已核对正文')
+  expect(state.writes[0].analysisOnly).toBe(true)
+  expect(state.writes[0].taskType).toBeUndefined()
+  fireEvent.click(screen.getByRole('button', { name: '收起消息' }))
+  expect(screen.getByRole('button', { name: '仅分析 · 开' }).getAttribute('aria-pressed')).toBe('true')
+  fireEvent.click(screen.getByRole('button', { name: '仅分析 · 开' }))
+  fireEvent.change(input(), { target: { value: '现在修改人物设定' } })
+  fireEvent.click(send())
+  await waitFor(() => expect(state.writes).toHaveLength(2))
+  expect(state.writes[1].analysisOnly).toBeUndefined()
+})
+
 test('lost submission response retains the created conversation, text and idempotency key', async () => {
   const state = setup({ afterPost: (body, attempt, receipt) => { if (attempt === 1) throw new TypeError('连接中断'); return reply(receipt) } })
   await ready(); fireEvent.click(send())

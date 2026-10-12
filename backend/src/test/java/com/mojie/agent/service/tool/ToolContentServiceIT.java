@@ -52,10 +52,10 @@ class ToolContentServiceIT {
             dataSource.setURL(baseUrl + (baseUrl.contains("?") ? "&" : "?") + "currentSchema=" + schema);
             dataSource.setUser(user);
             dataSource.setPassword(password);
-            assertEquals(11, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
+            assertEquals(12, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
             try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
                 try (ResultSet rows = statement.executeQuery("SELECT count(*) FROM pg_tables WHERE schemaname = '" + schema + "' AND tablename LIKE 'tb_%'")) {
-                    rows.next(); assertEquals(28, rows.getInt(1));
+                    rows.next(); assertEquals(29, rows.getInt(1));
                 }
             }
 
@@ -197,7 +197,7 @@ class ToolContentServiceIT {
             ModelGateway proposalModel = request -> {
                 if (proposalCalls.incrementAndGet() == 1) return new Response("", List.of(
                         new ToolCall("read", "read_chapter", JsonMapper.builder().build().createObjectNode().put("chapterId", target)),
-                        new ToolCall("propose", "propose_edit", JsonMapper.builder().build().createObjectNode()
+                        new ToolCall("propose", "propose_chapter_edit", JsonMapper.builder().build().createObjectNode()
                                 .put("proposedContent", "new target").put("reason", "fix"))),
                         FinishReason.TOOL_CALLS, "provider-3", "tool_use", null);
                 return new Response("建议修改", List.of(), FinishReason.FINAL, "provider-4", "end_turn", null);

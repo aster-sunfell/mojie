@@ -40,7 +40,7 @@ class UnifiedAssistantIT {
             requests.add(request);
             var editTool =
                 request.tools().stream()
-                    .filter(t -> t.name().equals("propose_edit"))
+                    .filter(t -> t.name().equals("propose_chapter_edit"))
                     .findFirst()
                     .orElseThrow();
             assertTrue(
@@ -77,7 +77,7 @@ class UnifiedAssistantIT {
             if (step == 2) return tool("read_chapter", Map.of("chapterId", other.get()));
             if (step == 3)
               return tool(
-                  "propose_edit",
+                  "propose_chapter_edit",
                   Map.of(
                       "chapterId",
                       other.get(),

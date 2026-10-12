@@ -26,7 +26,11 @@ public record RunSnapshot(
     String taskType,
     com.fasterxml.jackson.databind.JsonNode configSnapshot,
     String contextChapterId,
-    Long contextVersion)
+    Long contextVersion,
+    String targetType,
+    String targetSettingId,
+    String targetTitle,
+    boolean analysisOnly)
     implements QueryResult {
   public Map<String, Object> fields() {
     Map<String, Object> fields = new LinkedHashMap<>();
@@ -47,6 +51,10 @@ public record RunSnapshot(
               configSnapshot.path("maxToolTextCodePoints").asInt(30000)));
     fields.put("projectId", projectId);
     fields.put("targetChapterId", targetChapterId);
+    fields.put("targetType", targetType);
+    fields.put("targetSettingId", targetSettingId);
+    fields.put("targetTitle", targetTitle);
+    fields.put("analysisOnly", analysisOnly);
     fields.put("baseVersion", baseVersion);
     fields.put("instruction", instruction);
     fields.put("status", status);

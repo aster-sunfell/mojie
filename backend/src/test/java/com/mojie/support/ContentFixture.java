@@ -112,7 +112,7 @@ public final class ContentFixture {
 
   public Map<String, Object> updateSetting(
       String id, String settingType, String title, String content) {
-    return services.settings().updateSetting(id, settingType, title, content);
+    return services.settings().updateSetting(id, settingType, title, content, ((Number) services.settings().setting(id).get("version")).intValue());
   }
 
   public void deleteSetting(String id) {

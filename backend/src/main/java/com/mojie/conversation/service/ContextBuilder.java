@@ -41,18 +41,19 @@ public final class ContextBuilder implements ConversationRuntime {
     RunContext meta = repo.runContext(run.runId());
     if (meta == null || meta.taskType().equals("LEGACY")) return null;
     context.unified(meta.taskType().equals("ASSISTANT"));
+    context.analysisOnly(meta.analysisOnly());
     if (meta.contextChapterId() != null)
       context.preferredChapter(
           meta.contextChapterId(), meta.contextVersion(), meta.contextContent());
     List<AgentTool> tools = new ArrayList<>();
-    for (var t : base)
-      if (context.unified()
-          || meta.taskType().equals("CHAPTER_EDIT")
-          || !t.spec().name().equals("propose_edit"))
-        tools.add(
-            context.unified() && t.spec().name().equals("propose_edit")
-                ? explicitEditTarget(t)
-                : t);
+    for (var t : base) {
+      boolean chapterEdit = t.spec().name().equals("propose_chapter_edit");
+      boolean settingEdit = t.spec().name().equals("propose_setting_edit");
+      if ((chapterEdit || settingEdit) && context.analysisOnly()) continue;
+      if (settingEdit && !context.unified()) continue;
+      if (chapterEdit && !context.unified() && !meta.taskType().equals("CHAPTER_EDIT")) continue;
+      tools.add(context.unified() && chapterEdit ? explicitEditTarget(t) : t);
+    }
     tools.addAll(skills.tools());
     String task =
         "\nTask type: "
@@ -67,7 +68,10 @@ public final class ContextBuilder implements ConversationRuntime {
             + run.targetChapterId()
             + " (version "
             + run.baseVersion()
-            + ").";
+            + ")."
+            + (meta.analysisOnly()
+                ? " Analysis only: read and discuss; do not generate edit proposals."
+                : "");
     String system =
         run.systemPrompt()
             + task

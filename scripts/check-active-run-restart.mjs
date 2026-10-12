@@ -58,7 +58,7 @@ const fakeModel = http.createServer(async (req, res) => {
     }
     response(res, [
       { type: 'tool_use', id: 'read-target', name: 'read_chapter', input: { chapterId } },
-      { type: 'tool_use', id: 'candidate', name: 'propose_edit',
+      { type: 'tool_use', id: 'candidate', name: 'propose_chapter_edit',
         input: { proposedContent, reason: '补充符合前文的过河方式。' } },
     ], 'tool_use')
   } else {

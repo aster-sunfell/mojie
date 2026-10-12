@@ -91,7 +91,7 @@ class RunServicesIT {
                             tool("search-chapters-next", "search_chapters", Map.of("keyword", "游泳", "limit", 1,
                                     "cursor", data(request, "search-chapters-first").get("nextCursor"))),
                             tool("read-prior", "read_chapter", Map.of("chapterId", prior)),
-                            tool("candidate", "propose_edit", Map.of("proposedContent", "林舟借助绳索渡过深水。",
+                            tool("candidate", "propose_chapter_edit", Map.of("proposedContent", "林舟借助绳索渡过深水。",
                                     "reason", "人物设定明确不会游泳，前文也重复说明。")));
                 }
                 assertEquals(5, index);
@@ -120,7 +120,7 @@ class RunServicesIT {
                 List<?> steps = (List<?>) detail.get("steps");
                 assertEquals(List.of("read_chapter", "list_chapters", "list_settings", "list_settings", "search_settings",
                         "search_settings", "read_settings", "search_chapters", "search_chapters",
-                        "read_chapter", "propose_edit"),
+                        "read_chapter", "propose_chapter_edit"),
                         steps.stream().map(item -> ((Map<?,?>) item).get("toolName")).toList());
                 assertNotNull(detail.get("proposalId"));
                 Map<String,Object> proposal = new QueryFixture(dataSource).proposal(detail.get("proposalId").toString());
@@ -522,7 +522,7 @@ class RunServicesIT {
             ModelGateway scripted = request -> {
                 if (modelCalls.incrementAndGet() == 1) return calls("proposal-turn",
                         tool("read-target", "read_chapter", Map.of("chapterId", fixture.chapter())),
-                        tool("candidate", "propose_edit", Map.of("proposedContent", "revised body", "reason", "fix")));
+                        tool("candidate", "propose_chapter_edit", Map.of("proposedContent", "revised body", "reason", "fix")));
                 return new Response("建议修改正文。", List.of(), FinishReason.FINAL, "final-turn", "end_turn", null);
             };
             try (RuntimeFixture scheduler = scheduler(source, scripted)) {
@@ -1080,7 +1080,7 @@ class RunServicesIT {
                 String target = instruction.substring(instruction.lastIndexOf(' ') + 1);
                 if (request.messages().size() == 1) return calls("candidate-first",
                         tool("read", "read_chapter", Map.of("chapterId", target)),
-                        tool("candidate", "propose_edit", Map.of(
+                        tool("candidate", "propose_chapter_edit", Map.of(
                                 "proposedContent", "replacement", "reason", "consistency")));
                 if (instruction.contains("truncation"))
                     return new Response("", List.of(), FinishReason.TRUNCATED, "candidate-truncated", "max_tokens", null);
@@ -1120,7 +1120,7 @@ class RunServicesIT {
         assertNull(detail.get("proposalId"));
         assertTrue(((List<?>) detail.get("steps")).stream().anyMatch(item -> {
             Map<?,?> step = (Map<?,?>) item;
-            return "propose_edit".equals(step.get("toolName")) && "SUCCEEDED".equals(step.get("status"));
+            return "propose_chapter_edit".equals(step.get("toolName")) && "SUCCEEDED".equals(step.get("status"));
         }));
         assertEquals("body", new ContentFixture(dataSource).chapter(fixture.chapter()).get("content"));
         assertEquals(1, new ContentFixture(dataSource).chapter(fixture.chapter()).get("version"));

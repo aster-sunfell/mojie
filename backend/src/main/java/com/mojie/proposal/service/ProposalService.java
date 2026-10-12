@@ -15,16 +15,19 @@ public final class ProposalService {
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private final ProposalRepository proposals;
   private final ChapterService chapters;
+  private final SettingService settings;
   private final ProjectAccessService access;
   private final TransactionRunner transactions;
 
   public ProposalService(
       ProposalRepository proposals,
       ChapterService chapters,
+      SettingService settings,
       ProjectAccessService access,
       TransactionRunner transactions) {
     this.proposals = proposals;
     this.chapters = chapters;
+    this.settings = settings;
     this.access = access;
     this.transactions = transactions;
   }
@@ -58,6 +61,15 @@ public final class ProposalService {
             return new ProposalDecision("APPLIED", proposal.appliedVersion());
           if (!"PENDING".equals(proposal.status()) || !"{}".equals(proposal.reviewDecisions()))
             throw stateConflict();
+          if ("SETTING".equals(proposal.targetType())) {
+            access.lock(projectId, true);
+            return saveSettingLocked(
+                proposal,
+                proposal.proposedType(),
+                proposal.proposedTitle(),
+                proposal.proposedContent(),
+                proposal.baseVersion());
+          }
           Map<String, Object> chapter = chapters.lock(proposal.targetChapterId());
           int version = ((Number) chapter.get("version")).intValue();
           if (version != proposal.baseVersion()) {
@@ -70,6 +82,40 @@ public final class ProposalService {
           requireOne(proposals.markApplied(id, next));
           return new ProposalDecision("APPLIED", next);
         });
+  }
+
+  public ProposalDecision saveSetting(
+      String id, String type, String title, String content, Integer expectedVersion) {
+    return transactions.required(
+        () -> {
+          String projectId = required(proposals.projectId(id));
+          access.lock(projectId, true);
+          EditProposal proposal = required(proposals.lockVisible(id));
+          if (!"SETTING".equals(proposal.targetType()))
+            throw new IllegalArgumentException("A setting proposal is required");
+          if ("APPLIED".equals(proposal.status()))
+            return new ProposalDecision("APPLIED", proposal.appliedVersion());
+          if (!"PENDING".equals(proposal.status())) throw stateConflict();
+          if (expectedVersion == null || expectedVersion < 1)
+            throw new IllegalArgumentException("expectedVersion required");
+          return saveSettingLocked(proposal, type, title, content, expectedVersion);
+        });
+  }
+
+  private ProposalDecision saveSettingLocked(
+      EditProposal proposal, String type, String title, String content, int expectedVersion) {
+    var setting = settings.lock(proposal.targetSettingId());
+    if (!proposal.projectId().equals(setting.projectId()))
+      throw new BusinessException("RESOURCE_NOT_FOUND", "Setting unavailable");
+    if (setting.version() != proposal.baseVersion() || expectedVersion != proposal.baseVersion()) {
+      requireOne(proposals.markConflicted(proposal.id()));
+      return new ProposalDecision("CONFLICTED", null);
+    }
+    int next =
+        settings.persist(
+            setting.id(), type, title, content, expectedVersion, "AGENT", proposal.id());
+    requireOne(proposals.markApplied(proposal.id(), next));
+    return new ProposalDecision("APPLIED", next);
   }
 
   public ProposalDecision reject(String id) {

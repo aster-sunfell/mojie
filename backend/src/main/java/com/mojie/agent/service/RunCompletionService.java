@@ -65,16 +65,33 @@ public final class RunCompletionService {
           String proposalId = null;
           if (candidate != null) {
             proposalId = UUID.randomUUID().toString();
-            requireOne(
-                proposals.insert(
-                    proposalId,
-                    runId,
-                    projectId,
-                    candidate.chapterId() == null ? row.targetChapterId() : candidate.chapterId(),
-                    candidate.chapterId() == null ? row.baseVersion() : candidate.baseVersion(),
-                    candidate.chapterId() == null ? row.baseContent() : candidate.baseContent(),
-                    candidate.proposedContent(),
-                    candidate.reason()));
+            if (candidate.settingEdit() != null) {
+              var edit = candidate.settingEdit();
+              requireOne(
+                  proposals.insertSetting(
+                      proposalId,
+                      runId,
+                      projectId,
+                      edit.settingId(),
+                      candidate.baseVersion(),
+                      edit.baseType(),
+                      edit.baseTitle(),
+                      candidate.baseContent(),
+                      edit.proposedType(),
+                      edit.proposedTitle(),
+                      candidate.proposedContent(),
+                      candidate.reason()));
+            } else
+              requireOne(
+                  proposals.insert(
+                      proposalId,
+                      runId,
+                      projectId,
+                      candidate.chapterId() == null ? row.targetChapterId() : candidate.chapterId(),
+                      candidate.chapterId() == null ? row.baseVersion() : candidate.baseVersion(),
+                      candidate.chapterId() == null ? row.baseContent() : candidate.baseContent(),
+                      candidate.proposedContent(),
+                      candidate.reason()));
           }
           if (!"SUCCEEDED".equals(status)) {
             trace.abortOpenCalls(runId, status);
@@ -121,6 +138,14 @@ public final class RunCompletionService {
       throw new IllegalStateException("Candidate chapter was not sent to final model call");
     if (completed.candidate() != null && !trace.hasCandidateStep(runId))
       throw new IllegalStateException("Candidate has no successful tool step");
+    if (completed.candidate() != null
+        && completed.candidate().settingEdit() != null
+        && !trace.hasSettingInput(
+            runId,
+            completed.modelCalls(),
+            completed.candidate().settingEdit().settingId(),
+            completed.candidate().baseVersion()))
+      throw new IllegalStateException("Candidate setting was not sent to final model call");
     if (trace.openCalls(runId) != 0) throw new IllegalStateException("Model call remains open");
     if (trace.openSteps(runId) != 0) throw new IllegalStateException("Tool step remains open");
   }

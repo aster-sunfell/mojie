@@ -17,7 +17,13 @@ public record ProposalDetail(
     Integer appliedVersion,
     String createdAt,
     String updatedAt,
-    JsonNode reviewDecisions)
+    JsonNode reviewDecisions,
+    String targetType,
+    String targetSettingId,
+    String baseType,
+    String baseTitle,
+    String proposedType,
+    String proposedTitle)
     implements QueryResult {
   public Map<String, Object> fields() {
     Map<String, Object> fields = new LinkedHashMap<>();
@@ -25,6 +31,12 @@ public record ProposalDetail(
     fields.put("runId", runId);
     fields.put("projectId", projectId);
     fields.put("targetChapterId", targetChapterId);
+    fields.put("targetType", targetType);
+    fields.put("targetSettingId", targetSettingId);
+    fields.put("baseType", baseType);
+    fields.put("baseTitle", baseTitle);
+    fields.put("proposedType", proposedType);
+    fields.put("proposedTitle", proposedTitle);
     fields.put("baseVersion", baseVersion);
     fields.put("baseContent", baseContent);
     fields.put("proposedContent", proposedContent);

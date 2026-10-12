@@ -50,7 +50,8 @@ public final class ConversationModels {
       JsonNode configSnapshot,
       String contextChapterId,
       Long contextVersion,
-      String contextContent) {}
+      String contextContent,
+      boolean analysisOnly) {}
 
   public record Summary(String id, long coveredSeq, String summary) {}
 
@@ -65,7 +66,31 @@ public final class ConversationModels {
       Long expectedVersion,
       List<Selection> selectedSkills,
       String contextChapterId,
-      Long contextVersion) {
+      Long contextVersion,
+      boolean analysisOnly) {
+    public Send(
+        String content,
+        String clientRequestId,
+        Long expectedConversationSeq,
+        String taskType,
+        String targetChapterId,
+        Long expectedVersion,
+        List<Selection> selectedSkills,
+        String contextChapterId,
+        Long contextVersion) {
+      this(
+          content,
+          clientRequestId,
+          expectedConversationSeq,
+          taskType,
+          targetChapterId,
+          expectedVersion,
+          selectedSkills,
+          contextChapterId,
+          contextVersion,
+          false);
+    }
+
     public Send(
         String content,
         String clientRequestId,

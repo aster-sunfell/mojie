@@ -122,14 +122,14 @@ class ConversationSkillsIT {
         var skill = skills.requireSkill(upload.skillId());
         skills.patch(skill.id(), skill.version(), true, null, false);
         Send first =
-            new Send("记住林舟怕火", UUID.randomUUID().toString(), 0L, "CHAT", null, null, List.of());
+            new Send("记住林舟怕火", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of());
         Receipt receipt = service.send(a.id(), first);
         await(agent, receipt.runId());
         metadata.set(null);
         assertEquals(receipt.runId(), service.send(a.id(), first).runId());
         assertEquals("MODEL_METADATA_UNAVAILABLE", assertThrows(BusinessException.class,
             () -> service.send(a.id(), new Send("继续", UUID.randomUUID().toString(), 2L,
-                "CHAT", null, null, List.of()))).code());
+                "ASSISTANT", null, null, List.of()))).code());
         metadata.set(Map.of("contextWindowTokens", 900000, "contextWindowSource", "refreshed"));
         assertEquals(2, service.get(a.id()).lastSeq());
         assertEquals(
@@ -143,7 +143,7 @@ class ConversationSkillsIT {
                                 "旧序号",
                                 UUID.randomUUID().toString(),
                                 0L,
-                                "CHAT",
+                                "ASSISTANT",
                                 null,
                                 null,
                                 List.of())))
@@ -152,7 +152,7 @@ class ConversationSkillsIT {
             service.send(
                 a.id(),
                 new Send(
-                    "他为什么避开火？", UUID.randomUUID().toString(), 2L, "CHAT", null, null, List.of()));
+                    "他为什么避开火？", UUID.randomUUID().toString(), 2L, "ASSISTANT", null, null, List.of()));
         await(agent, second.runId());
         var snapshotDb = new JdbcAccess(source);
         assertEquals(1000000, ((Number) snapshotDb.first(
@@ -166,13 +166,13 @@ class ConversationSkillsIT {
         Receipt independent =
             service.send(
                 b.id(),
-                new Send("讨论大纲", UUID.randomUUID().toString(), 0L, "CHAT", null, null, List.of()));
+                new Send("讨论大纲", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of()));
         await(agent, independent.runId());
         assertFalse(requests.get(2).messages().toString().contains("林舟怕火"));
         Receipt third =
             service.send(
                 a.id(),
-                new Send("请检查人物", UUID.randomUUID().toString(), 4L, "CHAT", null, null, List.of()));
+                new Send("请检查人物", UUID.randomUUID().toString(), 4L, "ASSISTANT", null, null, List.of()));
         await(agent, third.runId());
         assertEquals("SUCCEEDED", agent.query().detail(third.runId()).get("status"));
         var loaded = skills.runSkills(third.runId()).getFirst();
@@ -181,7 +181,7 @@ class ConversationSkillsIT {
         assertEquals(upload.versionId(), loaded.versionId());
         assertTrue(
             requests.stream()
-                .allMatch(r -> r.tools().stream().noneMatch(t -> t.name().equals("propose_edit"))));
+                .allMatch(r -> r.tools().stream().anyMatch(t -> t.name().equals("propose_chapter_edit"))));
         var db = new JdbcAccess(source);
         assertEquals(
             5,
@@ -216,7 +216,7 @@ class ConversationSkillsIT {
                                 "继续",
                                 UUID.randomUUID().toString(),
                                 6L,
-                                "CHAT",
+                                "ASSISTANT",
                                 null,
                                 null,
                                 List.of(new Selection(skill.id(), update.versionId())))))
@@ -228,7 +228,7 @@ class ConversationSkillsIT {
         assertEquals("CONVERSATION_VERSION_CONFLICT", assertThrows(BusinessException.class,
             () -> service.patch(a.id(), before.version(), "过期标题", null)).code());
         Receipt continued = service.send(a.id(), new Send(
-            "继续", UUID.randomUUID().toString(), 6L, "CHAT", null, null, List.of()));
+            "继续", UUID.randomUUID().toString(), 6L, "ASSISTANT", null, null, List.of()));
         await(agent, continued.runId());
         assertEquals(8, service.get(a.id()).lastSeq());
       } finally {
@@ -312,7 +312,7 @@ class ConversationSkillsIT {
                       "继续 " + n,
                       UUID.randomUUID().toString(),
                       (long) n * 2,
-                      "CHAT",
+                      "ASSISTANT",
                       null,
                       null,
                       List.of()));
@@ -347,7 +347,7 @@ class ConversationSkillsIT {
                       "继续 " + n,
                       UUID.randomUUID().toString(),
                       (long) n * 2,
-                      "CHAT",
+                      "ASSISTANT",
                       null,
                       null,
                       List.of()));
@@ -357,7 +357,7 @@ class ConversationSkillsIT {
         var failed =
             service.send(
                 b.id(),
-                new Send("触发失败", UUID.randomUUID().toString(), 6L, "CHAT", null, null, List.of()));
+                new Send("触发失败", UUID.randomUUID().toString(), 6L, "ASSISTANT", null, null, List.of()));
         long end = System.nanoTime() + 10_000_000_000L;
         while (System.nanoTime() < end
             && Set.of("QUEUED", "RUNNING")

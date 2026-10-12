@@ -5,11 +5,19 @@ import { RunResult } from '../agent/RunResult.jsx'
 import { active } from '../agent/status.js'
 import { proposalStatusName } from '../proposals/Proposal.jsx'
 
-const taskNames = { CHAT: '讨论', CHAPTER_REVIEW: '审阅本章', CHAPTER_EDIT: '修改本章' }
+const taskNames = { CHAPTER_REVIEW: '审阅本章', CHAPTER_EDIT: '修改本章' }
 
-export function ConversationTurn({ message, run, chapterNames, review, onOpenProposal, onSource, onRetry, canRetry, connection }) {
+export function ConversationTurn({ message, run, chapterNames, review, proposalStatuses, onOpenProposal, onSource, onRetry, canRetry, connection }) {
   const [resources, setResources] = useState(null), [resourceError, setResourceError] = useState('')
   const [retryResources, setRetryResources] = useState(0)
+  const [settingStatus, setSettingStatus] = useState(null)
+  useEffect(() => {
+    if (message.role === 'USER' || run?.targetType !== 'SETTING' || !run.proposalId) return
+    let disposed = false
+    api(`/edit-proposals/${run.proposalId}`).then(value => { if (!disposed) setSettingStatus(value.status) })
+      .catch(() => { if (!disposed) setSettingStatus('UNKNOWN') })
+    return () => { disposed = true }
+  }, [message.role, run?.targetType, run?.proposalId])
   useEffect(() => {
     if (!run || message.role === 'USER' && !['FAILED', 'CANCELLED'].includes(message.status)) return
     let disposed = false
@@ -21,23 +29,25 @@ export function ConversationTurn({ message, run, chapterNames, review, onOpenPro
   const user = message.role === 'USER'
   const failed = user && ['FAILED', 'CANCELLED'].includes(message.status)
   const selected = review?.id === run?.proposalId
-  const title = run?.targetChapterId ? chapterNames[run.targetChapterId] || '目标章节' : ''
+  const settingProposal = run?.targetType === 'SETTING'
+  const title = settingProposal ? `设定 · ${run.targetTitle || '目标设定'}` : run?.targetChapterId ? chapterNames[run.targetChapterId] || run.targetTitle || '目标章节' : ''
   const contextTitle = run?.contextChapterId ? chapterNames[run.contextChapterId] || '参考章节' : ''
   const turnContext = run?.taskType === 'ASSISTANT'
     ? contextTitle ? `参考：${contextTitle} · v${run.contextVersion}` : ''
     : `${taskNames[run?.taskType] || '章节任务'}${title ? ` · ${title} · v${run.baseVersion}` : ''}`
   return <article className={`conversationMessage ${user ? 'user' : 'assistant'}`}>
     <div className="messageMeta"><span>{user ? '你' : '写作助手'}</span>
-      {user && run && turnContext && <span>{turnContext}</span>}</div>
+      {user && run && turnContext && <span>{turnContext}</span>}{user && run?.analysisOnly && <span>仅分析</span>}</div>
     {user ? <p className="userContent">{message.content}</p> : <Markdown content={message.content} />}
     {failed && <div className="turnFailure"><span>本轮{message.status === 'FAILED' ? '失败' : '已停止'}，未完成回答。</span>
       {canRetry && <button className="link" onClick={() => onRetry(message)}>重试本轮</button>}
       {run?.errorDetail && <p className="error">{readableError({ code: run.errorCode, message: run.errorDetail })}</p>}</div>}
     {!user && run?.status === 'SUCCEEDED' && run.proposalId && <div className="messageProposal">
       <div><strong>{title} · 修改建议</strong>
+        {settingProposal && (proposalStatuses?.[run.proposalId] || settingStatus) && <small>{settingStatus === 'UNKNOWN' && !proposalStatuses?.[run.proposalId] ? '状态暂不可用' : proposalStatusName(proposalStatuses?.[run.proposalId] || settingStatus)}</small>}
         {selected && review.proposal && <small>共 {review.items.length} 处修改 · {review.items.filter(item => item.status === 'PENDING').length} 处待处理 · {proposalStatusName(review.proposal.status)}</small>}</div>
       <button className="secondary" onClick={() => onOpenProposal(run)}>
-        {selected ? '定位正文修改' : '在正文中查看'}</button>
+        {settingProposal ? '在设定中查看' : selected ? '定位正文修改' : '在正文中查看'}</button>
     </div>}
     {!user && run?.sources?.length > 0 && <details className="messageSources"><summary>查阅来源 · {run.sources.length} 条</summary>
       <div className="sources">{run.sources.map(source => <button key={source.id} onClick={() => onSource(source, run)}>

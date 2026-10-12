@@ -100,7 +100,7 @@ public final class ToolContentService implements ToolContentReader {
     return read(
         () ->
             content.settings(project, timeout, context).stream()
-                .map(v -> new Setting(v.id(), v.type(), v.title(), v.content()))
+                .map(v -> new Setting(v.id(), v.type(), v.title(), v.content(), v.version()))
                 .toList());
   }
 

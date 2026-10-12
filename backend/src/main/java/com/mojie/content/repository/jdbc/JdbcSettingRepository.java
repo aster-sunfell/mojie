@@ -19,7 +19,7 @@ public final class JdbcSettingRepository implements SettingRepository {
     return db.records(
         Setting.class,
         """
-        SELECT id, project_id, type, title, content, updated_at FROM tb_setting
+        SELECT id, project_id, type, title, content, version, updated_at FROM tb_setting
          WHERE project_id = ?::uuid AND deleted_at IS NULL
            AND (?::text IS NULL OR type = ?)
            AND (?::text IS NULL OR position(? in title) > 0 OR position(? in content) > 0)
@@ -41,8 +41,8 @@ public final class JdbcSettingRepository implements SettingRepository {
   public Setting findById(String settingId) {
     return db.firstRecord(
         Setting.class,
-        "SELECT id, project_id, type, title, content, updated_at FROM tb_setting WHERE id ="
-            + " ?::uuid",
+        "SELECT id, project_id, type, title, content, version, updated_at FROM tb_setting WHERE id"
+            + " = ?::uuid AND deleted_at IS NULL",
         settingId);
   }
 
@@ -60,14 +60,55 @@ public final class JdbcSettingRepository implements SettingRepository {
   }
 
   @Override
-  public int update(String settingId, String type, String title, String content) {
+  public Setting lock(String settingId) {
+    return db.firstRecord(
+        Setting.class,
+        "SELECT id, project_id, type, title, content, version, updated_at FROM tb_setting"
+            + " WHERE id = ?::uuid AND deleted_at IS NULL FOR UPDATE",
+        settingId);
+  }
+
+  @Override
+  public int update(
+      String settingId, String type, String title, String content, int expectedVersion) {
     return db.update(
-        "UPDATE tb_setting SET type = ?, title = ?, content = ?, updated_at = now() WHERE id ="
-            + " ?::uuid AND deleted_at IS NULL",
+        "UPDATE tb_setting SET type = ?, title = ?, content = ?, version = version + 1, updated_at"
+            + " = now() WHERE id = ?::uuid AND deleted_at IS NULL AND version = ?",
         type,
         title,
         content,
-        settingId);
+        settingId,
+        expectedVersion);
+  }
+
+  @Override
+  public int insertRevision(
+      String id,
+      int version,
+      String type,
+      String title,
+      String content,
+      String source,
+      String proposalId) {
+    return db.update(
+        "INSERT INTO tb_setting_revision(setting_id, version, type, title, content, source,"
+            + " proposal_id) VALUES (?::uuid, ?, ?, ?, ?, ?, ?::uuid)",
+        id,
+        version,
+        type,
+        title,
+        content,
+        source,
+        proposalId);
+  }
+
+  @Override
+  public List<SettingRevision> revisions(String id) {
+    return db.records(
+        SettingRevision.class,
+        "SELECT version, type, title, content, source, proposal_id, created_at FROM"
+            + " tb_setting_revision WHERE setting_id = ?::uuid ORDER BY version DESC LIMIT 50",
+        id);
   }
 
   @Override

@@ -3,12 +3,13 @@ import { api, readableError } from '../../shared/api/client.js'
 import { Dialog } from '../../shared/ui/Dialog.jsx'
 import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 import { Icon } from '../../shared/ui/Icon.jsx'
+import { SettingProposalFields } from './SettingProposalFields.jsx'
 
 const types = { CHARACTER: '人物', WORLD: '世界观', RULE: '写作约束' }
 const emptyForm = () => ({ type: 'CHARACTER', title: '', content: '' })
 const fields = item => ({ type: item.type, title: item.title, content: item.content })
 
-export function Settings({ projectId, disabled = false, onClose }) {
+export function Settings({ projectId, disabled = false, proposalId = null, onProposalChange, onClose }) {
   const [items, setItems] = useState([])
   const [cursor, setCursor] = useState(null)
   const [selected, setSelected] = useState(null)
@@ -22,15 +23,40 @@ export function Settings({ projectId, disabled = false, onClose }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [mobileDetail, setMobileDetail] = useState(false)
+  const [proposal, setProposal] = useState(null)
+  const [choices, setChoices] = useState({})
+  const [history, setHistory] = useState(null)
+  const [proposalLoading, setProposalLoading] = useState(Boolean(proposalId))
+  const [proposalRetry, setProposalRetry] = useState(0)
+  const historyRequest = useRef(0)
   const query = useRef({ keyword, type })
   const requestNumber = useRef(0)
   const pending = useRef(false)
   const formRef = useRef(null)
   const fieldId = useId()
   query.current = { keyword, type }
-  const baseline = mode === 'edit' && selected ? fields(selected) : emptyForm()
-  const dirty = mode !== 'view' && Object.keys(baseline).some(key => form[key] !== baseline[key])
-  const locked = disabled || busy
+  const baseline = ['edit', 'review'].includes(mode) && selected ? fields(selected) : emptyForm()
+  const dirty = mode !== 'view' && (Object.keys(baseline).some(key => form[key] !== baseline[key]) || mode === 'review' && Object.keys(choices).length > 0)
+  const locked = disabled || busy || proposalLoading
+  const conflicted = proposal && (proposal.status === 'CONFLICTED' || proposal.baseVersion !== selected?.version)
+
+  useEffect(() => {
+    if (!proposalId) return
+    let disposed = false
+    setProposalLoading(true); setError('')
+    ;(async () => {
+      const value = await api(`/edit-proposals/${proposalId}`)
+      if (value.targetType !== 'SETTING' || value.projectId !== projectId) throw new Error('这份建议不属于当前作品的设定。')
+      const setting = await api(`/settings/${value.targetSettingId}`)
+      if (disposed) return
+      setProposal(value); setSelected(setting); setForm(fields(setting)); setChoices({}); setHistory(null)
+      setMode(value.status === 'PENDING' || value.status === 'CONFLICTED' ? 'review' : 'view'); setMobileDetail(true)
+      if (value.status === 'APPLIED') setNotice('这份设定建议已处理并保存。')
+      if (value.status === 'REJECTED') setNotice('这份设定建议已忽略。')
+    })().catch(failure => { if (!disposed) setError(readableError(failure)) })
+      .finally(() => { if (!disposed) setProposalLoading(false) })
+    return () => { disposed = true }
+  }, [projectId, proposalId, proposalRetry])
 
   const load = useCallback(async (after = null) => {
     const request = ++requestNumber.current
@@ -63,6 +89,10 @@ export function Settings({ projectId, disabled = false, onClose }) {
     if (!selected && mode === 'view' && items.length) setSelected(items[0])
   }, [items, selected, mode])
   useEffect(() => {
+    setHistory(null); historyRequest.current++
+    return () => { historyRequest.current++ }
+  }, [selected?.id, selected?.version])
+  useEffect(() => {
     if (mode !== 'view') formRef.current?.querySelector('input')?.focus()
   }, [mode])
   useEffect(() => {
@@ -90,11 +120,13 @@ export function Settings({ projectId, disabled = false, onClose }) {
     if (!canDiscard()) return
     setSelected(item); setMode('view'); setMobileDetail(true)
     setError(''); setNotice('')
+    setProposal(null); setChoices({}); setHistory(null)
   }
   function add() {
     if (locked || !canDiscard()) return
     setMode('new'); setForm(emptyForm()); setMobileDetail(true)
     setError(''); setNotice('')
+    setProposal(null); setChoices({}); setHistory(null)
   }
   function edit() {
     if (locked || !selected) return
@@ -103,23 +135,54 @@ export function Settings({ projectId, disabled = false, onClose }) {
   function cancelEdit() {
     if (!canDiscard()) return
     setMode('view'); setError(''); setNotice('')
+    setProposal(null); setChoices({})
   }
   function back() {
     if (!canDiscard()) return
     setMode('view'); setMobileDetail(false); setError(''); setNotice('')
+    setProposal(null); setChoices({})
   }
   async function save(event) {
     event.preventDefault()
-    if (locked || pending.current || !dirty || !form.title.trim() || !form.content.trim()) return
+    if (locked || pending.current || !dirty || mode === 'review' && conflicted || !form.title.trim() || !form.content.trim()) return
     pending.current = true; setBusy(true); setError(''); setNotice('')
     try {
-      const value = mode === 'edit'
-        ? await api(`/settings/${selected.id}`, 'PATCH', form)
+      let value
+      if (mode === 'review') {
+        await api(`/edit-proposals/${proposal.id}/setting`, 'PUT', { ...form, expectedVersion: proposal.baseVersion })
+        value = await api(`/settings/${selected.id}`)
+        onProposalChange?.(proposal.id, 'APPLIED')
+      } else value = mode === 'edit'
+        ? await api(`/settings/${selected.id}`, 'PATCH', { ...form, expectedVersion: selected.version })
         : await api(`/projects/${projectId}/settings`, 'POST', form)
       setSelected(value); setMode('view'); setNotice('设定已保存')
+      setChoices({}); setProposal(null); setHistory(null)
       await load()
+    } catch (failure) {
+      setError(readableError(failure))
+      if (mode === 'review' && failure.status === 409) {
+        setProposal(current => ({ ...current, status: 'CONFLICTED' }))
+        onProposalChange?.(proposal.id, 'CONFLICTED')
+      }
+    }
+    finally { pending.current = false; setBusy(false) }
+  }
+  async function rejectProposal() {
+    if (locked || pending.current || !proposal || !canDiscard()) return
+    pending.current = true; setBusy(true); setError('')
+    try {
+      await api(`/edit-proposals/${proposal.id}/reject`, 'POST')
+      onProposalChange?.(proposal.id, 'REJECTED')
+      setProposal(null); setChoices({}); setMode('view'); setNotice('设定建议已忽略')
     } catch (failure) { setError(readableError(failure)) }
     finally { pending.current = false; setBusy(false) }
+  }
+  async function loadHistory() {
+    const request = ++historyRequest.current
+    try {
+      const value = await api(`/settings/${selected.id}/revisions`)
+      if (request === historyRequest.current) setHistory(value)
+    } catch (failure) { if (request === historyRequest.current) setError(readableError(failure)) }
   }
   async function remove() {
     if (locked || pending.current || !selected || !window.confirm(`确定删除“${selected.title}”？`)) return
@@ -153,7 +216,7 @@ export function Settings({ projectId, disabled = false, onClose }) {
           {listError && <p className="error" role="alert">{listError}<button className="link" onClick={() => load()}>重试</button></p>}
           {items.map(item => <button type="button" key={item.id} className="settingListItem"
             aria-label={`${types[item.type]}：${item.title}`}
-            aria-current={mode !== 'new' && selected?.id === item.id ? 'true' : undefined} disabled={busy} onClick={() => select(item)}>
+            aria-current={mode !== 'new' && selected?.id === item.id ? 'true' : undefined} disabled={busy || proposalLoading} onClick={() => select(item)}>
             <small>{types[item.type]}</small><strong>{item.title}</strong><span>{item.content}</span>
           </button>)}
           {loading && <p className="settingsListHint" role="status">加载设定中…</p>}
@@ -170,11 +233,21 @@ export function Settings({ projectId, disabled = false, onClose }) {
         <button type="button" className="link settingsBack" disabled={busy} onClick={back}>← 返回设定列表</button>
         {error && <p className="error settingsFeedback" role="alert">{error}</p>}
         {notice && <p className="success settingsFeedback" role="status">{notice}</p>}
+        {proposalLoading && <p className="settingsFeedback" role="status">正在加载设定建议…</p>}
+        {proposalId && error && !proposal && <button className="link" disabled={locked} onClick={() => { if (canDiscard()) setProposalRetry(value => value + 1) }}>重试加载建议</button>}
         {mode === 'view' ? selected ? <>
           <ScrollArea className="settingDetail" orientation="vertical">
             <span className="settingType">{types[selected.type]}</span>
             <h3>{selected.title}</h3>
             <p className="settingContent">{selected.content}</p>
+            <details onToggle={event => { if (event.currentTarget.open && !history) loadHistory() }}>
+              <summary>设定历史 · v{selected.version}</summary>
+              {history?.map(item => <article className="settingRevision" key={item.version}>
+                <strong>v{item.version} · {types[item.type]} · {item.title}</strong>
+                <small>{({ CREATE: '初始版本', MANUAL: '手动保存', AGENT: '助手建议' })[item.source]}</small>
+                <pre>{item.content}</pre>
+              </article>)}
+            </details>
           </ScrollArea>
           <div className="settingActions">
             <button className="link danger" disabled={locked} onClick={remove}>删除设定</button>
@@ -182,9 +255,14 @@ export function Settings({ projectId, disabled = false, onClose }) {
           </div>
         </> : <div className="settingsEmptyDetail"><Icon name="book" size={32} />
           <h3>选择或新建设定</h3><p>从左侧选择设定，或新增人物、世界观与写作约束。</p>
-        </div> : <form ref={formRef} onSubmit={save} className="settingForm" aria-label={mode === 'edit' ? '编辑设定' : '新增设定'}>
+        </div> : <form ref={formRef} onSubmit={save} className="settingForm" aria-label={mode === 'review' ? '审阅设定修改' : mode === 'edit' ? '编辑设定' : '新增设定'}>
           <ScrollArea className="settingFields" orientation="vertical">
-            <h3>{mode === 'edit' ? '编辑设定' : '新增设定'}</h3>
+            {mode === 'review' && proposal && <SettingProposalFields proposal={proposal} form={form} choices={choices}
+              locked={locked} conflicted={conflicted}
+              onApply={(key, value) => { setForm(current => ({ ...current, [key]: value })); setChoices(current => ({ ...current, [key]: 'APPLIED' })) }}
+              onIgnore={key => { setForm(current => ({ ...current, [key]: fields(selected)[key] })); setChoices(current => ({ ...current, [key]: 'IGNORED' })) }}
+              onApplyAll={() => { setForm({ type: proposal.proposedType, title: proposal.proposedTitle, content: proposal.proposedContent }); setChoices({ type: 'APPLIED', title: 'APPLIED', content: 'APPLIED' }) }} />}
+            <h3>{mode === 'review' ? '设定草稿' : mode === 'edit' ? '编辑设定' : '新增设定'}</h3>
             <label htmlFor={`${fieldId}-type`}>类型</label>
             <select id={`${fieldId}-type`} disabled={locked} value={form.type} onChange={event => setForm({ ...form, type: event.target.value })}>
               {Object.entries(types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -199,8 +277,9 @@ export function Settings({ projectId, disabled = false, onClose }) {
           </ScrollArea>
           <div className="settingActions">
             <span className="settingDraftStatus">{dirty ? '未保存' : ''}</span>
+            {mode === 'review' && <button type="button" className="link" disabled={locked} onClick={rejectProposal}>忽略建议</button>}
             <button type="button" className="secondary" disabled={busy} onClick={cancelEdit}>取消</button>
-            <button type="submit" disabled={locked || !dirty || !form.title.trim() || !form.content.trim()}>{busy ? '保存中…' : '保存设定'}</button>
+            <button type="submit" disabled={locked || !dirty || mode === 'review' && conflicted || !form.title.trim() || !form.content.trim()}>{busy ? '保存中…' : '保存设定'}</button>
           </div>
         </form>}
       </section>

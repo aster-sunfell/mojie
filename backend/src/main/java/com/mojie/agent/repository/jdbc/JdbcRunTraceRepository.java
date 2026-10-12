@@ -368,9 +368,31 @@ public final class JdbcRunTraceRepository implements RunTraceRepository {
   public boolean hasCandidateStep(String runId) {
     return (Boolean)
         db.first(
-                "SELECT EXISTS (SELECT 1 FROM tb_agent_step WHERE run_id = ?::uuid AND tool_name ="
-                    + " 'propose_edit' AND status = 'SUCCEEDED') AS valid",
+                "SELECT EXISTS (SELECT 1 FROM tb_agent_step WHERE run_id = ?::uuid AND tool_name IN"
+                    + " ('propose_chapter_edit', 'propose_setting_edit') AND status = 'SUCCEEDED')"
+                    + " AS valid",
                 runId)
+            .get("valid");
+  }
+
+  @Override
+  public boolean hasSettingInput(String runId, int callIndex, String settingId, int version) {
+    return (Boolean)
+        db.first(
+                """
+                SELECT EXISTS (
+                  SELECT 1 FROM tb_agent_step s
+                  JOIN tb_agent_message m ON m.run_id = s.run_id AND m.tool_execution_id = s.tool_execution_id AND m.role = 'TOOL'
+                  JOIN tb_agent_model_call mc ON mc.run_id = s.run_id AND mc.call_index = ?
+                  WHERE s.run_id = ?::uuid AND s.tool_name = 'read_settings' AND s.status = 'SUCCEEDED'
+                    AND s.result->'data'->'settings' @> jsonb_build_array(jsonb_build_object('settingId', ?::text, 'version', ?::int))
+                    AND m.message_seq = ANY(mc.input_message_seqs)
+                ) AS valid
+                """,
+                callIndex,
+                runId,
+                settingId,
+                version)
             .get("valid");
   }
 

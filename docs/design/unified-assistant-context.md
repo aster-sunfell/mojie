@@ -1,6 +1,6 @@
 # 统一助手与按需上下文
 
-日期：2026-10-12。替代新 Conversation 入口手动选择 CHAT / CHAPTER_REVIEW / CHAPTER_EDIT 的规则，旧客户端与历史任务保留兼容。
+日期：2026-10-12。替代新 Conversation 入口手动选择 CHAT / CHAPTER_REVIEW / CHAPTER_EDIT 的规则，旧讨论 CHAT 已移除；独立章节任务保留。
 
 ## 消息与参考
 
@@ -18,7 +18,7 @@
 
 ## 修改建议
 
-统一轮次始终具备 propose_edit 能力，根据用户需求调用；明确只分析时不生成候选稿。该工具要求 chapterId、expectedVersion、proposedContent、reason。实际目标可以与参考不同，也可在没有参考的轮次通过检索确定。
+普通统一轮次具备 propose_chapter_edit 与 propose_setting_edit 能力，根据用户需求调用；明确只分析时不生成候选稿，analysisOnly=true 时后端移除两个修改建议工具。章节工具要求 chapterId、expectedVersion、proposedContent、reason。实际目标可以与参考不同，也可在没有参考的轮次通过检索确定。
 
 正文必须在本轮完整读取，结果成功进入后续模型请求才能生成建议。同一工具批次 read + propose 会拒绝尚未提供给模型的正文，允许下一次模型请求纠正。候选稿基准来自服务端已读缓存，工具不能自报基准内容；版本不符或目标未读会返回可恢复错误。
 
@@ -31,3 +31,5 @@ V10 新增可选参考快照列，数据库外键保证章节归属与版本存�
 Run 详情返回 contextChapterId/contextVersion 描述当轮参考；有建议时 targetChapterId/baseVersion 来自实际建议。消息旁展示参考，建议卡片展示实际修改章。章节任务列表在有候选稿时按实际目标筛选，无候选稿时可按参考筛选。
 
 Skill 自动发现、预算、历史压缩、SSE、停止和对话隔离沿用现有能力。历史压缩保留当前轮工具结果，历史读章不能替代本轮修改证据。
+
+设定版本、修改建议与审阅保存见 [章节与设定修改建议](setting-edit-proposals.md)。

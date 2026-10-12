@@ -11,7 +11,7 @@ import { ConversationSkills } from './ConversationSkills.jsx'
 import { ConversationHistory } from './ConversationHistory.jsx'
 import './conversation.css'
 
-export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, onOpenProposal, onActivityChange }) {
+export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, proposalStatuses, onOpenProposal, onActivityChange }) {
   const chat = useConversation({ projectId, getContext, projectBusy, onActivityChange })
   const [expanded, setExpanded] = useState(Boolean(chat.id)), [enlarged, setEnlarged] = useState(false)
   const [picker, setPicker] = useState(false), [skillPicker, setSkillPicker] = useState(false), [library, setLibrary] = useState(false)
@@ -156,7 +156,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
       <div className="assistantInner messageList">
         {chat.loading && <p className="muted">正在恢复对话…</p>}
         {chat.messages.map(m => <ConversationTurn key={m.id} message={m} run={chat.runs[m.runId]} chapterNames={chapterNames}
-          review={review} connection={chat.connection} onOpenProposal={viewProposal} onSource={(value, run) => setSource({ value, run })}
+          review={review} proposalStatuses={proposalStatuses} connection={chat.connection} onOpenProposal={viewProposal} onSource={(value, run) => setSource({ value, run })}
           onRetry={chat.retry} canRetry={lastUser?.id === m.id && !chat.taskActive && !chat.busy && !projectBusy} />)}
         {!chat.loading && chat.messages.length === 0 && <p className="assistantEmptyMessage">告诉助手你的需求，它会按需查阅作品、分析问题或提出修改建议。</p>}
         {chat.taskActive && <div className="assistantProgress" role="status"><Icon name="loading" size={16} />{status}</div>}
@@ -174,6 +174,8 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
             if (event.key === 'Enter' && !event.shiftKey && !composing.current && !event.nativeEvent.isComposing && event.keyCode !== 229) send(event)
           }} />
         <div className="assistantInputTools"><div className="assistantContext">
+          <button type="button" className="link assistantAnalysisOnly" aria-pressed={Boolean(chat.draft.analysisOnly)} disabled={chat.busy}
+            title="本轮只查阅和分析，不生成修改建议" onClick={() => chat.updateDraft({ analysisOnly: !chat.draft.analysisOnly })}>仅分析{chat.draft.analysisOnly ? ' · 开' : ''}</button>
           <Tooltip label={skillLabel}><button type="button" className="assistantIconButton assistantSkillButton" aria-label="选择 Skill"
             disabled={chat.busy} onClick={() => setSkillPicker(true)}>
             <Icon name="skill" />{chat.draft.selected.length > 0 && <span className="assistantSkillCount">{chat.draft.selected.length}</span>}

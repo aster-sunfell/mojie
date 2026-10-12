@@ -107,7 +107,7 @@ def scenario(name, port, jar):
     capture('project', 'GET', '/projects/' + project)
     setting = capture('createSetting', 'POST', '/projects/' + project + '/settings', {'type': 'CHARACTER', 'title': '甲', 'content': '甲不会游泳。'})['id']
     capture('settings', 'GET', '/projects/' + project + '/settings?type=CHARACTER')
-    capture('updateSetting', 'PATCH', '/settings/' + setting, {'type': 'WORLD', 'title': '河流', 'content': '河流湍急。'})
+    capture('updateSetting', 'PATCH', '/settings/' + setting, {'type': 'WORLD', 'title': '河流', 'content': '河流湍急。', 'expectedVersion': 1})
     capture('versionConflict', 'PUT', '/chapters/' + chapter + '/content', {'content': '过期版本', 'expectedVersion': 1})
     capture('invalidCursor', 'GET', '/projects?cursor=invalid')
     capture('missingChapter', 'GET', '/chapters/' + str(uuid.uuid4()))

@@ -20,6 +20,8 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [error, setError] = useState('')
   const [reviewRun, setReviewRun] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [settingProposalId, setSettingProposalId] = useState(null)
+  const [proposalStatuses, setProposalStatuses] = useState({})
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
   const accepting = false
@@ -160,7 +162,12 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     return () => { window.clearInterval(timer); busyRequest.current++ }
   }, [refreshBusy])
   async function openProposal(run) {
-    if (run?.status !== 'SUCCEEDED' || !run.proposalId || !run.targetChapterId) return false
+    if (run?.status !== 'SUCCEEDED' || !run.proposalId) return false
+    if (run.targetType === 'SETTING') {
+      setSettingProposalId(run.proposalId); setShowSettings(true)
+      return true
+    }
+    if (!run.targetChapterId) return false
     if (run.targetChapterId !== selectedRef.current) {
       if (!(await prepareLeave())) return false
       setReviewRun(run)
@@ -191,7 +198,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
         {mobile && <button className="secondary" onClick={() => setShowChapters(true)}>
           <Icon name="menu" size={16} />章节
         </button>}
-        <button className="secondary workspaceSettingsButton" aria-haspopup="dialog" onClick={() => setShowSettings(true)}>
+        <button className="secondary workspaceSettingsButton" aria-haspopup="dialog" onClick={() => { setSettingProposalId(null); setShowSettings(true) }}>
           <Icon name="book" size={16} />作品设定
         </button>
       </header>
@@ -202,10 +209,12 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     review={review}
     onDraftChange={changeDraft} />
       <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty}
-        projectBusy={runBusy} review={review} getContext={getContext}
+        projectBusy={runBusy} review={review} getContext={getContext} proposalStatuses={proposalStatuses}
         onOpenProposal={openProposal} onActivityChange={refreshBusy} />
     </div>
     {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}
-    {showSettings && <Settings key={projectId} projectId={projectId} disabled={runBusy} onClose={() => setShowSettings(false)} />}
+    {showSettings && <Settings key={projectId} projectId={projectId} disabled={runBusy} proposalId={settingProposalId}
+      onProposalChange={(id, status) => setProposalStatuses(current => ({ ...current, [id]: status }))}
+      onClose={() => { setShowSettings(false); setSettingProposalId(null) }} />}
   </div>
 }

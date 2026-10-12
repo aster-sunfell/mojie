@@ -145,9 +145,15 @@ paths:
   /settings/{id}:
     parameters:
       - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getSetting
+      description: Saved setting including its version.
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
     patch:
       operationId: updateSetting
-      requestBody: { $ref: '#/components/requestBodies/Setting' }
+      requestBody: { $ref: '#/components/requestBodies/SettingSave' }
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '409': { $ref: '#/components/responses/Error' }
@@ -156,6 +162,15 @@ paths:
       responses:
         '204': { description: Deleted }
         '409': { $ref: '#/components/responses/Error' }
+  /settings/{id}/revisions:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getSettingRevisions
+      description: Latest 50 immutable revisions, newest first, including type, title, content, source and proposalId.
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
   /agent/runs:
     get:
       operationId: listRuns
@@ -245,6 +260,16 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '409': { $ref: '#/components/responses/Error' }
+  /edit-proposals/{id}/setting:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    put:
+      operationId: saveReviewedSettingProposal
+      description: Save the author's reviewed setting draft atomically with proposal status and revision history. A stale base returns CONFLICTED; repeated saves of an applied proposal do not create another revision.
+      requestBody: { $ref: '#/components/requestBodies/SettingSave' }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Data' }
   /projects/{id}/conversations:
     parameters:
     - name: id
@@ -860,6 +885,18 @@ components:
               type: { type: string, enum: [CHARACTER, WORLD, RULE] }
               title: { type: string }
               content: { type: string }
+    SettingSave:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [type, title, content, expectedVersion]
+            properties:
+              type: { type: string, enum: [CHARACTER, WORLD, RULE] }
+              title: { type: string, minLength: 1, maxLength: 80 }
+              content: { type: string, minLength: 1, maxLength: 2000 }
+              expectedVersion: { type: integer, minimum: 1 }
   schemas:
     SkillSelection:
       type: object
@@ -910,13 +947,12 @@ components:
           description: Optional compatibility field. New clients omit this and use one assistant workflow.
           enum:
           - ASSISTANT
-          - CHAT
           - CHAPTER_REVIEW
           - CHAPTER_EDIT
         targetChapterId:
           type: string
           format: uuid
-          description: Legacy chapter-task target; forbidden for CHAT and ASSISTANT.
+          description: Legacy chapter-task target; forbidden for ASSISTANT.
         expectedVersion:
           type: integer
           minimum: 1
@@ -934,6 +970,10 @@ components:
           maxItems: 8
           items:
             $ref: '#/components/schemas/SkillSelection'
+        analysisOnly:
+          type: boolean
+          default: false
+          description: Disables both propose_chapter_edit and propose_setting_edit for this turn. Retry preserves this flag.
     SaveChapter:
       type: object
       required: [content, expectedVersion]

@@ -90,7 +90,7 @@ class ConversationRetryIT {
         var first =
             service.send(
                 conversation.id(),
-                new Send("原始输入", UUID.randomUUID().toString(), 0L, "CHAT", null, null, List.of()));
+                new Send("原始输入", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of()));
         terminal(agent, first.runId());
         assertEquals("FAILED", agent.query().detail(first.runId()).get("status"));
         assertEquals(1, service.get(conversation.id()).lastSeq());
@@ -128,12 +128,12 @@ class ConversationRetryIT {
             service.send(
                 another.id(),
                 new Send(
-                    "保留失败输入", UUID.randomUUID().toString(), 0L, "CHAT", null, null, List.of()));
+                    "保留失败输入", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of()));
         terminal(agent, failed.runId());
         var next =
             service.send(
                 another.id(),
-                new Send("继续讨论", UUID.randomUUID().toString(), 1L, "CHAT", null, null, List.of()));
+                new Send("继续讨论", UUID.randomUUID().toString(), 1L, "ASSISTANT", null, null, List.of()));
         terminal(agent, next.runId());
         Request last = requests.getLast();
         assertTrue(

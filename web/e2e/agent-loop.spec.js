@@ -98,7 +98,7 @@ test('selected references and retrieved edit targets stay independent across con
   const second = (await (await request.get(`${api}/agent/runs/${runs[0].id}`)).json()).data
   expect(second.contextChapterId).toBeNull()
   expect(second.targetChapterId).toBe(chapterId)
-  expect(second.steps.map(step => step.toolName)).toEqual(['search_chapters', 'read_chapter', 'propose_edit'])
+  expect(second.steps.map(step => step.toolName)).toEqual(['search_chapters', 'read_chapter', 'propose_chapter_edit'])
   // Resolve both pending proposals before the fixture deletes this disposable project.
   expect((await request.post(`${api}/edit-proposals/${first.proposalId}/reject`)).status()).toBe(200)
   expect((await request.post(`${api}/edit-proposals/${second.proposalId}/reject`)).status()).toBe(200)

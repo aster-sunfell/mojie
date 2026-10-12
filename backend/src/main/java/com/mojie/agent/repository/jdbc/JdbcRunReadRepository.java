@@ -17,15 +17,17 @@ public final class JdbcRunReadRepository implements RunReadRepository {
   public RunSnapshot scoped(String runId) {
     return db.firstRecord(
         RunSnapshot.class,
-        """
+"""
 SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS target_chapter_id,
        COALESCE(p.base_version,r.base_version) AS base_version, r.instruction,
        r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
        r.analysis, r.error_code, r.error_detail, r.model_call_count,
        r.tool_call_count, r.tool_text_codepoints, r.last_event_seq,
        p.id AS proposal_id,r.conversation_id,r.task_type,r.config_snapshot,
-       r.context_chapter_id,r.context_version
+       r.context_chapter_id,r.context_version,r.analysis_only,
+       p.target_type,p.target_setting_id,COALESCE(p.base_title,c.title) AS target_title
   FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
+  LEFT JOIN tb_chapter c ON c.id = COALESCE(p.target_chapter_id,r.target_chapter_id)
  WHERE r.id = ?::uuid
 """,
         runId);
@@ -120,13 +122,14 @@ SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS 
       int size) {
     return db.records(
         RunSummary.class,
-        """
+"""
 SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS target_chapter_id,
        COALESCE(p.base_version,r.base_version) AS base_version, r.instruction,
        r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
        r.analysis, r.error_code, r.error_detail, r.last_event_seq, p.id AS proposal_id,
-       r.created_at
+       r.created_at,p.target_type,p.target_setting_id,COALESCE(p.base_title,c.title) AS target_title
   FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
+  LEFT JOIN tb_chapter c ON c.id = COALESCE(p.target_chapter_id,r.target_chapter_id)
  WHERE r.project_id = ?::uuid
    AND (?::uuid IS NULL OR COALESCE(p.target_chapter_id,r.target_chapter_id,r.context_chapter_id) = ?::uuid)
    AND (?::text IS NULL OR r.status = ?)

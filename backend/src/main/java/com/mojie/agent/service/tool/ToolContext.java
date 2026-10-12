@@ -19,7 +19,7 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
     return readSettings;
   }
 
-  public record SettingInput(String title, String content, String hash) {}
+  public record SettingInput(String type, String title, String content, int version, String hash) {}
 
   private Map<String, Long> chapterView;
   private String chapterViewId;
@@ -38,6 +38,16 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   private String preferredChapterId, preferredContent;
   private long preferredVersion;
   private final Map<String, Long> providedChapters = new HashMap<>();
+  private final Map<String, Integer> providedSettings = new HashMap<>();
+  private boolean analysisOnly;
+
+  public boolean analysisOnly() {
+    return analysisOnly;
+  }
+
+  public void analysisOnly(boolean value) {
+    analysisOnly = value;
+  }
 
   public boolean unified() {
     return unified;
@@ -67,10 +77,15 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
 
   public void markReadsProvided() {
     readChapters.forEach((id, chapter) -> providedChapters.put(id, chapter.version()));
+    readSettings.forEach((id, setting) -> providedSettings.put(id, setting.version()));
   }
 
   public boolean chapterProvided(String id, long version) {
     return Objects.equals(providedChapters.get(id), version);
+  }
+
+  public boolean settingProvided(String id, int version) {
+    return Objects.equals(providedSettings.get(id), version);
   }
 
   private Instant deadline = Instant.MAX;
@@ -192,9 +207,30 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
       String reason,
       String chapterId,
       int baseVersion,
-      String baseContent) {
+      String baseContent,
+      SettingEdit settingEdit) {
+    public Candidate(
+        String proposedContent,
+        String reason,
+        String chapterId,
+        int baseVersion,
+        String baseContent) {
+      this(proposedContent, reason, chapterId, baseVersion, baseContent, null);
+    }
+
     public Candidate(String proposedContent, String reason) {
-      this(proposedContent, reason, null, 0, null);
+      this(proposedContent, reason, null, 0, null, null);
+    }
+
+    public String targetType() {
+      return settingEdit == null ? "CHAPTER" : "SETTING";
     }
   }
+
+  public record SettingEdit(
+      String settingId,
+      String baseType,
+      String baseTitle,
+      String proposedType,
+      String proposedTitle) {}
 }

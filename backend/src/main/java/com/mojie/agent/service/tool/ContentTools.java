@@ -13,7 +13,7 @@ import java.util.*;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
-/** Seven stateless tools; all mutable run state lives in ToolContext. */
+/** Stateless tools; all mutable run state lives in ToolContext. */
 public final class ContentTools {
   private ContentTools() {}
 
@@ -33,10 +33,15 @@ public final class ContentTools {
         tool(
             "search_settings", "Search setting text literally", searchSettings(repository, cursor)),
         tool(
-            "propose_edit",
+            "propose_chapter_edit",
             "Submit a candidate edit after reading the complete chapter; ASSISTANT requires"
                 + " chapterId and expectedVersion from that read",
-            propose()));
+            propose()),
+        tool(
+            "propose_setting_edit",
+            "Submit a setting edit after reading the complete setting and consuming its result; use"
+                + " settingId and expectedVersion from that read",
+            proposeSetting()));
   }
 
   private interface Action {
@@ -93,12 +98,30 @@ public final class ContentTools {
         props.put("cursor", stringSchema());
         required.add("keyword");
       }
-      case "propose_edit" -> {
+      case "propose_chapter_edit" -> {
         props.put("chapterId", stringSchema());
         props.put("expectedVersion", integerSchema(1, Integer.MAX_VALUE));
         props.put("proposedContent", stringSchema());
         props.put("reason", stringSchema());
         required.addAll(List.of("proposedContent", "reason"));
+      }
+      case "propose_setting_edit" -> {
+        props.put("settingId", stringSchema());
+        props.put("expectedVersion", integerSchema(1, Integer.MAX_VALUE));
+        props.put(
+            "proposedType",
+            Map.of("type", "string", "enum", List.of("CHARACTER", "WORLD", "RULE")));
+        props.put("proposedTitle", stringSchema());
+        props.put("proposedContent", stringSchema());
+        props.put("reason", stringSchema());
+        required.addAll(
+            List.of(
+                "settingId",
+                "expectedVersion",
+                "proposedType",
+                "proposedTitle",
+                "proposedContent",
+                "reason"));
       }
       default -> throw new IllegalArgumentException("Unknown tool schema");
     }
@@ -223,7 +246,7 @@ public final class ContentTools {
             optional(
                 args, "scope", ctx.unified() || anchor == null ? "ALL_CHAPTERS" : "BEFORE_TARGET");
         if (anchor == null && scope.equals("BEFORE_TARGET"))
-          throw new IllegalArgumentException("CHAT without a target supports ALL_CHAPTERS only");
+          throw new IllegalArgumentException("A turn without a target supports ALL_CHAPTERS only");
         if (!scope.equals("BEFORE_TARGET") && !scope.equals("ALL_CHAPTERS"))
           throw new IllegalArgumentException("Invalid scope");
         int limit = number(args, "limit", 10, 1, 20);
@@ -385,7 +408,9 @@ public final class ContentTools {
       for (ToolContentReader.Setting s :
           settings.subList(
               Math.min(offset, settings.size()), Math.min(offset + limit, settings.size())))
-        rows.add(Map.of("settingId", s.id(), "type", s.type(), "title", s.title()));
+        rows.add(
+            Map.of(
+                "settingId", s.id(), "type", s.type(), "title", s.title(), "version", s.version()));
       return page(rows, offset, limit, settings.size(), cursor, ctx, query, List.of());
     };
   }
@@ -410,7 +435,17 @@ public final class ContentTools {
         ToolContentReader.Setting s = byId.get(id);
         if (s == null) return missing();
         rows.add(
-            Map.of("settingId", id, "type", s.type(), "title", s.title(), "content", s.content()));
+            Map.of(
+                "settingId",
+                id,
+                "type",
+                s.type(),
+                "title",
+                s.title(),
+                "content",
+                s.content(),
+                "version",
+                s.version()));
         evidence.add(
             new Evidence(
                 "FULL_SETTING", "SETTING", id, sha256(s.title() + "\n" + s.content()), null, null));
@@ -503,6 +538,8 @@ public final class ContentTools {
 
   private static Action propose() {
     return (args, ctx) -> {
+      if (ctx.analysisOnly())
+        return ToolResult.error("EDIT_DISABLED", "This turn is analysis only", false);
       requireKeys(args, "chapterId", "expectedVersion", "proposedContent", "reason");
       String chapterId = ctx.targetChapterId();
       int version = Math.toIntExact(ctx.baseVersion());
@@ -540,6 +577,54 @@ public final class ContentTools {
       ctx.setCandidate(new ToolContext.Candidate(content, reason, chapterId, version, base));
       return ToolResult.ok(
           Map.of("accepted", true, "chapterId", chapterId, "baseVersion", version), List.of());
+    };
+  }
+
+  private static Action proposeSetting() {
+    return (args, ctx) -> {
+      if (!ctx.unified() || ctx.analysisOnly())
+        return ToolResult.error(
+            "EDIT_DISABLED", "Setting edits are unavailable for this turn", false);
+      requireKeys(
+          args,
+          "settingId",
+          "expectedVersion",
+          "proposedType",
+          "proposedTitle",
+          "proposedContent",
+          "reason");
+      String id = required(args, "settingId", 1, 128);
+      int version = number(args, "expectedVersion", -1, 1, Integer.MAX_VALUE);
+      ToolContext.SettingInput base = ctx.readSettings().get(id);
+      if (base == null || !ctx.settingProvided(id, base.version()))
+        return ToolResult.error(
+            "INSUFFICIENT_CONTEXT",
+            "Read the complete setting in this turn and consume its result before proposing an"
+                + " edit",
+            true);
+      if (version != base.version())
+        return ToolResult.error(
+            "VERSION_CONFLICT", "Use the version returned by read_settings", true);
+      if (ctx.candidate() != null)
+        return ToolResult.error("PROPOSAL_ALREADY_EXISTS", "One candidate already exists", false);
+      String type = required(args, "proposedType", 1, 32);
+      if (!List.of("CHARACTER", "WORLD", "RULE").contains(type))
+        throw new IllegalArgumentException("Invalid setting type");
+      String title = required(args, "proposedTitle", 1, 80);
+      String content = required(args, "proposedContent", 1, 2000);
+      String reason = required(args, "reason", 1, 2000);
+      if (type.equals(base.type()) && title.equals(base.title()) && content.equals(base.content()))
+        return ToolResult.error("VALIDATION_ERROR", "Candidate matches base setting", true);
+      ctx.setCandidate(
+          new ToolContext.Candidate(
+              content,
+              reason,
+              null,
+              version,
+              base.content(),
+              new ToolContext.SettingEdit(id, base.type(), base.title(), type, title)));
+      return ToolResult.ok(
+          Map.of("accepted", true, "settingId", id, "baseVersion", version), List.of());
     };
   }
 

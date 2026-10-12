@@ -9,4 +9,10 @@ public record EditProposal(
     String status,
     Integer appliedVersion,
     String baseContent,
-    String reviewDecisions) {}
+    String reviewDecisions,
+    String targetType,
+    String targetSettingId,
+    String baseType,
+    String baseTitle,
+    String proposedType,
+    String proposedTitle) {}

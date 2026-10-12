@@ -32,15 +32,20 @@ public final class ConversationService {
           + " snippets locate evidence; read original text when needed to support conclusions."
           + " Review of a whole chapter or editing requires its complete text. To propose an edit,"
           + " first read the chapter in this run and consume its result in a later model request,"
-          + " then call propose_edit with chapterId and expectedVersion from that read. Proposals"
-          + " require separate author acceptance and cannot change official content. Do not propose"
-          + " edits when the author requests analysis only. For legacy CHAT and CHAPTER_REVIEW,"
+          + " then call propose_chapter_edit with chapterId and expectedVersion from that read."
+          + " Proposals require separate author acceptance and cannot change official content. Do"
+          + " not propose edits when the author requests analysis only. For legacy CHAPTER_REVIEW,"
           + " edits are unavailable; legacy chapter tasks require a complete target read before"
-          + " concluding. All reads use saved content; unsaved editor drafts are not included."
-          + " Historical reads do not replace fresh evidence for new edits. Return a substantive"
-          + " final answer and honestly identify uncertainties. Budget: 16 model responses"
-          + " (including compaction and final), 32 tools; reserve a final response after tools."
-          + " Scripts cannot change official content.";
+          + " concluding. Setting edits require read_settings in this run followed by"
+          + " propose_setting_edit with settingId, expectedVersion, proposedType, proposedTitle,"
+          + " proposedContent and reason. Read results must reach a later model request before"
+          + " proposing. Only one proposal is allowed per turn, for either a chapter or a setting."
+          + " Do not modify chapters merely because a setting changed; require an explicit author"
+          + " request. Analysis-only turns cannot propose edits. All reads use saved content;"
+          + " unsaved editor drafts are not included. Historical reads do not replace fresh"
+          + " evidence for new edits. Return a substantive final answer and honestly identify"
+          + " uncertainties. Budget: 16 model responses (including compaction and final), 32 tools;"
+          + " reserve a final response after tools. Scripts cannot change official content.";
   private final ConversationRepository repo;
   private final RunRepository runs;
   private final RunTraceRepository trace;
@@ -113,9 +118,7 @@ public final class ConversationService {
     int size = ListPaging.limit(limit);
     String scope = "conversations:" + project;
     var p = ListPaging.position(cursors, scope, cursor);
-    var rows =
-        repo.page(
-            project, p == null ? null : p.time(), p == null ? null : p.id(), size + 1);
+    var rows = repo.page(project, p == null ? null : p.time(), p == null ? null : p.id(), size + 1);
     var items = rows.subList(0, Math.min(size, rows.size()));
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("items", items);
@@ -138,8 +141,8 @@ public final class ConversationService {
           String t = title == null ? c.title() : title.strip();
           if (t.isBlank() || t.codePointCount(0, t.length()) > 100)
             throw new IllegalArgumentException("Invalid title");
-          if (repo.patch(id, version, t, discovery == null ? c.discoveryEnabled() : discovery)
-              != 1) throw conflict();
+          if (repo.patch(id, version, t, discovery == null ? c.discoveryEnabled() : discovery) != 1)
+            throw conflict();
           return get(id);
         });
   }
@@ -223,15 +226,14 @@ public final class ConversationService {
             c.lastSeq(),
             r.taskType(),
             (String) old.get("targetChapterId"),
-            Set.of("CHAT", "ASSISTANT").contains(r.taskType())
-                ? null
-                : ((Number) old.get("baseVersion")).longValue(),
+            r.taskType().equals("ASSISTANT") ? null : ((Number) old.get("baseVersion")).longValue(),
             skills.repository().runSkills(m.runId()).stream()
                 .filter(s -> !s.source().equals("DISCOVERABLE"))
                 .map(s -> new Selection(s.skillId(), s.versionId()))
                 .toList(),
             r.contextChapterId(),
-            r.contextVersion()),
+            r.contextVersion(),
+            r.analysisOnly()),
         m);
   }
 
@@ -247,17 +249,14 @@ public final class ConversationService {
     UUID.fromString(input.clientRequestId());
     String task = input.taskType() == null ? "ASSISTANT" : input.taskType();
     boolean unified = task.equals("ASSISTANT");
-    if (!Set.of("ASSISTANT", "CHAT", "CHAPTER_REVIEW", "CHAPTER_EDIT").contains(task))
+    if (!Set.of("ASSISTANT", "CHAPTER_REVIEW", "CHAPTER_EDIT").contains(task))
       throw new IllegalArgumentException("Invalid taskType");
     if (!unified
-        && !task.equals("CHAT")
         && (input.targetChapterId() == null
             || input.expectedVersion() == null
             || input.expectedVersion() < 1))
       throw new IllegalArgumentException(
           "Chapter tasks require targetChapterId and expectedVersion");
-    if (task.equals("CHAT") && (input.targetChapterId() != null || input.expectedVersion() != null))
-      throw new IllegalArgumentException("CHAT does not accept a chapter target");
     if (unified && (input.targetChapterId() != null || input.expectedVersion() != null))
       throw new IllegalArgumentException(
           "Use contextChapterId and contextVersion for optional context");
@@ -287,6 +286,7 @@ public final class ConversationService {
       identity.add(input.contextChapterId() == null ? "" : input.contextChapterId());
       identity.add(input.contextVersion() == null ? 0 : input.contextVersion());
     }
+    if (input.analysisOnly()) identity.add("ANALYSIS_ONLY");
     String digest = hash(encode(identity));
     Conversation before = get(id);
     Existing existing = repo.existing(input.clientRequestId());
@@ -337,7 +337,7 @@ public final class ConversationService {
                   if (effective.size() > 8)
                     throw new IllegalArgumentException("At most 8 distinct Skills can be loaded");
                   String base = null;
-                  if (!unified && !task.equals("CHAT")) {
+                  if (!unified) {
                     var ch = chapters.lock(input.targetChapterId());
                     if (!c.projectId().equals(ch.get("projectId"))) throw missing();
                     if (((Number) ch.get("version")).longValue() != input.expectedVersion())
@@ -385,15 +385,14 @@ public final class ConversationService {
                           model,
                           selectedConfig,
                           process,
-                          retry == null ? null : retry.runId());
+                          retry == null ? null : retry.runId(),
+                          input.analysisOnly());
                   String initial =
                       unified
                           ? com.mojie.agent.service.loop.LoopInput.assistantUserMessage(
                               input.contextChapterId(), input.contextVersion(), content)
-                          : task.equals("CHAT")
-                              ? content
-                              : com.mojie.agent.service.loop.LoopInput.initialUserMessage(
-                                  input.targetChapterId(), input.expectedVersion(), content);
+                          : com.mojie.agent.service.loop.LoopInput.initialUserMessage(
+                              input.targetChapterId(), input.expectedVersion(), content);
                   trace.insertMessage(
                       run,
                       1,

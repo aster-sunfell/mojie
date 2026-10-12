@@ -25,7 +25,7 @@ class AgentLoopTest {
     @Test void mixedTextAndSequentialToolsDoNotPublishIntermediateText() {
         Script model = new Script(List.of(
                 response("premature answer", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}"),
-                        call("p", "propose_edit", "{\"proposedContent\":\"新版😀\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                        call("p", "propose_chapter_edit", "{\"proposedContent\":\"新版😀\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
                 response("最终分析", List.of(), FinishReason.FINAL)));
         LoopOutcome outcome = loop(model, LoopLimits.defaults()).run(input());
         assertInstanceOf(LoopOutcome.Completed.class, outcome);
@@ -34,7 +34,7 @@ class AgentLoopTest {
         assertEquals("新版😀", completed.candidate().proposedContent());
         assertTrue(((TextPart) model.requests.getFirst().messages().getFirst().content().getFirst()).text()
                 .contains("目标章节 ID: target"));
-        assertEquals(List.of("read_chapter", "propose_edit"), trace.startedTools);
+        assertEquals(List.of("read_chapter", "propose_chapter_edit"), trace.startedTools);
         assertEquals(List.of("r", "p"), model.requests.get(1).messages().get(2).replies().stream().map(ToolReply::callId).toList());
         assertEquals(List.of(1L, 2L, 3L, 4L), trace.modelInputs.get(1));
     }
@@ -203,7 +203,7 @@ class AgentLoopTest {
 
     @Test void candidateIsNeverReturnedOnLaterFailureOrCancel() {
         List<Response> turns = List.of(response("", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}"),
-                call("p", "propose_edit", "{\"proposedContent\":\"new\",\"reason\":\"why\"}")), FinishReason.TOOL_CALLS),
+                call("p", "propose_chapter_edit", "{\"proposedContent\":\"new\",\"reason\":\"why\"}")), FinishReason.TOOL_CALLS),
                 response("", List.of(), FinishReason.FINAL));
         assertInstanceOf(LoopOutcome.Failed.class, loop(new Script(turns), LoopLimits.defaults()).run(input()));
         RecordingTrace other = new RecordingTrace();
@@ -217,7 +217,7 @@ class AgentLoopTest {
         Script model = new Script(List.of(
                 response("", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}"),
                         call("unknown", "missing_tool", "{}")), FinishReason.TOOL_CALLS),
-                response("", List.of(call("p", "propose_edit", "{\"proposedContent\":\"新版\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("p", "propose_chapter_edit", "{\"proposedContent\":\"新版\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
                 response("最终分析", List.of(), FinishReason.FINAL)));
         LoopOutcome.Completed done = (LoopOutcome.Completed) loop(model,
                 new LoopLimits(3, 3, 30_000, 200_000, 60_000)).run(input());
@@ -538,9 +538,9 @@ class AgentLoopTest {
 
     @Test void settingSearchPagesByLastIdWithDifferentNextLimit() {
         FakeContent repository = new FakeContent("前文", List.of(
-                new ToolContentReader.Setting("s1", "CHARACTER", "游泳", "标题命中"),
-                new ToolContentReader.Setting("s2", "CHARACTER", "人物", "会游泳"),
-                new ToolContentReader.Setting("s3", "WORLD", "游泳池", "地点")));
+                new ToolContentReader.Setting("s1", "CHARACTER", "游泳", "标题命中", 1),
+                new ToolContentReader.Setting("s2", "CHARACTER", "人物", "会游泳", 1),
+                new ToolContentReader.Setting("s3", "WORLD", "游泳池", "地点", 1)));
         AgentTool search = ContentTools.all(repository, KEY).stream()
                 .filter(tool -> tool.spec().name().equals("search_settings")).findFirst().orElseThrow();
         ToolContext context = input().context();
@@ -575,10 +575,10 @@ class AgentLoopTest {
 
     @Test void unifiedReadAndProposalInOneBatchMustWaitForTheReadToReachTheModel() {
         ToolCall read = call("read", "read_chapter", "{\"chapterId\":\"prior\"}");
-        ToolCall premature = call("premature", "propose_edit", "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}");
+        ToolCall premature = call("premature", "propose_chapter_edit", "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}");
         Script model = new Script(List.of(
                 response("", List.of(read, premature), FinishReason.TOOL_CALLS),
-                response("", List.of(call("retry", "propose_edit", "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("retry", "propose_chapter_edit", "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
                 response("已提出建议", List.of(), FinishReason.FINAL)));
         LoopOutcome.Completed result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
         assertTrue(trace.wireResults.get(1).contains("INSUFFICIENT_CONTEXT"));
@@ -591,8 +591,8 @@ class AgentLoopTest {
     @Test void unifiedProposalUsesThePinnedReferenceVersionAndRejectsAMismatchedVersion() {
         Script model = new Script(List.of(
                 response("", List.of(call("read", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.TOOL_CALLS),
-                response("", List.of(call("wrong", "propose_edit", "{\"chapterId\":\"target\",\"expectedVersion\":2,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
-                response("", List.of(call("right", "propose_edit", "{\"chapterId\":\"target\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("wrong", "propose_chapter_edit", "{\"chapterId\":\"target\",\"expectedVersion\":2,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("right", "propose_chapter_edit", "{\"chapterId\":\"target\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
                 response("已提出建议", List.of(), FinishReason.FINAL)));
         LoopOutcome.Completed result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
         assertTrue(trace.wireResults.getFirst().contains("参考快照正文"));
@@ -603,7 +603,7 @@ class AgentLoopTest {
 
     @Test void unifiedProposalCannotUseAnUnreadChapter() {
         Script model = new Script(List.of(
-                response("", List.of(call("unread", "propose_edit", "{\"chapterId\":\"foreign\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("unread", "propose_chapter_edit", "{\"chapterId\":\"foreign\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
                 response("需要先查阅章节", List.of(), FinishReason.FINAL)));
         LoopOutcome.Completed result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
         assertTrue(trace.wireResults.getFirst().contains("INSUFFICIENT_CONTEXT"));
@@ -661,7 +661,7 @@ class AgentLoopTest {
         private final String priorContent;
         private final List<Setting> settingRows;
         FakeContent() { this("林舟不会游泳，也不想游泳"); }
-        FakeContent(String priorContent) { this(priorContent, List.of(new Setting("s1", "CHARACTER", "林舟", "怕水"))); }
+        FakeContent(String priorContent) { this(priorContent, List.of(new Setting("s1", "CHARACTER", "林舟", "怕水", 1))); }
         FakeContent(String priorContent, List<Setting> settingRows) {
             this.priorContent = priorContent;
             this.settingRows = settingRows;

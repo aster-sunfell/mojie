@@ -112,12 +112,13 @@ public final class JdbcConversationRepository implements ConversationRepository 
       String model,
       String config,
       String process,
-      String retry) {
+      String retry,
+      boolean analysisOnly) {
     String id =
         db.first(
-                """
-INSERT INTO tb_agent_run(project_id,conversation_id,trigger_message_id,input_boundary,task_type,target_chapter_id,base_version,base_content,context_chapter_id,context_version,context_content,instruction,client_request_id,request_digest,prompt_hash,tool_schema_hash,model_id,config_snapshot,status,deadline_at,process_instance_id,retry_of)
-VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUED',now()+interval '60 seconds',?::uuid,?::uuid) RETURNING id
+"""
+INSERT INTO tb_agent_run(project_id,conversation_id,trigger_message_id,input_boundary,task_type,target_chapter_id,base_version,base_content,context_chapter_id,context_version,context_content,instruction,client_request_id,request_digest,prompt_hash,tool_schema_hash,model_id,config_snapshot,status,deadline_at,process_instance_id,retry_of,analysis_only)
+VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUED',now()+interval '60 seconds',?::uuid,?::uuid,?) RETURNING id
 """,
                 project,
                 conversation,
@@ -138,7 +139,8 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::
                 model,
                 config,
                 process,
-                retry)
+                retry,
+                analysisOnly)
             .get("id")
             .toString();
     db.update(
@@ -183,7 +185,7 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::
     return db.firstRecord(
         RunContext.class,
         "SELECT"
-            + " conversation_id,project_id,task_type,input_boundary,trigger_message_id,config_snapshot,context_chapter_id,context_version,context_content"
+            + " conversation_id,project_id,task_type,input_boundary,trigger_message_id,config_snapshot,context_chapter_id,context_version,context_content,analysis_only"
             + " FROM tb_agent_run WHERE id=?::uuid",
         run);
   }
@@ -191,7 +193,7 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::
   public List<Protocol> history(String conversation, long boundary, long after) {
     return db.records(
         Protocol.class,
-        """
+"""
 SELECT p.id,p.run_id,p.message_seq,p.role,p.content,p.tool_call_id,p.tool_execution_id,r.status AS run_status,c.finish_reason,m.seq AS turn_seq
 FROM tb_conversation_message m JOIN tb_agent_run r ON r.id=m.run_id JOIN tb_agent_message p ON p.run_id=r.id
 LEFT JOIN tb_agent_model_call c ON c.id=p.model_call_id

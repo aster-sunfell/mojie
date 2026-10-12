@@ -108,7 +108,7 @@
 - **基线文件/符号：** `backend/app/agent_runtime/tools/impls/chapter/edit_chapter.py`，`EditChapterTool.build_interrupt_preview/_execute`。
 - **上游问题：** 编辑预览、审批、正文修改和 revision 记录。
 - **本项目保留：** 建议可预览、作者决定、正文变更可追踪。
-- **裁剪/替换/新增：** `propose_edit` 仅缓存整章候选，run 成功后发布建议，运行后单独采纳并校验版本。
+- **裁剪/替换/新增：** `propose_chapter_edit` 与 `propose_setting_edit` 仅缓存章节或设定候选，run 成功后发布一份建议，运行后独立审阅保存并校验版本。
 - **本地实现：** `agent/service/tool/ContentTools.java`、`proposal/service/ProposalService.java`、`db/migration/V4__proposal_event.sql`。
 - **测试：** `ContentServicesIT` 采纳、拒绝和冲突；`RunServicesIT` 失败候选不发布。
 - **观察/验证：** 上游编辑链路仅静态阅读；本地 PostgreSQL 事务已验证。

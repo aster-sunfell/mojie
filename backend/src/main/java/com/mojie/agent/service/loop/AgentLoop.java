@@ -267,15 +267,19 @@ public final class AgentLoop {
       for (Object value : settings)
         if (value instanceof Map<?, ?> setting
             && setting.get("settingId") instanceof String id
+            && setting.get("type") instanceof String type
             && setting.get("title") instanceof String title
-            && setting.get("content") instanceof String content)
+            && setting.get("content") instanceof String content
+            && setting.get("version") instanceof Number version)
           context
               .readSettings()
               .put(
                   id,
                   new ToolContext.SettingInput(
+                      type,
                       title,
                       content,
+                      version.intValue(),
                       com.mojie.common.model.JsonSupport.hash(title + "\n" + content)));
     }
     if (!"read_chapter".equals(call.name())) return;

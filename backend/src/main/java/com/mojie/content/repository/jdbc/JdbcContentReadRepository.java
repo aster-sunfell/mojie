@@ -76,7 +76,7 @@ public final class JdbcContentReadRepository implements ContentReadRepository {
     String placeholders =
         String.join(",", Collections.nCopies(chapters.size(), "(?::uuid, ?::bigint)"));
     String sql =
-        """
+"""
 SELECT c.id, c.title, c.chapter_order, r.version, r.content
   FROM (VALUES %s) requested(id, version)
   JOIN tb_chapter c ON c.id = requested.id JOIN tb_project p ON p.id = c.project_id
@@ -138,9 +138,9 @@ SELECT c.id, c.title, c.chapter_order, r.version, r.content
           try (PreparedStatement s =
                   JdbcAccess.statement(
                       c,
-                      "SELECT s.id, s.type, s.title, s.content FROM tb_setting s JOIN tb_project p"
-                          + " ON p.id = s.project_id WHERE s.project_id = ?::uuid AND s.deleted_at"
-                          + " IS NULL AND p.deleted_at IS NULL ORDER BY s.id",
+                      "SELECT s.id, s.type, s.title, s.content, s.version FROM tb_setting s JOIN"
+                          + " tb_project p ON p.id = s.project_id WHERE s.project_id = ?::uuid AND"
+                          + " s.deleted_at IS NULL AND p.deleted_at IS NULL ORDER BY s.id",
                       projectId);
               var registration = cancel(context, s)) {
             check(context);
@@ -152,7 +152,8 @@ SELECT c.id, c.title, c.chapter_order, r.version, r.content
                         rows.getString(1),
                         rows.getString(2),
                         rows.getString(3),
-                        rows.getString(4)));
+                        rows.getString(4),
+                        rows.getInt(5)));
               return result;
             }
           }

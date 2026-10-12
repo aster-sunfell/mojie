@@ -21,6 +21,8 @@ The write lock order is `project → run / proposals in stable ID order → chap
 
 ## 连续对话与 Skill 扩展（2026-10-02）
 
-新 Conversation 入口由 [连续对话与 Skill 设计](../design/conversation-skills.md) 承接。CHAT 无目标章，CHAPTER_REVIEW 不提供 propose_edit，CHAPTER_EDIT 保留当前基准全文与作者采纳边界；旧 Run API 保持原预算和独立任务语义。新任务 16 次模型/32 次工具、120000 新增工具码点和 300 秒运行预算，存入配置快照；请求保存历史来源 ID 与完整逻辑输入。终态展示消息和对话活动槽在数据库事务内收尾。
+新 Conversation 入口由 [连续对话与 Skill 设计](../design/conversation-skills.md) 承接。旧 CHAT 类型已移除；CHAPTER_REVIEW 不提供 propose_chapter_edit，CHAPTER_EDIT 保留当前基准全文与作者采纳边界；旧 Run API 保持原预算和独立任务语义。新任务 16 次模型/32 次工具、120000 新增工具码点和 300 秒运行预算，存入配置快照；请求保存历史来源 ID 与完整逻辑输入。终态展示消息和对话活动槽在数据库事务内收尾。
 
 Skill 目录固定于 Run，版本包在文件卷不可变保存，PG 保存状态及引用；Skill 指导不授予权限。新增 context.compacted、skill.loaded、script.started、script.finished、artifact.created 持久化事件，继续使用按 Run 序号恢复的 SSE。文件下载 attachment/nosniff。独立脚本沙箱及协调备份见 [运维说明](../design/conversation-skills-operations.md)。
+
+2026-10-12 更新：章节工具改名为 propose_chapter_edit，新增设定修改建议、设定版本与修订历史，以及后端禁用修改工具的“仅分析”选项；CHAT 不再接受，历史记录迁移为 ASSISTANT。当前协议以 [章节与设定修改建议](setting-edit-proposals.md) 为准。

@@ -207,7 +207,7 @@ class SkillExecutionIT {
                     "生成报告",
                     UUID.randomUUID().toString(),
                     0L,
-                    "CHAT",
+                    "ASSISTANT",
                     null,
                     null,
                     List.of(new Selection(skill.id(), upload.versionId()))));
@@ -283,7 +283,7 @@ class SkillExecutionIT {
                     "停止脚本测试",
                     UUID.randomUUID().toString(),
                     service.get(c.id()).lastSeq(),
-                    "CHAT",
+                    "ASSISTANT",
                     null,
                     null,
                     List.of(new Selection(skill.id(), upload.versionId()))));

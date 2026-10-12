@@ -25,7 +25,9 @@ const model = http.createServer(async (request, reply) => {
     const targetId = instruction.match(/TARGET=([a-f0-9-]+)/)?.[1]
       || instruction.match(/(?:目标章节 ID|本轮优先参考章节 ID): ([a-f0-9-]+)/)?.[1]
     const searchEdit = instruction.includes('E2E_SEARCH_EDIT')
-    if ((!targetId && !searchEdit) || !instruction.includes('E2E_')) {
+    const settingEdit = instruction.includes('E2E_SETTING_EDIT')
+    const settingId = instruction.match(/SETTING=([a-f0-9-]+)/)?.[1]
+    if ((!targetId && !searchEdit && !settingEdit) || !instruction.includes('E2E_')) {
       const remembered = blocks.some(block => block.type === 'text' && block.text?.includes('怕火'))
       reply.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: `chat-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test', content: [{ type: 'text', text: remembered ? '林舟怕火，因此避开火光。' : '可以一起讨论大纲。' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }))
       return
@@ -41,7 +43,20 @@ const model = http.createServer(async (request, reply) => {
       .filter(block => block.type === 'tool_result')
     let content
     let stopReason
-    if (searchEdit && !replies.length) {
+    if (settingEdit && !replies.length) {
+      content = [{ type: 'tool_use', id: `browser-setting-read-${++serial}`, name: 'read_settings', input: { settingIds: [settingId] } }]
+      stopReason = 'tool_use'
+    } else if (settingEdit && !replies.some(block => block.tool_use_id.startsWith('browser-setting-edit-'))
+      && body.tools.some(tool => tool.name === 'propose_setting_edit')) {
+      const setting = JSON.parse(replies.findLast(block => block.tool_use_id.startsWith('browser-setting-read-')).content).data.settings[0]
+      content = [{ type: 'tool_use', id: `browser-setting-edit-${++serial}`, name: 'propose_setting_edit', input: {
+        settingId: setting.settingId, expectedVersion: setting.version, proposedType: 'RULE',
+        proposedTitle: '林舟的行动规则', proposedContent: '林舟谨慎行事，过河时选择石桥。', reason: '调整人物动机，保持行动一致。' } }]
+      stopReason = 'tool_use'
+    } else if (settingEdit) {
+      content = [{ type: 'text', text: body.tools.some(tool => tool.name === 'propose_setting_edit') ? '已生成设定修改建议。' : '仅分析设定，未生成修改建议。' }]
+      stopReason = 'end_turn'
+    } else if (searchEdit && !replies.length) {
       content = [{ type: 'tool_use', id: `browser-search-${++serial}`, name: 'search_chapters', input: { keyword: '游泳' } }]
       stopReason = 'tool_use'
     } else if (searchEdit && !replies.some(block => block.tool_use_id.startsWith('browser-read-'))) {
@@ -55,7 +70,7 @@ const model = http.createServer(async (request, reply) => {
     } else if ((instruction.includes('E2E_EDIT') || searchEdit) && !replies.some(block => block.tool_use_id.startsWith('browser-edit-'))) {
       const read = JSON.parse(replies.findLast(block => block.tool_use_id.startsWith('browser-read-')).content)
       const proposedContent = read.data.content.replace('林舟游到了对岸', '林舟沿桥走到了对岸')
-      content = [{ type: 'tool_use', id: `browser-edit-${++serial}`, name: 'propose_edit',
+      content = [{ type: 'tool_use', id: `browser-edit-${++serial}`, name: 'propose_chapter_edit',
         input: { chapterId: read.data.chapterId, expectedVersion: read.data.version, proposedContent, reason: '人物设定表明林舟不会游泳，改为过桥。' } }]
       stopReason = 'tool_use'
     } else {

@@ -83,6 +83,8 @@ public interface RunTraceRepository {
 
   boolean hasTargetInput(String runId, int callIndex, String chapterId, int version);
 
+  boolean hasSettingInput(String runId, int callIndex, String settingId, int version);
+
   boolean hasCandidateStep(String runId);
 
   long openCalls(String runId);

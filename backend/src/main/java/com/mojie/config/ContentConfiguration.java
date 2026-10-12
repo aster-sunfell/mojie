@@ -32,13 +32,14 @@ public class ContentConfiguration {
     var chapterService =
         new ChapterService(projects, chapters, revisions, access, transactions, cursors);
     var reviewService = new ProposalReviewService(proposals, reviewRevisions);
+    var settingService = new SettingService(projects, settings, access, transactions, cursors);
     return new Services(
         new ProjectService(projects, access, transactions, cursors),
         chapterService,
-        new SettingService(projects, settings, access, transactions, cursors),
+        settingService,
         access,
         new ChapterSaveCoordinator(chapterService, reviewService, access, transactions),
-        new ProposalService(proposals, chapterService, access, transactions),
+        new ProposalService(proposals, chapterService, settingService, access, transactions),
         reviewService);
   }
 

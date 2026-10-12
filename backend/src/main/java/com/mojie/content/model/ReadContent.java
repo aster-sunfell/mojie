@@ -9,5 +9,5 @@ public final class ReadContent {
 
   public record ChapterText(String id, String title, int order, long version, String content) {}
 
-  public record SettingText(String id, String type, String title, String content) {}
+  public record SettingText(String id, String type, String title, String content, int version) {}
 }

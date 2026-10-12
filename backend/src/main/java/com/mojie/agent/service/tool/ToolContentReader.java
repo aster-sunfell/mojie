@@ -85,7 +85,7 @@ public interface ToolContentReader {
     }
   }
 
-  record Setting(String id, String type, String title, String content) {}
+  record Setting(String id, String type, String title, String content, int version) {}
 
   record ChapterMetadata(String id, String title, int order, long version) {}
 

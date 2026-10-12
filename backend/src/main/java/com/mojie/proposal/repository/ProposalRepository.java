@@ -27,4 +27,18 @@ public interface ProposalRepository {
       String baseContent,
       String proposedContent,
       String reason);
+
+  int insertSetting(
+      String id,
+      String runId,
+      String projectId,
+      String targetSettingId,
+      int baseVersion,
+      String baseType,
+      String baseTitle,
+      String baseContent,
+      String proposedType,
+      String proposedTitle,
+      String proposedContent,
+      String reason);
 }

@@ -70,12 +70,13 @@ public final class SettingService {
         () -> {
           access.lock(projectId, true);
           String settingId = settings.insert(projectId, kind, name, body);
+          requireOne(settings.insertRevision(settingId, 1, kind, name, body, "CREATE", null));
           return required(fields(settings.findById(settingId)));
         });
   }
 
   public Map<String, Object> updateSetting(
-      String id, String settingType, String title, String content) {
+      String id, String settingType, String title, String content, Integer expectedVersion) {
     String settingId = uuid(id),
         kind = type(settingType),
         name = text(title, "title", 1, 80),
@@ -86,9 +87,55 @@ public final class SettingService {
               String.valueOf(
                   required(fields(settings.findVisibleProject(settingId))).get("projectId"));
           access.lock(projectId, true);
-          requireOne(settings.update(settingId, kind, name, body));
+          persist(settingId, kind, name, body, expectedVersion, "MANUAL", null);
           return required(fields(settings.findById(settingId)));
         });
+  }
+
+  public Map<String, Object> setting(String id) {
+    return transactions.required(
+        () -> {
+          String settingId = uuid(id);
+          required(fields(settings.findVisibleProject(settingId)));
+          return required(fields(settings.findById(settingId)));
+        });
+  }
+
+  public java.util.List<com.mojie.content.model.SettingRevision> revisions(String id) {
+    return transactions.required(
+        () -> {
+          String settingId = uuid(id);
+          required(fields(settings.findVisibleProject(settingId)));
+          return settings.revisions(settingId);
+        });
+  }
+
+  public com.mojie.content.model.Setting lock(String id) {
+    required(fields(settings.findVisibleProject(uuid(id))));
+    return required(settings.lock(id));
+  }
+
+  /** Called within a project-locked transaction by manual saves or proposal acceptance. */
+  public int persist(
+      String id,
+      String settingType,
+      String title,
+      String content,
+      Integer expectedVersion,
+      String source,
+      String proposalId) {
+    String kind = type(settingType),
+        name = text(title, "title", 1, 80),
+        body = text(content, "content", 1, 2000);
+    if (expectedVersion == null || expectedVersion < 1)
+      throw new IllegalArgumentException("expectedVersion required");
+    var current = lock(id);
+    if (current.version() != expectedVersion)
+      throw error("VERSION_CONFLICT", "Setting version changed");
+    requireOne(settings.update(id, kind, name, body, expectedVersion));
+    int next = expectedVersion + 1;
+    requireOne(settings.insertRevision(id, next, kind, name, body, source, proposalId));
+    return next;
   }
 
   public void deleteSetting(String id) {

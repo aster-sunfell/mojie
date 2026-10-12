@@ -5,8 +5,8 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { Settings } from './Settings.jsx'
 
 const initial = [
-  { id: 's1', type: 'CHARACTER', title: '林舟', content: '不会游泳。' },
-  { id: 's2', type: 'WORLD', title: '山谷', content: '河流湍急。' },
+  { id: 's1', type: 'CHARACTER', title: '林舟', content: '不会游泳。', version: 1 },
+  { id: 's2', type: 'WORLD', title: '山谷', content: '河流湍急。', version: 1 },
 ]
 const reply = data => ({ ok: true, status: 200, json: async () => ({ data }) })
 
@@ -76,6 +76,7 @@ test('save shortcut updates once, blocks closing during the request and leaves t
   expect(writes[0].url).toBe('/api/v1/settings/s1')
   expect(writes[0].method).toBe('PATCH')
   expect(JSON.parse(writes[0].body).content).toBe('新增的人物经历。')
+  expect(JSON.parse(writes[0].body).expectedVersion).toBe(1)
   expect(onClose).not.toHaveBeenCalled()
   await act(async () => { finish(reply({ ...initial[0], content: '新增的人物经历。' })) })
   expect(await screen.findByText('设定已保存')).toBeTruthy()
@@ -131,4 +132,81 @@ test('creating and deleting refreshes the list without closing the dialog', asyn
   expect(writes[1].url).toBe('/api/v1/settings/s3')
   expect(writes[1].method).toBe('DELETE')
   expect(onClose).not.toHaveBeenCalled()
+})
+
+function setupProposal({ version = 1, fail = false } = {}) {
+  let setting = { id: 's1', projectId: 'p', type: 'CHARACTER', title: '林舟', content: '林舟不会游泳。', version }
+  const proposal = { id: 'q', projectId: 'p', targetType: 'SETTING', targetSettingId: 's1', baseVersion: 1,
+    baseType: 'CHARACTER', baseTitle: '林舟', baseContent: '林舟不会游泳。',
+    proposedType: 'RULE', proposedTitle: '林舟的行动规则', proposedContent: '林舟谨慎，选择石桥过河。', reason: '调整行动动机', status: 'PENDING' }
+  const writes = [], onClose = vi.fn()
+  vi.stubGlobal('fetch', vi.fn(async (url, options) => {
+    if (options.method === 'GET') {
+      if (url.endsWith('/edit-proposals/q')) return reply(proposal)
+      if (url.endsWith('/settings/s1')) return reply(setting)
+      if (url.includes('/projects/p/settings')) return reply({ items: [setting], nextCursor: null })
+    }
+    writes.push({ url, method: options.method, body: options.body && JSON.parse(options.body) })
+    if (fail) return { ok: false, status: 409, json: async () => ({ data: { status: 'CONFLICTED' } }) }
+    if (url.endsWith('/setting')) {
+      setting = { ...setting, ...JSON.parse(options.body), version: 2 }
+      return reply({ status: 'APPLIED', appliedVersion: 2 })
+    }
+    if (url.endsWith('/reject')) return reply({ status: 'REJECTED' })
+    throw new Error(`Unexpected request ${url}`)
+  }))
+  render(<Settings projectId="p" proposalId="q" onClose={onClose} />)
+  return { writes, onClose }
+}
+
+test('setting proposals apply to an editable draft and save the reviewed fields once', async () => {
+  const { writes, onClose } = setupProposal()
+  await screen.findByRole('form', { name: '审阅设定修改' })
+  expect(screen.getByLabelText('设定内容').value).toBe('林舟不会游泳。')
+  fireEvent.click(screen.getByRole('button', { name: '应用全部修改' }))
+  expect(writes).toHaveLength(0)
+  fireEvent.change(screen.getByLabelText('设定内容'), { target: { value: '用户调整后的行动规则。' } })
+  vi.spyOn(window, 'confirm').mockReturnValue(false)
+  fireEvent.click(screen.getByRole('button', { name: '关闭作品设定' }))
+  expect(onClose).not.toHaveBeenCalled()
+  fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+  fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+  await screen.findByText('设定已保存')
+  expect(writes).toEqual([{ url: '/api/v1/edit-proposals/q/setting', method: 'PUT', body: {
+    type: 'RULE', title: '林舟的行动规则', content: '用户调整后的行动规则。', expectedVersion: 1 } }])
+  expect(screen.getByRole('heading', { name: '林舟的行动规则' })).toBeTruthy()
+})
+
+test('ignoring an applied field restores the saved field and permits saving a partial review', async () => {
+  const { writes } = setupProposal()
+  await screen.findByRole('form', { name: '审阅设定修改' })
+  fireEvent.click(screen.getByRole('button', { name: '应用全部修改' }))
+  fireEvent.click(screen.getByRole('button', { name: '忽略类型修改' }))
+  fireEvent.click(screen.getByRole('button', { name: '忽略标题修改' }))
+  expect(screen.getByLabelText('类型').value).toBe('CHARACTER')
+  expect(screen.getByLabelText('标题').value).toBe('林舟')
+  fireEvent.click(screen.getByRole('button', { name: '保存设定' }))
+  await screen.findByText('设定已保存')
+  expect(writes[0].body).toEqual({ type: 'CHARACTER', title: '林舟', content: '林舟谨慎，选择石桥过河。', expectedVersion: 1 })
+})
+
+test('a stale setting proposal cannot apply or save but can be rejected without changing the setting', async () => {
+  const { writes } = setupProposal({ version: 2 })
+  await screen.findByRole('form', { name: '审阅设定修改' })
+  expect(screen.getByRole('button', { name: '应用全部修改' }).disabled).toBe(true)
+  expect(screen.getByRole('button', { name: '保存设定' }).disabled).toBe(true)
+  expect(screen.getByRole('alert').textContent).toContain('设定已发生变化')
+  fireEvent.click(screen.getByRole('button', { name: '忽略建议' }))
+  await screen.findByText('设定建议已忽略')
+  expect(writes).toEqual([{ url: '/api/v1/edit-proposals/q/reject', method: 'POST', body: undefined }])
+})
+
+test('a server conflict preserves the setting draft and blocks repeated overwrites', async () => {
+  const { writes } = setupProposal({ fail: true })
+  await screen.findByRole('form', { name: '审阅设定修改' })
+  fireEvent.click(screen.getByRole('button', { name: '应用全部修改' }))
+  fireEvent.click(screen.getByRole('button', { name: '保存设定' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '保存设定' }).disabled).toBe(true))
+  expect(screen.getByLabelText('设定内容').value).toBe('林舟谨慎，选择石桥过河。')
+  expect(writes).toHaveLength(1)
 })

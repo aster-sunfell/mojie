@@ -19,13 +19,19 @@ public record RunSummary(
     String errorDetail,
     long lastEventSeq,
     String proposalId,
-    String createdAt)
+    String createdAt,
+    String targetType,
+    String targetSettingId,
+    String targetTitle)
     implements QueryResult {
   public Map<String, Object> fields() {
     Map<String, Object> fields = new LinkedHashMap<>();
     fields.put("id", id);
     fields.put("projectId", projectId);
     fields.put("targetChapterId", targetChapterId);
+    fields.put("targetType", targetType);
+    fields.put("targetSettingId", targetSettingId);
+    fields.put("targetTitle", targetTitle);
     fields.put("baseVersion", baseVersion);
     fields.put("instruction", instruction);
     fields.put("status", status);

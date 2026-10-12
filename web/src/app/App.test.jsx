@@ -225,7 +225,7 @@ test('failed save during chapter switch preserves the draft and stays on the cha
   await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('原文'))
   fireEvent.change(document.querySelector('.editor'), { target: { value: '未保存的草稿' } })
   fireEvent.click(screen.getByRole('button', { name: /第二章/ }))
-  await screen.findByText('章节版本已变化，请先查看最新正文。')
+  await screen.findByText('内容版本已变化，请先查看最新版本。')
   expect(window.location.pathname).toBe('/projects/p/chapters/c')
   expect(document.querySelector('.editor').value).toBe('未保存的草稿')
 })

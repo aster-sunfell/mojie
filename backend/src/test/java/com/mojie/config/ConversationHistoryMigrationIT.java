@@ -65,9 +65,24 @@ class ConversationHistoryMigrationIT {
         db.update("INSERT INTO tb_conversation_message(conversation_id,seq,role,content,status)"
             + " VALUES(?::uuid,1,'USER','保留原始问题','SUCCEEDED'),"
             + " (?::uuid,2,'ASSISTANT','保留原始回答','SUCCEEDED')", archived, archived);
+        String oldRun = UUID.randomUUID().toString();
+        String oldSetting = UUID.randomUUID().toString();
+        db.update("INSERT INTO tb_agent_prompt_snapshot(hash,kind,content) VALUES(repeat('a',64),'SYSTEM_PROMPT','旧提示'),"
+            + " (repeat('b',64),'TOOL_SCHEMA','旧工具')");
+        db.update("INSERT INTO tb_agent_run(id,project_id,conversation_id,instruction,client_request_id,request_digest,"
+            + "status,deadline_at,finished_at,model_id,prompt_hash,tool_schema_hash,config_snapshot,task_type)"
+            + " VALUES(?::uuid,?::uuid,?::uuid,'旧讨论',?::uuid,repeat('c',64),'SUCCEEDED',now(),now(),"
+            + "'test-model',repeat('a',64),repeat('b',64),'{}','CHAT')", oldRun, project, archived, UUID.randomUUID().toString());
+        db.update("INSERT INTO tb_setting(id,project_id,type,title,content) VALUES(?::uuid,?::uuid,'CHARACTER','林舟','迁移前的设定')",
+            oldSetting, project);
         var conversationsBefore = db.query("SELECT to_jsonb(c)-'status' AS record FROM tb_conversation c ORDER BY id");
         var messagesBefore = db.query("SELECT * FROM tb_conversation_message ORDER BY id");
         agent.startup().start();
+        assertEquals("ASSISTANT", db.first("SELECT task_type FROM tb_agent_run WHERE id=?::uuid", oldRun).get("taskType"));
+        assertEquals("迁移前的设定", content.settings().revisions(oldSetting).getFirst().content());
+        assertEquals(1, content.settings().setting(oldSetting).get("version"));
+        assertThrows(com.mojie.common.error.StorageException.class,
+            () -> db.update("UPDATE tb_agent_run SET task_type='CHAT' WHERE id=?::uuid", oldRun));
         var service = new ConversationConfiguration().createConversationService(
             source, tx, cursor, content, agent, skills,
             new ModelApiConfig(ModelApiConfig.MESSAGES, "http://127.0.0.1", "test", "test-model"),

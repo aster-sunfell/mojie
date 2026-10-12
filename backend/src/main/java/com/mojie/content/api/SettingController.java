@@ -21,7 +21,17 @@ public final class SettingController {
 
   public record Title(String title) {}
 
-  public record Setting(String type, String title, String content) {}
+  public record Setting(String type, String title, String content, Integer expectedVersion) {}
+
+  @GetMapping("/settings/{id}")
+  public Map<String, Object> setting(@PathVariable String id) {
+    return data(settings.setting(id));
+  }
+
+  @GetMapping("/settings/{id}/revisions")
+  public Map<String, Object> revisions(@PathVariable String id) {
+    return data(settings.revisions(id));
+  }
 
   @GetMapping("/projects/{id}/settings")
   public Map<String, Object> settings(
@@ -42,7 +52,9 @@ public final class SettingController {
 
   @PatchMapping("/settings/{id}")
   public Map<String, Object> updateSetting(@PathVariable String id, @RequestBody Setting body) {
-    return data(settings.updateSetting(id, body.type(), body.title(), body.content()));
+    return data(
+        settings.updateSetting(
+            id, body.type(), body.title(), body.content(), body.expectedVersion()));
   }
 
   @DeleteMapping("/settings/{id}")

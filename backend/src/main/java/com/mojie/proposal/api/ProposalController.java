@@ -35,4 +35,16 @@ public final class ProposalController {
   public Map<String, Object> reject(@PathVariable String id) {
     return data(proposals.reject(id));
   }
+
+  public record SettingDraft(String type, String title, String content, Integer expectedVersion) {}
+
+  @PutMapping("/edit-proposals/{id}/setting")
+  public ResponseEntity<Map<String, Object>> saveSetting(
+      @PathVariable String id, @RequestBody SettingDraft body) {
+    ProposalDecision result =
+        proposals.saveSetting(
+            id, body.type(), body.title(), body.content(), body.expectedVersion());
+    return ResponseEntity.status("CONFLICTED".equals(result.status()) ? 409 : 200)
+        .body(data(result));
+  }
 }
