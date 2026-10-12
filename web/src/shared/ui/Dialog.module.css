@@ -26,6 +26,32 @@
   margin: 0 0 12px;
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 8px;
+  background: transparent;
+  color: var(--color-text);
+}
+
+.close:hover:not(:disabled) {
+  background: #edf2ee;
+}
+
+.wide {
+  max-width: 960px;
+  max-height: 85dvh;
+}
+
 .dialog p {
   margin: 0;
   color: #41534a;

@@ -7,6 +7,7 @@ import { ChapterSidebar } from './ChapterSidebar.jsx'
 import { useMediaQuery } from '../../shared/useMediaQuery.js'
 import { Drawer } from '../../shared/ui/Drawer.jsx'
 import { Icon } from '../../shared/ui/Icon.jsx'
+import { Settings } from '../settings/Settings.jsx'
 import { useProposalReview } from '../proposals/useProposalReview.js'
 
 export function Workspace({ projectId, selectedChapterId, navigate }) {
@@ -118,7 +119,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     pending.finally(() => { if (saveInFlight.current === pending) saveInFlight.current = null })
     return pending
   }, [chapter, accepting, review.snapshot, review.commit])
-  useEffect(() => { const key = event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save])
+  useEffect(() => { const key = event => { if (!showSettings && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save, showSettings])
   async function prepareLeave() {
     if (accepting) return
     if (dirty || review.hasPendingEdits) {
@@ -162,12 +163,10 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     if (run?.status !== 'SUCCEEDED' || !run.proposalId || !run.targetChapterId) return false
     if (run.targetChapterId !== selectedRef.current) {
       if (!(await prepareLeave())) return false
-      setShowSettings(false)
       setReviewRun(run)
       navigate(`/projects/${projectId}/chapters/${run.targetChapterId}`)
     } else {
       // Same-chapter review sessions remain cached, including unsaved choices.
-      setShowSettings(false)
       setReviewRun(run)
       requestAnimationFrame(() => workspaceRef.current?.querySelector('.inlineChange')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
     }
@@ -185,22 +184,24 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   }, [review.id, review.loading])
   if (error && !project) return <main className="home"><p className="error">{error}</p><button onClick={() => navigate('/')}>返回作品列表</button></main>
   const sidebar = <ChapterSidebar projectId={projectId} project={project} chapters={chapters} selectedChapterId={selectedChapterId}
-    busy={runBusy} cursor={chapterCursor} showSettings={showSettings}
+    busy={runBusy} cursor={chapterCursor} inert={showSettings}
     onLeave={leave} onAddChapter={addChapter}
-    onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}
-    onSettingsToggle={() => { setShowSettings(!showSettings); setShowChapters(false) }} />
+    onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))} />
 
   return <div ref={workspaceRef} className="workspace">
     {!mobile && sidebar}
-    <div className="writingColumn">
-      {mobile && <div className="workspaceToolbar">
-        <button className="secondary" onClick={() => setShowChapters(true)}>
+    <div className="writingColumn" inert={showSettings}>
+      <header className="workspaceToolbar" aria-label="作品工具栏">
+        {mobile && <button className="secondary" onClick={() => setShowChapters(true)}>
           <Icon name="menu" size={16} />章节
+        </button>}
+        <button className="secondary workspaceSettingsButton" aria-haspopup="dialog" onClick={() => setShowSettings(true)}>
+          <Icon name="book" size={16} />作品设定
         </button>
-      </div>}
-      <ChapterEditor projectId={projectId} chapter={chapter} draft={draft}
+      </header>
+      <ChapterEditor chapter={chapter} draft={draft}
     saveStatus={saveStatus} dirty={dirty} accepting={accepting} error={error}
-    showSettings={showSettings} runBusy={runBusy} showHistory={showHistory}
+    showHistory={showHistory}
     onHistoryChange={setShowHistory} onSave={save}
     review={review}
     onDraftChange={changeDraft} />
@@ -210,5 +211,6 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
         onOpenProposal={openProposal} onActivityChange={refreshBusy} />
     </div>
     {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}
+    {showSettings && <Settings key={projectId} projectId={projectId} disabled={runBusy} onClose={() => setShowSettings(false)} />}
   </div>
 }

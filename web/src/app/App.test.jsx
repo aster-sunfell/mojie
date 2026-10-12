@@ -170,7 +170,7 @@ test('setting search queries the server beyond the loaded page', async () => {
     throw new Error(`Unexpected request ${url}`)
   })
   renderApp()
-  fireEvent.click(await screen.findByRole('button', { name: '管理设定' }))
+  fireEvent.click(await screen.findByRole('button', { name: '作品设定' }))
   fireEvent.change(screen.getByPlaceholderText('筛选标题或正文'), { target: { value: '河流' } })
   await screen.findByText('远处的山谷')
   expect(fetch).toHaveBeenCalledWith('/api/v1/projects/p/settings?limit=50&keyword=%E6%B2%B3%E6%B5%81', expect.any(Object))

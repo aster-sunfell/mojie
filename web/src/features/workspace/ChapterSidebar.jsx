@@ -2,8 +2,8 @@ import React from 'react'
 import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 
 export function ChapterSidebar({ projectId, project, chapters, selectedChapterId, busy, cursor,
-  showSettings, onLeave, onAddChapter, onLoadMore, onSettingsToggle }) {
-  return <ScrollArea as="nav" className="sidebar" aria-label="章节导航">
+  onLeave, onAddChapter, onLoadMore, inert = false }) {
+  return <ScrollArea as="nav" className="sidebar" aria-label="章节导航" inert={inert}>
     <button className="back" onClick={() => onLeave('/')}>← 全部作品</button>
     <h1>{project?.title || '加载中…'}</h1>
     <div className="sectionTitle">
@@ -17,6 +17,5 @@ export function ChapterSidebar({ projectId, project, chapters, selectedChapterId
       <strong>{item.title}</strong><small>v{item.version}</small>
     </button>)}</div>
     {cursor && <button className="secondary" onClick={onLoadMore}>加载更多章节</button>}
-    <button className="settingsToggle" onClick={onSettingsToggle}>{showSettings ? '关闭设定' : '管理设定'}</button>
   </ScrollArea>
 }

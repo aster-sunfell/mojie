@@ -1,8 +1,9 @@
 import React, { useEffect, useId, useRef } from 'react'
 import styles from './Dialog.module.css'
 import { ScrollArea } from './ScrollArea.jsx'
+import { Icon } from './Icon.jsx'
 
-export function Dialog({ title, busy = false, onCancel, children }) {
+export function Dialog({ title, busy = false, onCancel, children, size, showClose = false, closeLabel = '关闭', className = '' }) {
   const titleId = useId()
   const dialog = useRef(null)
   const cancel = useRef(onCancel)
@@ -16,6 +17,13 @@ export function Dialog({ title, busy = false, onCancel, children }) {
     document.body.style.overflow = 'hidden'
     const focusable = () => [...dialog.current.querySelectorAll(
       'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
+      .filter(element => {
+        for (let parent = element; parent && parent !== dialog.current.parentElement; parent = parent.parentElement) {
+          const style = window.getComputedStyle(parent)
+          if (parent.hidden || parent.inert || style.display === 'none' || style.visibility === 'hidden') return false
+        }
+        return true
+      })
     ;(dialog.current.querySelector('[data-autofocus]') || focusable()[0] || dialog.current).focus()
     const handleKey = event => {
       if (event.key === 'Escape') {
@@ -42,10 +50,15 @@ export function Dialog({ title, busy = false, onCancel, children }) {
   }, [])
 
   return <div className={styles.overlay} onClick={() => { if (!busy) onCancel() }}>
-    <ScrollArea ref={dialog} className={styles.dialog} role="dialog" aria-modal="true"
+    <ScrollArea ref={dialog} className={[styles.dialog, size === 'wide' ? styles.wide : '', className].filter(Boolean).join(' ')} role="dialog" aria-modal="true"
       aria-labelledby={titleId} aria-busy={busy} tabIndex={-1}
       onClick={event => event.stopPropagation()}>
-      <h2 id={titleId}>{title}</h2>
+      <div className={styles.header}>
+        <h2 id={titleId}>{title}</h2>
+        {showClose && <button type="button" className={styles.close} disabled={busy} aria-label={closeLabel} onClick={onCancel}>
+          <Icon name="close" size={20} />
+        </button>}
+      </div>
       {children}
     </ScrollArea>
   </div>

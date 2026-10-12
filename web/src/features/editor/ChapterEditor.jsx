@@ -1,16 +1,15 @@
 import React from 'react'
 import { cp } from '../../shared/utils/text.js'
-import { Settings } from '../settings/Settings.jsx'
 import { History } from '../history/History.jsx'
 import { Proposal } from '../proposals/Proposal.jsx'
 import { InlineText } from '../proposals/InlineText.jsx'
 import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 
-export function ChapterEditor({ projectId, chapter, draft, saveStatus, dirty, accepting,
-  error, showSettings, runBusy, showHistory, onHistoryChange, onSave, onDraftChange,
+export function ChapterEditor({ chapter, draft, saveStatus, dirty, accepting,
+  error, showHistory, onHistoryChange, onSave, onDraftChange,
   review }) {
   return <ScrollArea as="main" className="editorArea">
-    {showSettings ? <Settings projectId={projectId} disabled={runBusy} /> : chapter ? <>
+    {chapter ? <>
       <div className="editorHeader">
         <div>
           <span className="eyebrow">CHAPTER {chapter.chapterOrder}</span>

@@ -192,8 +192,8 @@ test('changing chapters and folding messages preserve conversation input', async
   fireEvent.click(screen.getByRole('button', { name: '展开消息' }))
   fireEvent.click(screen.getByRole('button', { name: '收起消息' }))
   expect(input().value).toBe('这段输入应继续保留')
-  fireEvent.click(screen.getByRole('button', { name: '管理设定' }))
-  await screen.findByText('作品设定'); expect(input().value).toBe('这段输入应继续保留')
+  fireEvent.click(screen.getByRole('button', { name: '作品设定' }))
+  await screen.findByRole('dialog', { name: '作品设定' }); expect(input().value).toBe('这段输入应继续保留')
 })
 
 test('separate conversation drafts survive switching and new conversations are created lazily', async () => {

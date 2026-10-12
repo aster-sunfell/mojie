@@ -30,6 +30,10 @@
   font-size: 12px;
 }
 
+.workspaceSettingsButton {
+  margin-left: auto;
+}
+
 .sidebar {
   flex: 1;
   min-height: 0;
@@ -53,22 +57,14 @@
   font-size: 15px;
 }
 
-.back,.settingsToggle {
+.back {
   background: transparent;
   color: #526f63;
   text-align: left;
 }
 
-.back:hover,.settingsToggle:hover {
+.back:hover {
   background: #dbe5d9;
-}
-
-.settingsToggle {
-  margin-top: 20px;
-  width: 100%;
-  border-top: 1px solid #d7dfd4;
-  border-radius: 0;
-  padding-top: 17px;
 }
 
 .iconButton {

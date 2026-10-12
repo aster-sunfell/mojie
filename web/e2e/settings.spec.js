@@ -1,0 +1,133 @@
+import { expect, test } from '@playwright/test'
+import { mockWorkspace } from './fixtures/workspace.mjs'
+
+async function mockSettings(page) {
+  const items = [
+    { id: 's1', type: 'CHARACTER', title: '林舟', content: '林舟不会游泳。\n少年时曾在山谷迷路，对河流心存戒备。' },
+    { id: 's2', type: 'WORLD', title: '山谷与河流', content: '山谷终年多雨，河流湍急。居民通过石桥往返两岸。' },
+    { id: 's3', type: 'RULE', title: '叙述视角', content: '采用第三人称限知视角，保持人物行动与已有经历一致。' },
+  ]
+  const writes = []
+  await page.route(/\/api\/v1\/(projects\/p\/settings|settings\/[^/?]+)(\?|$)/, async route => {
+    const request = route.request(), url = new URL(request.url())
+    const data = value => route.fulfill({ json: { data: value } })
+    if (request.method() === 'GET') {
+      const type = url.searchParams.get('type'), keyword = url.searchParams.get('keyword')
+      return data({ items: items.filter(item => (!type || item.type === type)
+        && (!keyword || `${item.title}${item.content}`.includes(keyword))), nextCursor: null })
+    }
+    const body = request.postDataJSON()
+    writes.push({ method: request.method(), body })
+    if (request.method() === 'POST') {
+      const value = { id: `s${items.length + 1}`, ...body }; items.push(value); return data(value)
+    }
+    const item = items.find(item => url.pathname.endsWith(`/${item.id}`))
+    if (request.method() === 'PATCH') { Object.assign(item, body); return data(item) }
+    items.splice(items.indexOf(item), 1)
+    return route.fulfill({ status: 204 })
+  })
+  return { writes }
+}
+
+test('desktop settings preserve the mounted draft, scroll position and assistant input; shortcuts save only settings', async ({ page }) => {
+  const workspace = await mockWorkspace(page)
+  const settings = await mockSettings(page)
+  await page.goto('/projects/p/chapters/c')
+  const editor = page.getByRole('textbox', { name: '章节正文', exact: true })
+  await expect(editor).toBeVisible()
+  const draft = `${await editor.inputValue()}\n未保存的正文草稿。`
+  await editor.fill(draft)
+  await editor.evaluate(element => { element.dataset.mounted = 'original' })
+  const input = page.getByRole('textbox', { name: '对话消息' })
+  await input.fill('继续讨论人物动机')
+  await page.locator('.editorArea').evaluate(element => { element.scrollTop = 240 })
+  const scrollTop = await page.locator('.editorArea').evaluate(element => element.scrollTop)
+  const entry = page.getByRole('button', { name: '作品设定', exact: true })
+  await expect(page.locator('.sidebar').getByRole('button', { name: '管理设定' })).toHaveCount(0)
+  await entry.click()
+  const dialog = page.getByRole('dialog', { name: '作品设定', exact: true })
+  await expect(dialog.getByRole('heading', { name: '林舟', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('textbox', { name: '搜索设定' })).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+s')
+  expect(workspace.saves).toHaveLength(0)
+  const box = await dialog.boundingBox()
+  expect(box.width).toBeLessThanOrEqual(960)
+  expect(box.height).toBeLessThanOrEqual(720 * .85 + 1)
+  await dialog.getByRole('button', { name: '编辑设定' }).click()
+  await expect(dialog.getByRole('textbox', { name: '标题', exact: true })).toBeFocused()
+  await dialog.getByRole('textbox', { name: '设定内容' }).fill('林舟不会游泳。遇到急流会寻找石桥。')
+  const save = dialog.getByRole('button', { name: '保存设定', exact: true })
+  await save.focus(); await save.press('Tab')
+  await expect(dialog.getByRole('button', { name: '关闭作品设定' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab'); await expect(save).toBeFocused()
+  await page.screenshot({ path: 'test-results/settings-desktop-edit.png' })
+  await page.keyboard.press('ControlOrMeta+s')
+  await expect(dialog.getByText('设定已保存', { exact: true })).toBeVisible()
+  expect(settings.writes).toHaveLength(1)
+  expect(settings.writes[0]).toMatchObject({ method: 'PATCH', body: { content: '林舟不会游泳。遇到急流会寻找石桥。' } })
+  expect(workspace.saves).toHaveLength(0)
+  await page.screenshot({ path: 'test-results/settings-desktop.png' })
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(entry).toBeFocused()
+  await expect(editor).toHaveValue(draft)
+  await expect(editor).toHaveAttribute('data-mounted', 'original')
+  await expect(input).toHaveValue('继续讨论人物动机')
+  expect(await page.locator('.editorArea').evaluate(element => element.scrollTop)).toBe(scrollTop)
+})
+
+test('settings can be opened with no chapters and unsaved new settings cannot be dismissed accidentally', async ({ page }) => {
+  await mockWorkspace(page)
+  await mockSettings(page)
+  await page.route('**/api/v1/projects/p/chapters?*', route => route.fulfill({ json: { data: { items: [], nextCursor: null } } }))
+  await page.goto('/projects/p')
+  await expect(page.locator('.emptyEditor')).toBeVisible()
+  await page.getByRole('button', { name: '作品设定', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '作品设定', exact: true })
+  await dialog.getByRole('button', { name: '新增设定' }).click()
+  await dialog.getByRole('textbox', { name: '标题', exact: true }).fill('未完成的设定')
+  page.once('dialog', async confirm => { expect(confirm.message()).toContain('尚未保存'); await confirm.dismiss() })
+  await page.keyboard.press('Escape')
+  await expect(dialog.getByRole('textbox', { name: '标题', exact: true })).toHaveValue('未完成的设定')
+  page.once('dialog', confirm => confirm.accept())
+  await page.mouse.click(5, 5)
+  await expect(dialog).toHaveCount(0)
+})
+
+test('mobile settings switch between list and details, filter on the server and keep actions inside a short viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await mockWorkspace(page)
+  await mockSettings(page)
+  await page.goto('/projects/p/chapters/c')
+  await expect(page.getByRole('button', { name: '章节', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '作品设定', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '作品设定', exact: true })
+  const list = dialog.getByLabel('设定列表')
+  await expect(list.getByRole('button', { name: /山谷与河流/ })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '编辑设定' })).toBeHidden()
+  await page.screenshot({ path: 'test-results/settings-mobile-list.png' })
+  await dialog.getByRole('combobox', { name: '设定类型筛选' }).selectOption('WORLD')
+  await expect(list.getByRole('button', { name: /林舟/ })).toHaveCount(0)
+  await list.getByRole('button', { name: /山谷与河流/ }).click()
+  await expect(dialog.getByRole('heading', { name: '山谷与河流', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('textbox', { name: '搜索设定' })).toBeHidden()
+  await dialog.getByRole('button', { name: '编辑设定' }).click()
+  await dialog.getByRole('textbox', { name: '设定内容' }).fill('河流湍急，两岸由石桥相连。')
+  await page.setViewportSize({ width: 390, height: 500 })
+  const save = dialog.getByRole('button', { name: '保存设定', exact: true })
+  await expect(save).toBeVisible()
+  const box = await save.boundingBox()
+  expect(box.y + box.height).toBeLessThanOrEqual(500)
+  await save.focus(); await save.press('Tab')
+  await expect(dialog.getByRole('button', { name: '关闭作品设定' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab'); await expect(save).toBeFocused()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: 'test-results/settings-mobile-edit-short.png' })
+  await save.click()
+  await expect(dialog.getByText('设定已保存', { exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: '返回设定列表' }).click()
+  await expect(dialog.getByRole('textbox', { name: '搜索设定' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '新增设定' })).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭作品设定' }).click()
+  await expect(dialog).toHaveCount(0)
+})
