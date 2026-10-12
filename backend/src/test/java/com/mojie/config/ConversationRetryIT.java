@@ -41,8 +41,12 @@ class ConversationRetryIT {
               List<ToolCall> calls = new ArrayList<>();
               for (int n = 0; n < 33; n++)
                 calls.add(new ToolCall("unfinished-" + n, "unknown", tree("{}")));
-              return new Response(
-                  "中间计划不能冒充回答", calls, FinishReason.TOOL_CALLS, "test", "tool_use", Map.of());
+              List<ContentPart> parts = new ArrayList<>();
+              parts.add(new OpaquePart(tree("{\"type\":\"thinking\",\"thinking\":\"private reasoning\"}")));
+              parts.add(new TextPart("中间计划不能冒充回答"));
+              parts.add(new TextPart("接下来查阅相关资料。"));
+              parts.addAll(calls);
+              return new Response(parts, FinishReason.TOOL_CALLS, "test", "tool_use", Map.of());
             }
             return new Response(
                 "恢复后的最终回答", List.of(), FinishReason.FINAL, "test", "end_turn", Map.of());
@@ -94,13 +98,26 @@ class ConversationRetryIT {
                 new Send("原始输入", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of()));
         terminal(agent, first.runId());
         assertEquals("FAILED", agent.query().detail(first.runId()).get("status"));
+        var activities = tree(encode(agent.query().detail(first.runId()).get("activities")));
+        assertEquals(1, activities.size());
+        assertEquals(1, activities.get(0).path("modelCallIndex").asInt());
+        assertEquals("中间计划不能冒充回答\n\n接下来查阅相关资料。", activities.get(0).path("text").asText());
+        assertFalse(activities.toString().contains("private reasoning"));
+        assertEquals(activities, tree(encode(agent.query().detail(first.runId()).get("activities"))));
         assertEquals(1, service.get(conversation.id()).lastSeq());
         var db = new JdbcAccess(source);
+        var publicQuery = new com.mojie.agent.service.RunQueryService(
+            new com.mojie.agent.repository.jdbc.JdbcRunReadRepository(source), tx, PageCursor.configured(), false);
+        assertEquals(activities, tree(encode(publicQuery.detail(first.runId()).get("activities"))));
+        db.update("UPDATE tb_agent_model_call SET phase='COMPACTION' WHERE run_id=?::uuid", first.runId());
+        assertEquals(List.of(), publicQuery.detail(first.runId()).get("activities"));
+        db.update("UPDATE tb_agent_model_call SET phase='TASK' WHERE run_id=?::uuid", first.runId());
         // Old runs may retain the retired mode flag; retry uses the current unified behavior.
         db.update("UPDATE tb_agent_run SET analysis_only=true WHERE id=?::uuid", first.runId());
         String key = UUID.randomUUID().toString();
         var retry = service.retry(conversation.id(), first.messageId(), key);
         terminal(agent, retry.runId());
+        assertEquals(List.of(), agent.query().detail(retry.runId()).get("activities"));
         assertNotEquals(first.runId(), retry.runId());
         assertEquals(first.messageId(), retry.messageId());
         assertEquals(

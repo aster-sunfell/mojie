@@ -70,7 +70,7 @@ function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', after
           records[id].push({ id: `u${runId}`, seq, role: 'USER', content: body.content, runId, status: result })
           if (result === 'SUCCEEDED') records[id].push({ id: `a${runId}`, seq: ++c.lastSeq, role: 'ASSISTANT', content: '已核对正文', runId, status: result })
           else c.activeRunId = runId
-          receipt = { runId, conversationSeq: seq }; receipts.set(body.clientRequestId, receipt)
+          receipt = { messageId: `u${runId}`, runId, conversationSeq: seq }; receipts.set(body.clientRequestId, receipt)
         }
         if (provideProposal && body.content.includes('修改')) {
           const run = runs[receipt.runId], target = chapters.find(c => c.id === (proposalTarget || body.contextChapterId || 'c'))
@@ -266,6 +266,79 @@ test('active turns allow drafting the next message and stop waits for the server
   await waitFor(() => expect(send().disabled).toBe(false))
   expect(input().value).toBe('下一轮的输入')
 })
+
+test('assistant commentary and tools stay in one assistant region as the final reply arrives', async () => {
+  const state = setup({ result: 'RUNNING' }); await ready('检查人物动机'); fireEvent.click(send())
+  await screen.findByRole('button', { name: '停止', exact: true })
+  const assistant = document.querySelector('.conversationMessage.assistant[data-run-id="r1"]')
+  const user = document.querySelector('.conversationMessage.user')
+  expect(assistant).not.toBeNull()
+  const run = state.runs.r1
+  run.activities = [{ id: 'comment-1', modelCallIndex: 1, text: '我先阅读本章，再核对人物设定。' },
+    { id: 'comment-2', modelCallIndex: 2, text: '已读完本章，接下来核对人物动机。' }]
+  run.steps = [{ toolExecutionId: 'read-1', modelCallIndex: 1, toolName: 'read_chapter', args: { chapterId: 'c' },
+    result: { success: true, data: { title: '第一章' } }, status: 'SUCCEEDED' }]
+  run.lastEventSeq = 2
+  await waitFor(() => expect(FakeEventSource.instances.has('r1')).toBe(true))
+  await act(async () => { FakeEventSource.instances.get('r1').dispatchEvent(new MessageEvent('model.finished', { data: JSON.stringify({ runId: 'r1', seq: 2 }) })) })
+  await within(assistant).findByText('我先阅读本章，再核对人物设定。')
+  expect(user.textContent).not.toMatch(/先阅读|已完成|执行详情/)
+  expect(within(assistant).getByText('已阅读《第一章》')).toBeTruthy()
+  const timeline = [...assistant.querySelector('.conversationActivity').children]
+  expect(timeline.map(element => element.textContent)).toEqual([
+    '我先阅读本章，再核对人物设定。', expect.stringContaining('已阅读《第一章》'), '已读完本章，接下来核对人物动机。', expect.any(String),
+  ])
+  const tool = assistant.querySelector('.conversationToolActivity')
+  tool.open = true
+  run.status = 'SUCCEEDED'; run.analysis = '人物动机有一处需要补充。'; run.lastEventSeq = 3
+  state.conversations.d1.activeRunId = null; state.conversations.d1.lastSeq = 2
+  state.records.d1[0].status = 'SUCCEEDED'
+  state.records.d1.push({ id: 'a-r1', seq: 2, role: 'ASSISTANT', content: run.analysis, runId: 'r1', status: 'SUCCEEDED' })
+  await act(async () => { FakeEventSource.instances.get('r1').dispatchEvent(new MessageEvent('run.succeeded', { data: JSON.stringify({ runId: 'r1', seq: 3 }) })) })
+  await screen.findByText(run.analysis)
+  expect(document.querySelector('.conversationMessage.assistant')).toBe(assistant)
+  expect(assistant.querySelector('.conversationToolActivity')).toBe(tool)
+  expect(tool.open).toBe(true)
+  expect(screen.getAllByText(run.analysis)).toHaveLength(1)
+  expect(assistant.querySelector('.assistantProgress')).toBeNull()
+  expect(screen.queryByText('执行详情')).toBeNull()
+  expect(assistant.textContent).not.toMatch(/模型 \d|工具 \d/)
+})
+
+test('accepted input renders the assistant before the conversation reload finishes', async () => {
+  let finish
+  const pending = new Promise(resolve => { finish = resolve })
+  const state = setup({ result: 'RUNNING', detail: () => pending })
+  await ready('已接受的输入'); fireEvent.click(send())
+  await screen.findByText('已接受的输入')
+  const assistant = document.querySelector('.conversationMessage.assistant[data-run-id="r1"]')
+  expect(assistant).not.toBeNull()
+  await act(async () => { finish(reply({ ...state.conversations.d1 })) })
+  await screen.findByRole('button', { name: '停止', exact: true })
+  expect(document.querySelector('.conversationMessage.assistant[data-run-id="r1"]')).toBe(assistant)
+  expect(screen.getAllByText('已接受的输入')).toHaveLength(1)
+})
+
+for (const status of ['FAILED', 'CANCELLED']) {
+  test(`${status} preserves the assistant process and puts recovery on the assistant side`, async () => {
+    const state = setup({ result: 'RUNNING' }); await ready(); fireEvent.click(send())
+    await screen.findByRole('button', { name: '停止', exact: true })
+    const assistant = document.querySelector('.conversationMessage.assistant')
+    const run = state.runs.r1
+    run.activities = [{ id: 'comment-1', modelCallIndex: 1, text: '我先查阅前文。' }]
+    run.steps = [{ toolExecutionId: 'search-1', modelCallIndex: 1, toolName: 'search_chapters', args: { keyword: '林舟' }, status: 'ABORTED' }]
+    run.status = status; run.lastEventSeq = 3
+    state.conversations.d1.activeRunId = null; state.records.d1[0].status = status
+    await waitFor(() => expect(FakeEventSource.instances.has('r1')).toBe(true))
+    await act(async () => { FakeEventSource.instances.get('r1').dispatchEvent(new MessageEvent(status === 'FAILED' ? 'run.failed' : 'run.cancelled', { data: JSON.stringify({ runId: 'r1', seq: 3 }) })) })
+    await within(assistant).findByRole('button', { name: '重试本轮' })
+    expect(within(assistant).getByText('我先查阅前文。')).toBeTruthy()
+    expect(within(assistant).getByText('已停止：搜索章节：“林舟”')).toBeTruthy()
+    expect(document.querySelector('.conversationMessage.user').textContent).not.toMatch(/未完成|已停止|我先查阅|重试/)
+    expect(assistant.querySelector('.assistantAnswer')).toBeNull()
+    expect(assistant.querySelector('.assistantProgress')).toBeNull()
+  })
+}
 
 test('a background reply stays connected in chapter focus and can be read without losing either draft', async () => {
   const state = setup({ result: 'RUNNING' }); await ready(); fireEvent.click(send())

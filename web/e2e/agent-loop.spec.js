@@ -93,7 +93,7 @@ test('selected references and retrieved edit targets stay independent across con
   await page.getByRole('button', { name: '移除章节参考' }).click()
   await page.getByRole('textbox', { name: '对话消息' }).fill('E2E_SEARCH_EDIT 按需查阅，检查并修改游泳矛盾。')
   await page.getByRole('button', { name: '发送', exact: true }).click()
-  await expect(page.locator('.conversationMessage.assistant')).toHaveCount(2)
+  await expect(page.locator('.conversationMessage.assistant .assistantAnswer')).toHaveCount(2)
   runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}`)).json()).data.items
   const second = (await (await request.get(`${api}/agent/runs/${runs[0].id}`)).json()).data
   expect(second.contextChapterId).toBeNull()

@@ -184,6 +184,19 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       updateDraft({ pending: request }, false)
       const receipt = await api(`/conversations/${currentId}/messages`, 'POST', request)
       updateDraft({ input: '', mentions: [], pending: null }, false)
+      // The accepted receipt gives the real message ID. Render both sides of the turn
+      // immediately while the persisted messages and run snapshot are being fetched.
+      if (receipt.messageId) {
+        const accepted = { id: receipt.messageId, conversationId: currentId, seq: receipt.conversationSeq,
+          role: 'USER', content: request.content, skillMentions: request.skillMentions,
+          runId: receipt.runId, status: receipt.status || 'QUEUED' }
+        setMessages(current => current.some(m => m.id === accepted.id) ? current : [...current, accepted])
+        const queued = { id: receipt.runId, status: receipt.status || 'QUEUED', taskType: 'ASSISTANT',
+          contextChapterId: request.contextChapterId, contextVersion: request.contextVersion,
+          lastEventSeq: 0, activities: [], steps: [], sources: [] }
+        runCache.current[receipt.runId] = latestRun(runCache.current[receipt.runId], queued)
+        setRuns(current => ({ ...current, [receipt.runId]: runCache.current[receipt.runId] }))
+      }
       setRunId(receipt.runId)
       setConversation(current => ({ ...(current || c), activeRunId: receipt.runId, lastSeq: receipt.conversationSeq }))
       options.current.onActivityChange?.()

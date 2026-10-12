@@ -10,6 +10,8 @@ public interface RunReadRepository {
 
   List<RunStep> listSteps(String runId);
 
+  List<RunActivity> listActivities(String runId);
+
   List<TraceSource> listSourcesDetailed(String runId);
 
   List<TraceStep> listStepsDetailed(String runId);

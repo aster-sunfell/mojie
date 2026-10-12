@@ -52,7 +52,12 @@ public final class ConversationService {
           + " request. All reads use saved content;"
           + " unsaved editor drafts are not included. Historical reads do not replace fresh"
           + " evidence for new edits. Return a substantive final answer and honestly identify"
-          + " uncertainties. Budget: 16 model responses (including compaction and final), 32 tools;"
+          + " uncertainties. Before starting tool work, and when changing direction or reaching a"
+          + " meaningful milestone, include a brief user-facing text update in the same response"
+          + " as your tool calls: explain what you will do and why, or what the evidence establishes."
+          + " Use the author's language. Do not repeat an update for every tool, expose private"
+          + " reasoning or technical budgets, or claim a result before receiving it."
+          + " Budget: 16 model responses (including compaction and final), 32 tools;"
           + " reserve a final response after tools. Scripts cannot change official content.";
   private final ConversationRepository repo;
   private final RunRepository runs;

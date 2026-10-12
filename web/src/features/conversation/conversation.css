@@ -24,10 +24,27 @@
 .messageProposal strong{font-size:13px;font-weight:500}
 .messageProposal small{display:block;color:#718379;font-size:12px;margin-top:3px}
 .messageProposal button{font-size:12px}
-.messageSources,.conversationExecution{font-size:12px;margin-top:8px;color:#526f63}
-.messageSources>summary,.conversationExecution>summary{padding:5px 0;cursor:pointer}
+.messageSources{font-size:12px;margin-top:8px;color:#526f63}
+.messageSources>summary{padding:5px 0;cursor:pointer}
 .messageSources .sources{padding:8px 0}
-.conversationExecution .runDetail{margin-top:4px}
+.conversationActivity{display:flex;flex-direction:column;gap:6px;min-width:0}
+.conversationActivity:empty{display:none}
+.assistantCommentary{margin:2px 0 6px}
+.conversationActivity:not(:empty)+.assistantAnswer{margin-top:16px}
+.conversationToolActivity{font-size:12px;color:#718379;min-width:0}
+.conversationToolActivity>summary{display:flex;align-items:flex-start;gap:7px;cursor:pointer;padding:3px 0;list-style:none;line-height:1.6}
+.conversationToolActivity>summary::-webkit-details-marker{display:none}
+.conversationToolActivity>summary:hover{color:#526f63}
+.conversationToolActivity>summary>span:nth-child(2){min-width:0;overflow-wrap:anywhere}
+.activityToggle{display:inline-flex;align-items:center;height:19px;flex-shrink:0;opacity:.6}
+.conversationToolActivity[open] .activityToggle{transform:rotate(180deg)}
+.activitySymbol{display:inline-flex;align-items:center;justify-content:center;width:16px;height:19px;flex-shrink:0}
+.conversationToolActivity.running .activitySymbol svg{animation:assistant-spin 1s linear infinite}
+.conversationToolActivity.interrupted{color:#946b52}
+.activityToolDetail{margin:4px 0 8px 23px;padding:8px 10px;border-left:2px solid #d7dfd8;background:#f3f6f1;border-radius:4px;min-width:0}
+.activityToolDetail p{margin:0 0 6px}
+.activityToolDetail pre{max-height:220px;font-size:11px;line-height:1.6}
+.messageResourceError{font-size:12px}
 .messageAttachments{display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:13px}
 .assistantEmptyMessage{color:#718379;font-size:14px;margin:4px 0 12px}
 .assistantProgress{display:flex;align-items:center;gap:8px;color:#718379;font-size:13px;padding:8px 0}

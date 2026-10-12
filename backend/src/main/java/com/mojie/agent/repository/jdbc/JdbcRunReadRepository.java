@@ -66,6 +66,24 @@ SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS 
   }
 
   @Override
+  public List<RunActivity> listActivities(String runId) {
+    return db.records(
+        RunActivity.class,
+        """
+        SELECT m.id::text AS id, mc.call_index AS model_call_index,
+               string_agg(block.value->>'text', E'\\n\\n' ORDER BY block.ordinality) AS text
+          FROM tb_agent_message m JOIN tb_agent_model_call mc ON mc.id = m.model_call_id
+          CROSS JOIN LATERAL jsonb_array_elements(m.content) WITH ORDINALITY AS block(value, ordinality)
+         WHERE m.run_id = ?::uuid AND m.role = 'ASSISTANT'
+           AND mc.phase = 'TASK' AND mc.finish_reason = 'TOOL_CALLS'
+           AND block.value->>'type' = 'text' AND btrim(block.value->>'text') <> ''
+         GROUP BY m.id, m.message_seq, mc.call_index
+         ORDER BY m.message_seq
+        """,
+        runId);
+  }
+
+  @Override
   public List<TraceSource> listSourcesDetailed(String runId) {
     return db.records(
         TraceSource.class,

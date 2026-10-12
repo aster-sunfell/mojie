@@ -561,9 +561,18 @@ class RunServicesIT {
             RunTraceService trace = TestServices.trace(source);
             ToolCall call = tool("read-target", "read_chapter", Map.of("chapterId", fixture.chapter()));
             trace.modelStarted(runId, 1, List.of(1L));
-            long assistantSeq = trace.modelFinished(runId, 1, calls("tool-turn", call));
+            long assistantSeq = trace.modelFinished(runId, 1, new Response(
+                    List.of(new OpaquePart(JSON.readTree("{\"type\":\"thinking\",\"thinking\":\"private reasoning\"}")),
+                            new TextPart("我先阅读本章，再核对人物动机。"), call),
+                    FinishReason.TOOL_CALLS, "tool-turn", "tool_use", Map.of()));
             assertEquals(2L, assistantSeq);
             String executionId = trace.toolStarted(runId, 1, call);
+            Map<String,Object> running = new QueryFixture(source).detail(runId);
+            assertEquals("RUNNING", running.get("status"));
+            List<?> activities = (List<?>) running.get("activities");
+            assertEquals(1, activities.size());
+            assertEquals("我先阅读本章，再核对人物动机。", ((Map<?,?>) activities.getFirst()).get("text"));
+            assertFalse(activities.toString().contains("private reasoning"));
             ToolContext context = new ToolContext(runId, fixture.project(), fixture.chapter(), 1, "body");
             AgentTool read = ContentTools.all(TestServices.toolContent(source), "0123456789abcdef".getBytes())
                     .stream().filter(item -> item.spec().name().equals("read_chapter")).findFirst().orElseThrow();
@@ -579,6 +588,7 @@ class RunServicesIT {
             assertEquals("CANCELLED", terminal.finish(fixture.project(), runId, new LoopOutcome.Cancelled()).status());
             Map<String,Object> detail = new QueryFixture(source).detail(runId);
             assertEquals("CANCELLED", detail.get("status"));
+            assertEquals(activities, detail.get("activities"));
             assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_step WHERE run_id='" + runId
                     + "' AND status='SUCCEEDED'"));
             assertEquals(1, count(source, "SELECT count(*) FROM tb_agent_message WHERE run_id='" + runId

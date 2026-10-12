@@ -1,6 +1,55 @@
 import { expect, test } from '@playwright/test'
 import { mockWorkspace } from './fixtures/workspace.mjs'
 
+for (const mobile of [false, true]) {
+  test(`assistant process survives refresh and completes in place on ${mobile ? 'mobile' : 'desktop'}`, async ({ page }) => {
+    if (mobile) await page.setViewportSize({ width: 390, height: 844 })
+    const state = await mockWorkspace(page, { history: false })
+    await page.goto('/projects/p/chapters/c')
+    if (mobile) await page.getByRole('button', { name: '专注对话', exact: true }).click()
+    await page.getByRole('textbox', { name: '对话消息' }).fill('检查林舟的人物动机')
+    await page.getByRole('button', { name: '发送', exact: true }).click()
+    const assistant = page.locator('.conversationMessage.assistant')
+    await expect(assistant).toBeVisible()
+    const run = state.runs[0], conversation = state.conversations[0]
+    run.activities = [{ id: 'reading', modelCallIndex: 1, text: '我先阅读本章，再核对人物设定，重点检查林舟的动机是否一致。' },
+      { id: 'checking', modelCallIndex: 2, text: '已读完本章，接下来查阅人物设定。' }]
+    run.steps = [{ toolExecutionId: 'read-chapter', modelCallIndex: 1, toolName: 'read_chapter', args: { chapterId: 'c' },
+      status: 'SUCCEEDED', result: { success: true, data: { title: '第一章 · 雨夜' } } },
+    { toolExecutionId: 'read-settings', modelCallIndex: 2, toolName: 'read_settings', args: { settingIds: ['character'] }, status: 'STARTED' }]
+    run.lastEventSeq = 2
+    await expect(assistant).toContainText(run.activities[0].text)
+    await expect(assistant).toContainText('正在查阅设定')
+    await expect(page.locator('.conversationMessage.user')).not.toContainText('查阅设定')
+    await expect(page.getByText('执行详情', { exact: true })).toHaveCount(0)
+    await page.reload()
+    if (mobile) await page.getByRole('button', { name: /^专注对话/ }).click()
+    await expect(assistant).toContainText(run.activities[0].text)
+    await expect(assistant).toContainText('正在查阅设定')
+    await assistant.evaluate(element => { element.dataset.testIdentity = 'original-assistant' })
+    const firstTool = assistant.locator('.conversationToolActivity').first()
+    await firstTool.locator('summary').click()
+    await expect(firstTool).toHaveAttribute('open', '')
+    await page.screenshot({ path: `test-results/conversation-process-${mobile ? 'mobile' : 'desktop'}.png` })
+    run.steps[1].status = 'SUCCEEDED'
+    run.status = 'SUCCEEDED'; run.analysis = '林舟的动机与设定一致，可以补充一处行动前的犹豫，使转折更自然。'; run.lastEventSeq = 3
+    conversation.activeRunId = null
+    state.messages[conversation.id][0].status = 'SUCCEEDED'
+    state.messages[conversation.id].push({ id: 'answer', role: 'ASSISTANT', content: run.analysis, runId: run.id, status: 'SUCCEEDED', seq: ++conversation.lastSeq })
+    await expect(assistant).toContainText(run.analysis)
+    await expect(assistant).toHaveCount(1)
+    await expect(assistant).toHaveAttribute('data-test-identity', 'original-assistant')
+    await expect(firstTool).toHaveAttribute('open', '')
+    await expect(page.getByText(run.analysis, { exact: true })).toHaveCount(1)
+    await expect(assistant).toContainText(run.activities[0].text)
+    await expect(assistant.locator('.assistantProgress')).toHaveCount(0)
+    await firstTool.locator('summary').click()
+    await page.locator('.conversationMessages').evaluate(element => { element.scrollTop = 0 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(mobile ? 390 : 1280)
+    await page.screenshot({ path: `test-results/conversation-completed-${mobile ? 'mobile' : 'desktop'}.png` })
+  })
+}
+
 test('compact composer references a Skill in its message', async ({ page }) => {
   await mockWorkspace(page, { history: false })
   await page.route('**/api/v1/skills**', route => route.fulfill({ json: { data: new URL(route.request().url()).pathname.endsWith('/versions')

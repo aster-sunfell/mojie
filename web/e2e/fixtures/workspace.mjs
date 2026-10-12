@@ -48,7 +48,7 @@ export async function mockWorkspace(page, { history = true,
             instruction: body.content, baseVersion: body.contextVersion, lastEventSeq: 1, steps: [], sources: [], modelCallCount: 1, toolCallCount: 0 }
           runs.push(run); c.activeRunId = run.id
           messages[c.id].push({ id: `u-${run.id}`, role: 'USER', content: body.content, seq: ++c.lastSeq, runId: run.id, status: 'RUNNING' })
-          return data({ runId: run.id, conversationSeq: c.lastSeq })
+          return data({ messageId: `u-${run.id}`, runId: run.id, conversationSeq: c.lastSeq })
         }
         return data({ items: messages[c.id], nextCursor: null })
       }

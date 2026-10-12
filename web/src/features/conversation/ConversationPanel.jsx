@@ -113,6 +113,9 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
     chat.loadList().catch(() => {})
   }
   const lastUser = chat.messages.filter(m => m.role === 'USER').at(-1)
+  const replies = new Map(chat.messages.filter(m => m.role === 'ASSISTANT' && m.runId).map(m => [m.runId, m]))
+  const userRuns = new Set(chat.messages.filter(m => m.role === 'USER' && m.runId).map(m => m.runId))
+  const turns = chat.messages.filter(m => m.role === 'USER' || !userRuns.has(m.runId))
   const status = chat.taskActive ? chat.cancelRequested ? '正在停止…' : chat.connection === 'reconnecting' ? '连接中断，正在重连并查询状态…' : '正在处理…'
     : newReply ? '有新回复' : ''
   const inputLength = [...chat.draft.input].length
@@ -141,11 +144,11 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
       }}>
       <div className="assistantInner messageList">
         {chat.loading && <p className="muted">正在恢复对话…</p>}
-        {chat.messages.map(m => <ConversationTurn key={m.id} message={m} run={chat.runs[m.runId]} chapterNames={chapterNames}
+        {turns.map(m => <ConversationTurn key={m.id} message={m} reply={m.role === 'USER' ? replies.get(m.runId) : null} run={chat.runs[m.runId]} chapterNames={chapterNames}
           review={review} proposalStatuses={proposalStatuses} connection={chat.connection} onOpenProposal={onOpenProposal} onSource={(value, run) => setSource({ value, run })}
+          cancelRequested={chat.cancelRequested && chat.conversation?.activeRunId === m.runId}
           onRetry={chat.retry} canRetry={lastUser?.id === m.id && !chat.taskActive && !chat.busy && !projectBusy} />)}
         {!chat.loading && chat.messages.length === 0 && <p className="assistantEmptyMessage">告诉助手你的需求，它会按需查阅作品、分析问题或提出修改建议。</p>}
-        {chat.taskActive && <div className="assistantProgress" role="status"><Icon name="loading" size={16} />{status}</div>}
       </div>
       {unseen && <button className="newReplyButton" onClick={scrollToBottom}>查看新回复 ↓</button>}
     </ScrollArea>

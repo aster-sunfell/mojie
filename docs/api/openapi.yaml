@@ -200,6 +200,12 @@ paths:
       - { $ref: '#/components/parameters/Id' }
     get:
       operationId: getRun
+      description: >-
+        Includes steps, sources and activities. Activities contain only user-facing text
+        from task responses with tool calls, ordered by message sequence; each has a stable
+        id, modelCallIndex and text. Final answers remain in analysis and conversation
+        messages. Provider reasoning and compaction output are excluded. Available without
+        enabling the developer trace endpoint.
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }
