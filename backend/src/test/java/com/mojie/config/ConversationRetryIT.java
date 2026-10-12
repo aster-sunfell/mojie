@@ -36,6 +36,7 @@ class ConversationRetryIT {
       ModelGateway gateway =
           request -> {
             requests.add(request);
+            assertEquals(180_000L, request.timeoutMillis());
             if (fail.getAndSet(false)) {
               List<ToolCall> calls = new ArrayList<>();
               for (int n = 0; n < 33; n++)

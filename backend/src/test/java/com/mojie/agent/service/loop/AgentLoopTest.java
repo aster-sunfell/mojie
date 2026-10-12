@@ -22,6 +22,21 @@ class AgentLoopTest {
     private final FakeContent content = new FakeContent();
     private final AtomicBoolean cancelled = new AtomicBoolean();
 
+    @Test void slowResponsesHaveMoreThanAMinuteButRemainBoundedByTheRunDeadline() {
+        Instant now = Instant.parse("2026-10-12T07:00:00Z");
+        Script model = new Script(List.of(response("完成", List.of(), FinishReason.FINAL)));
+        for (long remaining : List.of(300_000L, 75_000L, 15_000L)) {
+            model.requests.clear();
+            LoopInput input = new LoopInput(
+                    new ToolContext(UUID.randomUUID().toString(), "p", null, 0, null),
+                    "讨论构思", "系统约束", "scripted", 100, now.plusMillis(remaining));
+            LoopOutcome outcome = new AgentLoop(model, List.of(), trace, LoopLimits.defaults(),
+                    Clock.fixed(now, ZoneOffset.UTC), () -> false).run(input);
+            assertInstanceOf(LoopOutcome.Completed.class, outcome);
+            assertEquals(Math.min(180_000L, remaining), model.requests.getFirst().timeoutMillis());
+        }
+    }
+
     @Test void projectReadRejectsScopeOverridesAndPinsOnlySuccessfulReadsPerRun() {
         AgentTool read = ContentTools.all(content, KEY).stream()
                 .filter(t -> t.spec().name().equals("read_project")).findFirst().orElseThrow();

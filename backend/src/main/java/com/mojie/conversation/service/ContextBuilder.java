@@ -94,7 +94,7 @@ public final class ContextBuilder implements ConversationRuntime {
             tools.stream().map(AgentTool::spec).toList(),
             run.modelId(),
             run.maxOutputTokens(),
-            60000);
+            LoopLimits.DEFAULT_MAX_REQUEST_MILLIS);
     if (estimate(request) > tokenBudget * 0.7 || characters(request) > charBudget * 0.7) {
       List<Long> turns = rows.stream().map(Protocol::turnSeq).distinct().toList();
       if (turns.size() > 2) {
@@ -120,7 +120,7 @@ public final class ContextBuilder implements ConversationRuntime {
                 List.of(),
                 run.modelId(),
                 Math.min(4000, run.maxOutputTokens()),
-                Math.min(60000, context.remainingMillis()));
+                Math.min(LoopLimits.DEFAULT_MAX_REQUEST_MILLIS, context.remainingMillis()));
         if (estimate(compression) + compression.maxOutputTokens() + 4096L
             > run.contextWindowTokens())
           throw new BusinessException(
@@ -171,7 +171,7 @@ public final class ContextBuilder implements ConversationRuntime {
             tools.stream().map(AgentTool::spec).toList(),
             run.modelId(),
             run.maxOutputTokens(),
-            60000);
+            LoopLimits.DEFAULT_MAX_REQUEST_MILLIS);
     if (estimate(effective) > tokenBudget || characters(effective) > charBudget)
       throw new BusinessException(
           "CONTEXT_TOO_LARGE",
@@ -204,7 +204,7 @@ public final class ContextBuilder implements ConversationRuntime {
                   List.of(),
                   run.modelId(),
                   Math.min(4000, run.maxOutputTokens()),
-                  Math.min(60000, context.remainingMillis()));
+                  Math.min(LoopLimits.DEFAULT_MAX_REQUEST_MILLIS, context.remainingMillis()));
           if (estimate(compression) + compression.maxOutputTokens() + 4096L
               > run.contextWindowTokens())
             throw new BusinessException(
@@ -271,7 +271,8 @@ public final class ContextBuilder implements ConversationRuntime {
             remainingRows.stream().map(Protocol::turnSeq).distinct().count() > 2
                 ? compactor
                 : null),
-        new LoopLimits(16, 32, 120000, 200000, run.contextWindowTokens(), 60000),
+        new LoopLimits(
+            16, 32, 120000, 200000, run.contextWindowTokens(), LoopLimits.DEFAULT_MAX_REQUEST_MILLIS),
         List.copyOf(tools));
   }
 
