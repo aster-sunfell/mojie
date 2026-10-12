@@ -222,14 +222,15 @@ class ConversationSkillsIT {
                                 List.of(new Selection(skill.id(), update.versionId())))))
                 .code());
         var before = service.get(a.id());
-        service.patch(a.id(), before.version(), "人物讨论", "ARCHIVED", null);
-        assertThrows(
-            BusinessException.class,
-            () ->
-                service.send(
-                    a.id(),
-                    new Send(
-                        "继续", UUID.randomUUID().toString(), 6L, "CHAT", null, null, List.of())));
+        service.patch(a.id(), before.version(), "人物讨论", false);
+        assertEquals("人物讨论", service.get(a.id()).title());
+        assertFalse(service.get(a.id()).discoveryEnabled());
+        assertEquals("CONVERSATION_VERSION_CONFLICT", assertThrows(BusinessException.class,
+            () -> service.patch(a.id(), before.version(), "过期标题", null)).code());
+        Receipt continued = service.send(a.id(), new Send(
+            "继续", UUID.randomUUID().toString(), 6L, "CHAT", null, null, List.of()));
+        await(agent, continued.runId());
+        assertEquals(8, service.get(a.id()).lastSeq());
       } finally {
         agent.sweeper().close();
         agent.executor().close();

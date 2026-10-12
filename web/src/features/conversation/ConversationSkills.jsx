@@ -19,11 +19,11 @@ export function ConversationSkills({ chat, skills, onClose, onLibrary, loadError
         : [...selected, { skillId: item.skill.id, versionId: chat.pins.find(s => s.skillId === item.skill.id)?.versionId || item.skill.currentVersionId }] })
     } catch (e) { setError(readableError(e)) } finally { setLoading(false) }
   }
-  const fixedDisabled = chat.taskActive || chat.busy || chat.conversation?.status !== 'ACTIVE'
+  const fixedDisabled = chat.taskActive || chat.busy || !chat.conversation
   return <Dialog title="本轮 Skill 与对话固定项" onCancel={onClose}>
     <div className="conversationSkills">
       <label className="skillCheck"><input type="checkbox" checked={chat.conversation?.discoveryEnabled ?? chat.draft.discoveryEnabled}
-        disabled={chat.taskActive || chat.busy || chat.conversation?.status === 'ARCHIVED'} onChange={event => chat.conversation
+        disabled={chat.taskActive || chat.busy} onChange={event => chat.conversation
           ? chat.patch({ discoveryEnabled: event.target.checked }) : chat.updateDraft({ discoveryEnabled: event.target.checked })} />允许自动发现其他 Skill</label>
       {(error || loadError || chat.error) && <p className="error" role="alert">{error || loadError || chat.error}</p>}
       {chat.pins.map(pin => <div className="pinnedSkill" key={pin.skillId}><span>固定：{skills.find(s => s.skill.id === pin.skillId)?.skill.name || pin.skillId}</span>

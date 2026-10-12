@@ -284,13 +284,6 @@ paths:
         $ref: '#/components/parameters/Cursor'
       - &id002
         $ref: '#/components/parameters/Limit'
-      - name: status
-        in: query
-        schema:
-          type: string
-          enum:
-          - ACTIVE
-          - ARCHIVED
   /conversations/{id}:
     parameters:
     - name: id
@@ -892,11 +885,6 @@ components:
           type: string
           minLength: 1
           maxLength: 100
-        status:
-          type: string
-          enum:
-          - ACTIVE
-          - ARCHIVED
         discoveryEnabled:
           type: boolean
     ConversationSend:

@@ -4,7 +4,7 @@ export async function mockWorkspace(page, { history = true,
     { id: 'c', title: '第一章 · 雨夜', chapterOrder: 1, version: 3, content: ('林舟推开窗，看见雨落在街道上。\n\n').repeat(40) },
     { id: 'c2', title: '第二章 · 故人', chapterOrder: 2, version: 1, content: '次日，林舟与故人在桥边重逢。' },
   ]
-  const conversations = history ? [{ id: 'd', title: '雨夜章节讨论', status: 'ACTIVE', lastSeq: 2, version: 1, discoveryEnabled: true }] : []
+  const conversations = history ? [{ id: 'd', title: '雨夜章节讨论', lastSeq: 2, version: 1, discoveryEnabled: true }] : []
   const runs = history ? [{ id: 'old', status: 'SUCCEEDED', targetChapterId: 'c', taskType: 'CHAPTER_REVIEW', baseVersion: 3,
     instruction: '检查人物设定与前文是否矛盾。', analysis, lastEventSeq: 1, steps: [], sources: [], modelCallCount: 2, toolCallCount: 3 }] : []
   const messages = history ? { d: [{ id: 'u-old', role: 'USER', content: runs[0].instruction, seq: 1, runId: 'old', status: 'SUCCEEDED' },
@@ -30,10 +30,10 @@ export async function mockWorkspace(page, { history = true,
     }
     if (path === '/projects/p/conversations') {
       if (request.method() === 'POST') {
-        const id = `d${conversations.length + 1}`, c = { id, title: '新对话', status: 'ACTIVE', lastSeq: 0, version: 1, discoveryEnabled: true }
+        const id = `d${conversations.length + 1}`, c = { id, title: '新对话', lastSeq: 0, version: 1, discoveryEnabled: true }
         conversations.push(c); messages[id] = []; creates.push(id); return data(c)
       }
-      return data({ items: conversations.filter(c => c.status === url.searchParams.get('status')), nextCursor: null })
+      return data({ items: conversations, nextCursor: null })
     }
     const c = conversations.find(c => path.startsWith(`/conversations/${c.id}`))
     if (c) {

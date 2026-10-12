@@ -10,7 +10,6 @@ public final class ConversationModels {
       String id,
       String projectId,
       String title,
-      String status,
       long lastSeq,
       long version,
       String activeRunId,

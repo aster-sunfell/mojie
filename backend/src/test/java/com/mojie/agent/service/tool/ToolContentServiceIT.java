@@ -52,7 +52,7 @@ class ToolContentServiceIT {
             dataSource.setURL(baseUrl + (baseUrl.contains("?") ? "&" : "?") + "currentSchema=" + schema);
             dataSource.setUser(user);
             dataSource.setPassword(password);
-            assertEquals(10, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
+            assertEquals(11, Flyway.configure().dataSource(dataSource).schemas(schema).load().migrate().migrationsExecuted);
             try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
                 try (ResultSet rows = statement.executeQuery("SELECT count(*) FROM pg_tables WHERE schemaname = '" + schema + "' AND tablename LIKE 'tb_%'")) {
                     rows.next(); assertEquals(28, rows.getInt(1));

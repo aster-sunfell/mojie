@@ -104,20 +104,18 @@ public final class ConversationService {
     return c;
   }
 
-  public Map<String, Object> page(String project, String status, String cursor, int limit) {
+  public Map<String, Object> page(String project, String cursor, int limit) {
     tx.required(
         () -> {
           access.lock(project, false);
           return null;
         });
     int size = ListPaging.limit(limit);
-    if (status != null && !Set.of("ACTIVE", "ARCHIVED").contains(status))
-      throw new IllegalArgumentException("Invalid status");
-    String scope = "conversations:" + project + ":" + status;
+    String scope = "conversations:" + project;
     var p = ListPaging.position(cursors, scope, cursor);
     var rows =
         repo.page(
-            project, status, p == null ? null : p.time(), p == null ? null : p.id(), size + 1);
+            project, p == null ? null : p.time(), p == null ? null : p.id(), size + 1);
     var items = rows.subList(0, Math.min(size, rows.size()));
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("items", items);
@@ -130,8 +128,7 @@ public final class ConversationService {
     return result;
   }
 
-  public Conversation patch(
-      String id, long version, String title, String status, Boolean discovery) {
+  public Conversation patch(String id, long version, String title, Boolean discovery) {
     return tx.required(
         () -> {
           Conversation before = get(id);
@@ -141,10 +138,7 @@ public final class ConversationService {
           String t = title == null ? c.title() : title.strip();
           if (t.isBlank() || t.codePointCount(0, t.length()) > 100)
             throw new IllegalArgumentException("Invalid title");
-          String st = status == null ? c.status() : status;
-          if (!Set.of("ACTIVE", "ARCHIVED").contains(st))
-            throw new IllegalArgumentException("Invalid status");
-          if (repo.patch(id, version, t, st, discovery == null ? c.discoveryEnabled() : discovery)
+          if (repo.patch(id, version, t, discovery == null ? c.discoveryEnabled() : discovery)
               != 1) throw conflict();
           return get(id);
         });
@@ -321,9 +315,6 @@ public final class ConversationService {
                         "The conversation's original model configuration is unavailable; create a"
                             + " new conversation");
                   if (c.lastSeq() != input.expectedConversationSeq()) throw conflict();
-                  if (!c.status().equals("ACTIVE"))
-                    throw new BusinessException(
-                        "RESOURCE_BUSY", "Restore this archived conversation before sending");
                   if (c.activeRunId() != null || runs.activeSlot(c.projectId()) != null)
                     throw busy();
                   if (retry != null && retry.seq() != c.lastSeq())

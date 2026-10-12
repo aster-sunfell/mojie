@@ -89,7 +89,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
   }, [chat.loading, chat.messages.length, chat.taskActive, chat.busy])
   const panelHeight = Math.max(chromeHeight, Math.min(enlarged ? availableHeight * .6 : desiredHeight ?? availableHeight * .4, availableHeight - 260, availableHeight * .6))
   const canSend = !chat.loading && (!chat.id || Boolean(chat.conversation)) && !chat.busy && !chat.taskActive && !chat.unavailableReason && !projectBusy
-    && (!chat.conversation || chat.conversation.status === 'ACTIVE') && Boolean(chat.draft.input.trim())
+    && Boolean(chat.draft.input.trim())
     && [...chat.draft.input].length <= 8000
   function send(event) {
     event.preventDefault()
@@ -111,8 +111,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
   function selectConversation(id) { saveReading(); restoreReading.current = true; chat.select(id); setPicker(false); setExpanded(Boolean(id)); setEnlarged(false) }
   function openHistory() {
     setPicker(true)
-    if (chat.archived) chat.setArchived(false)
-    else chat.loadList().catch(() => {})
+    chat.loadList().catch(() => {})
   }
   async function viewProposal(run) {
     if (await onOpenProposal(run)) {
@@ -122,7 +121,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
   }
   const lastUser = chat.messages.filter(m => m.role === 'USER').at(-1)
   const status = chat.taskActive ? chat.cancelRequested ? '正在停止…' : chat.connection === 'reconnecting' ? '连接中断，正在重连并查询状态…' : '正在处理…'
-    : newReply ? '有新回复' : chat.conversation?.status === 'ARCHIVED' ? '已归档' : ''
+    : newReply ? '有新回复' : ''
   const inputLength = [...chat.draft.input].length
   const skillLabel = chat.draft.selected.length ? `已选择 ${chat.draft.selected.length} 个 Skill` : '选择 Skill'
   const sendLabel = chat.busy ? '正在提交' : chat.taskActive ? chat.cancelRequested ? '正在停止' : '停止' : '发送'
@@ -158,7 +157,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
         {chat.loading && <p className="muted">正在恢复对话…</p>}
         {chat.messages.map(m => <ConversationTurn key={m.id} message={m} run={chat.runs[m.runId]} chapterNames={chapterNames}
           review={review} connection={chat.connection} onOpenProposal={viewProposal} onSource={(value, run) => setSource({ value, run })}
-          onRetry={chat.retry} canRetry={lastUser?.id === m.id && !chat.taskActive && !chat.busy && !projectBusy && chat.conversation?.status === 'ACTIVE'} />)}
+          onRetry={chat.retry} canRetry={lastUser?.id === m.id && !chat.taskActive && !chat.busy && !projectBusy} />)}
         {!chat.loading && chat.messages.length === 0 && <p className="assistantEmptyMessage">告诉助手你的需求，它会按需查阅作品、分析问题或提出修改建议。</p>}
         {chat.taskActive && <div className="assistantProgress" role="status"><Icon name="loading" size={16} />{status}</div>}
       </div>
@@ -167,7 +166,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
     <form onSubmit={send} className="assistantInner conversationComposer" aria-label="写作助手输入区">
       <div className="assistantInputBox">
         <textarea ref={textarea} aria-label="对话消息" rows={2} placeholder="告诉助手你想做什么…"
-          value={chat.draft.input} disabled={chat.busy || chat.conversation?.status === 'ARCHIVED'}
+          value={chat.draft.input} disabled={chat.busy}
           onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
           onChange={event => chat.updateDraft({ input: event.target.value })}
           onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
@@ -176,7 +175,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
           }} />
         <div className="assistantInputTools"><div className="assistantContext">
           <Tooltip label={skillLabel}><button type="button" className="assistantIconButton assistantSkillButton" aria-label="选择 Skill"
-            disabled={chat.busy || chat.conversation?.status === 'ARCHIVED'} onClick={() => setSkillPicker(true)}>
+            disabled={chat.busy} onClick={() => setSkillPicker(true)}>
             <Icon name="skill" />{chat.draft.selected.length > 0 && <span className="assistantSkillCount">{chat.draft.selected.length}</span>}
           </button></Tooltip>
           {chapter && chat.draft.useChapter !== false ? <div className="assistantChapterReference">
@@ -197,8 +196,6 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
       </div>
       <div className="assistantHelp"><span>{chat.unavailableReason || (dirty && chat.draft.useChapter !== false ? '助手读取已保存版本，本轮不包含未保存正文。' : projectBusy && !chat.taskActive ? '作品有任务正在执行，结束后可发送。' : 'Enter 发送 · Shift+Enter 换行')}
       </span>{(inputFocused || inputLength >= 6000) && <span className={inputLength > 8000 ? 'error' : ''}>{inputLength}/8000</span>}</div>
-      {chat.conversation?.status === 'ARCHIVED' && <div className="assistantArchivedNotice"><span>已归档，恢复后可以继续发送。</span>
-        <button type="button" className="link" disabled={chat.busy} onClick={() => chat.patch({ status: 'ACTIVE' })}>恢复对话</button></div>}
       {chat.error && !picker && <p className="error assistantError" role="alert">{chat.error}</p>}
     </form>
     {picker && <ConversationHistory chat={chat} onSelect={selectConversation} onClose={() => setPicker(false)} />}

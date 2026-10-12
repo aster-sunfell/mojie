@@ -30,28 +30,24 @@ public final class JdbcConversationRepository implements ConversationRepository 
         config);
   }
 
-  public List<Conversation> page(String project, String status, String time, String id, int size) {
+  public List<Conversation> page(String project, String time, String id, int size) {
     return db.records(
         Conversation.class,
-        "SELECT * FROM tb_conversation WHERE project_id=?::uuid AND (?::text IS NULL"
-            + " OR status=?) AND (?::timestamptz IS NULL OR"
+        "SELECT * FROM tb_conversation WHERE project_id=?::uuid AND (?::timestamptz IS NULL OR"
             + " (created_at,id)<(?::timestamptz,?::uuid)) ORDER BY created_at DESC,id DESC LIMIT ?",
         project,
-        status,
-        status,
         time,
         time,
         id,
         size);
   }
 
-  public int patch(String id, long version, String title, String status, boolean discovery) {
+  public int patch(String id, long version, String title, boolean discovery) {
     return db.update(
         "UPDATE tb_conversation SET"
-            + " title=?,status=?,discovery_enabled=?,version=version+1,updated_at=now() WHERE"
+            + " title=?,discovery_enabled=?,version=version+1,updated_at=now() WHERE"
             + " id=?::uuid AND version=?",
         title,
-        status,
         discovery,
         id,
         version);
@@ -157,7 +153,7 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::
         "UPDATE tb_conversation SET"
             + " active_run_id=?::uuid,last_seq=last_seq+?,version=version+1,title=CASE WHEN"
             + " title='新对话' THEN ? ELSE title END,updated_at=now() WHERE id=?::uuid AND last_seq=?"
-            + " AND active_run_id IS NULL AND status='ACTIVE'",
+            + " AND active_run_id IS NULL",
         run,
         retry ? 0 : 1,
         title,

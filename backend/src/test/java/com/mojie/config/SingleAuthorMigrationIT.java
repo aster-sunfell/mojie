@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.mojie.agent.model.ModelMetadata;
 import com.mojie.agent.repository.jdbc.JdbcModelMetadataRepository;
+import com.mojie.common.repository.jdbc.JdbcAccess;
 import com.mojie.support.*;
 import java.sql.*;
 import java.time.Instant;
@@ -29,7 +30,16 @@ class SingleAuthorMigrationIT {
         statement.execute("INSERT INTO tb_skill(owner_id,name)"
             + " VALUES('first-author','first-skill'),('second-author','second-skill')");
       }
+      var db = new JdbcAccess(source);
+      String historySql = "SELECT c.id,c.title,c.last_seq,c.model_id,c.model_config,"
+          + " m.id AS message_id,m.seq,m.content,m.status,m.run_id,"
+          + " r.conversation_id,r.trigger_message_id,r.input_boundary,r.config_snapshot"
+          + " FROM tb_conversation c JOIN tb_conversation_message m ON m.conversation_id=c.id"
+          + " JOIN tb_agent_run r ON r.id=m.run_id ORDER BY c.id,m.seq";
+      var historyBefore = db.query(historySql);
+      assertEquals(2, historyBefore.size());
       Flyway.configure().dataSource(source).load().migrate();
+      assertEquals(historyBefore, db.query(historySql));
       var content = TestServices.content(source);
       assertEquals(
           Set.of(first, second),

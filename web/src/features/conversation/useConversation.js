@@ -18,7 +18,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
   drafts.current[id] = draft
   const [conversation, setConversation] = useState(null), [messages, setMessages] = useState([])
   const [runs, setRuns] = useState({}), [runId, setRunId] = useState(null)
-  const [items, setItems] = useState([]), [cursor, setCursor] = useState(null), [archived, setArchived] = useState(false)
+  const [items, setItems] = useState([]), [cursor, setCursor] = useState(null)
   const [listLoading, setListLoading] = useState(true), [listError, setListError] = useState('')
   const [pins, setPins] = useState([]), [busy, setBusy] = useState(false), [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState(''), [cancelRequested, setCancelRequested] = useState(false)
@@ -62,7 +62,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
     const token = ++listCounter.current
     setListLoading(true); setListError('')
     try {
-      const page = await api(`/projects/${projectId}/conversations?status=${archived ? 'ARCHIVED' : 'ACTIVE'}&limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+      const page = await api(`/projects/${projectId}/conversations?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
       if (!mounted.current || token !== listCounter.current) return
       setItems(current => after ? [...new Map([...current, ...page.items].map(c => [c.id, c])).values()] : page.items)
       setCursor(page.nextCursor)
@@ -72,7 +72,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
     } finally {
       if (mounted.current && token === listCounter.current) setListLoading(false)
     }
-  }, [projectId, archived])
+  }, [projectId])
   listRef.current = loadList
   const load = useCallback(async () => {
     const currentId = scope.current
@@ -162,7 +162,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
   async function send() {
     const originalDraft = drafts.current[scope.current] || draft
     if (submitting.current || mutating.current || busy || loading || id && !conversation || taskActive || unavailableReason || options.current.projectBusy
-      || conversation && conversation.status !== 'ACTIVE' || !originalDraft.input.trim() || [...originalDraft.input].length > 8000) return
+      || !originalDraft.input.trim() || [...originalDraft.input].length > 8000) return
     const initialContext = options.current.getContext()
     submitting.current = true; setBusy(true); setError('')
     let currentId = scope.current
@@ -222,7 +222,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       options.current.onActivityChange?.()
     })
   }
-  return { id, conversation, messages, runs, items, cursor, archived, setArchived, listLoading, listError, pins, draft, unavailableReason,
+  return { id, conversation, messages, runs, items, cursor, listLoading, listError, pins, draft, unavailableReason,
     loading, busy, error: error || live.error, taskActive, cancelRequested,
     connection: live.connection, updateDraft, select, send, stop, retry, action, loadList,
     patchConversation: (item, value) => action(async () => {

@@ -15,7 +15,7 @@ async function mockReview(page, { baseContent = base, currentContent = baseConte
     proposedContent: changes.reduce((text, [before, after]) => text.replace(before, after), baseContent),
     reason: '修正游泳设定与灯笼颜色。', status: 'PENDING', items }
   const writes = []
-  const conversation = { id: 'd', title: '章节修改', status: 'ACTIVE', lastSeq: 2, version: 1, discoveryEnabled: true }
+  const conversation = { id: 'd', title: '章节修改', lastSeq: 2, version: 1, discoveryEnabled: true }
   await page.addInitScript(() => localStorage.setItem('mojie:conversation:p', 'd'))
   await page.route('**/api/v1/**', async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname.replace('/api/v1', '')

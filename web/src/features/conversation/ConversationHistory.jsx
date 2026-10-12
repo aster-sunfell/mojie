@@ -27,39 +27,19 @@ export function ConversationHistory({ chat, onSelect, onClose }) {
       document.removeEventListener('keydown', escape)
     }
   }, [menuId])
-  function filter(archived) {
-    setMenuId(null); setEditingId(null); setValidation(''); chat.setArchived(archived)
-  }
-  function tabKeyDown(event) {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || chat.busy) return
-    event.preventDefault()
-    const archived = event.key === 'Home' ? false : event.key === 'End' ? true : !chat.archived
-    filter(archived)
-    event.currentTarget.parentElement.children[archived ? 1 : 0].focus()
-  }
   async function rename(event, item) {
     event.preventDefault()
     const next = title.trim()
     if (!next || [...next].length > 100) { setValidation('请输入 1–100 字的对话标题。'); return }
     if (await chat.patchConversation(item, { title: next })) { setEditingId(null); setValidation('') }
   }
-  async function archive(item) {
-    setMenuId(null)
-    await chat.patchConversation(item, { status: item.status === 'ARCHIVED' ? 'ACTIVE' : 'ARCHIVED' })
-  }
   const error = validation || chat.listError || chat.error
   return <Dialog title="历史对话" onCancel={onClose} busy={chat.busy} showClose className="conversationHistoryDialog">
     <div className="conversationHistory">
-      <div className="conversationHistoryTabs" role="tablist" aria-label="对话分类">
-        <button role="tab" id={`${panelId}-recent`} aria-selected={!chat.archived} aria-controls={panelId}
-          tabIndex={chat.archived ? -1 : 0} onKeyDown={tabKeyDown} disabled={chat.busy} onClick={() => filter(false)}>最近</button>
-        <button role="tab" id={`${panelId}-archived`} aria-selected={chat.archived} aria-controls={panelId}
-          tabIndex={chat.archived ? 0 : -1} onKeyDown={tabKeyDown} disabled={chat.busy} onClick={() => filter(true)}>已归档</button>
-      </div>
       {error && <div className="conversationHistoryError"><p className="error" role="alert">{error}</p>
         {chat.listError && <button className="link" disabled={chat.listLoading} onClick={() => chat.loadList().catch(() => {})}>重试加载</button>}
       </div>}
-      <ScrollArea className="conversationHistoryList" id={panelId} role="tabpanel" aria-labelledby={`${panelId}-${chat.archived ? 'archived' : 'recent'}`}
+      <ScrollArea className="conversationHistoryList" id={panelId} role="region" aria-label="历史对话列表"
         aria-busy={chat.listLoading}>
         {chat.items.map(record => {
           const item = record.id === chat.id && chat.conversation ? { ...record, ...chat.conversation } : record
@@ -87,13 +67,12 @@ export function ConversationHistory({ chat, onSelect, onClose }) {
                   disabled={blocked} onClick={() => setMenuId(value => value === item.id ? null : item.id)}><Icon name="more" /></button></Tooltip>
                 {menuId === item.id && <div className="conversationHistoryOperations" id={`${panelId}-actions`}>
                   <button onClick={() => { setMenuId(null); setEditingId(item.id); setTitle(item.title); setValidation('') }}>重命名</button>
-                  <button onClick={() => archive(item)}>{item.status === 'ARCHIVED' ? '恢复' : '归档'}</button>
                 </div>}
               </div>
             </>}
           </div>
         })}
-        {!chat.listLoading && !chat.listError && !chat.items.length && <p className="conversationHistoryEmpty">{chat.archived ? '暂无已归档对话' : '暂无历史对话，发送第一条消息即可开始。'}</p>}
+        {!chat.listLoading && !chat.listError && !chat.items.length && <p className="conversationHistoryEmpty">暂无历史对话，发送第一条消息即可开始。</p>}
         {chat.listLoading && <p className="conversationHistoryEmpty" role="status">正在加载对话…</p>}
       </ScrollArea>
       {chat.cursor && <button className="link conversationHistoryLoadMore" disabled={chat.listLoading || chat.busy}

@@ -11,7 +11,7 @@ const reply = data => ({ ok: true, status: 200, json: async () => ({ data }) })
 
 function renderApp(runIds = []) {
   const previous = fetch
-  const conversation = { id: 'dialog', title: '章节讨论', status: 'ACTIVE', lastSeq: runIds.length * 2, version: 1, discoveryEnabled: true }
+  const conversation = { id: 'dialog', title: '章节讨论', lastSeq: runIds.length * 2, version: 1, discoveryEnabled: true }
   if (runIds.length) localStorage.setItem('mojie:conversation:p', conversation.id)
   globalThis.fetch = vi.fn((url, options) => {
     if (url.startsWith('/api/v1/projects/p/conversations?')) return Promise.resolve(reply({ items: runIds.length ? [conversation] : [], nextCursor: null }))

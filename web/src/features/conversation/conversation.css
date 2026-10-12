@@ -61,8 +61,6 @@
 .assistantHelp{display:flex;justify-content:space-between;gap:12px;color:#929d95;font-size:11px;margin-top:5px;line-height:18px}
 .assistantHelp>span:last-child{white-space:nowrap}
 .assistantHelp>span:first-child{white-space:normal}
-.assistantArchivedNotice{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px;font-size:12px;color:#718379}
-.assistantArchivedNotice button{font-size:12px;padding:3px 0}
 .assistantError{margin:6px 0 0;font-size:12px;max-height:54px;overflow-y:auto}
 .newReplyButton{display:block;width:max-content;margin:8px auto 0;font-size:12px;padding:3px 10px;position:sticky;bottom:8px;box-shadow:var(--shadow-card);z-index:1}
 .turnFailure{font-size:12px;color:#7b8981;margin-top:8px}
@@ -72,10 +70,6 @@
 .skillCheck{display:flex;align-items:center;gap:8px}
 .conversationHistoryDialog{max-width:560px;padding:24px}
 .conversationHistory{display:flex;flex-direction:column;gap:14px;min-width:0}
-.conversationHistoryTabs{display:flex;gap:4px;padding:4px;background:#f1f4ef;border-radius:9px}
-.conversationHistoryTabs button{flex:1;padding:7px 12px;background:transparent;color:#7b8981;font-size:13px;font-weight:400}
-.conversationHistoryTabs button:hover:not(:disabled){background:#e7eee5}
-.conversationHistoryTabs button[aria-selected='true']{background:var(--color-surface);color:var(--color-primary);box-shadow:0 1px 3px #19352812;font-weight:600}
 .conversationHistoryList{min-height:120px;max-height:48dvh;overflow-y:auto;overscroll-behavior:contain;padding:4px}
 .conversationHistoryRow{display:flex;align-items:flex-start;gap:8px;padding:8px;border:1px solid transparent;border-radius:10px}
 .conversationHistoryRow+.conversationHistoryRow{margin-top:4px}

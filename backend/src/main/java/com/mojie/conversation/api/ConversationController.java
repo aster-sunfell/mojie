@@ -23,10 +23,9 @@ public final class ConversationController {
   @GetMapping("/projects/{id}/conversations")
   public Object list(
       @PathVariable String id,
-      @RequestParam(required = false) String status,
       @RequestParam(required = false) String cursor,
       @RequestParam(defaultValue = "20") int limit) {
-    return service.page(id, status, cursor, limit);
+    return service.page(id, cursor, limit);
   }
 
   @GetMapping("/conversations/{id}")
@@ -34,14 +33,12 @@ public final class ConversationController {
     return service.get(id);
   }
 
-  public record Patch(
-      Long expectedVersion, String title, String status, Boolean discoveryEnabled) {}
+  public record Patch(Long expectedVersion, String title, Boolean discoveryEnabled) {}
 
   @PatchMapping("/conversations/{id}")
   public Conversation patch(@PathVariable String id, @RequestBody Patch p) {
     if (p.expectedVersion() == null) throw new IllegalArgumentException("expectedVersion required");
-    return service.patch(
-        id, p.expectedVersion(), p.title(), p.status(), p.discoveryEnabled());
+    return service.patch(id, p.expectedVersion(), p.title(), p.discoveryEnabled());
   }
 
   @GetMapping("/conversations/{id}/messages")

@@ -8,10 +8,9 @@ public interface ConversationRepository {
 
   Conversation insert(String project, String model, String config);
 
-  List<Conversation> page(
-      String project, String status, String afterTime, String afterId, int size);
+  List<Conversation> page(String project, String afterTime, String afterId, int size);
 
-  int patch(String id, long version, String title, String status, boolean discovery);
+  int patch(String id, long version, String title, boolean discovery);
 
   List<DisplayMessage> messages(String id, long after, int size);
 

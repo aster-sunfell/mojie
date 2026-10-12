@@ -18,7 +18,7 @@ function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', after
     { id: 'c', title: '第一章', chapterOrder: 1, version: 1, content: '原文' },
     { id: 'c2', title: '第二章', chapterOrder: 2, version: 1, content: '第二章正文' },
   ]
-  const conversations = Object.fromEntries(initial.map((c, index) => [c.id, { title: `讨论 ${index}`, status: 'ACTIVE', lastSeq: 0, version: 1, discoveryEnabled: true, ...c }]))
+  const conversations = Object.fromEntries(initial.map((c, index) => [c.id, { title: `讨论 ${index}`, lastSeq: 0, version: 1, discoveryEnabled: true, ...c }]))
   const records = Object.fromEntries(initial.map(c => [c.id, initialMessages[c.id] || []]))
   const runs = {}, receipts = new Map(), writes = [], saves = [], cancelled = [], creates = []
   if (initial.length) localStorage.setItem('mojie:conversation:p', initial[0].id)
@@ -41,13 +41,12 @@ function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', after
     if (path === '/projects/p/conversations') {
       if (options.method === 'POST') {
         const id = `d${Object.keys(conversations).length + 1}`
-        const c = { id, title: '新对话', status: 'ACTIVE', lastSeq: 0, version: 1, discoveryEnabled: true }
+        const c = { id, title: '新对话', lastSeq: 0, version: 1, discoveryEnabled: true }
         conversations[id] = c; records[id] = []; creates.push(id)
         return reply({ ...c })
       }
-      const archived = new URL(url, 'http://localhost').searchParams.get('status')
       if (listGet) return listGet(url, conversations)
-      return reply({ items: Object.values(conversations).filter(c => c.status === archived), nextCursor: null })
+      return reply({ items: Object.values(conversations), nextCursor: null })
     }
     const id = path.match(/^\/conversations\/([^/]+)/)?.[1], c = conversations[id]
     if (c) {
@@ -316,7 +315,7 @@ test('empty composer has only icon actions and does not offer shortcuts or empty
   expect(state.creates).toHaveLength(0); expect(state.writes).toHaveLength(0)
 })
 
-test('history dialog renames and archives any conversation without switching drafts, and restores the current conversation', async () => {
+test('history dialog lists all conversations and renames without switching drafts', async () => {
   const state = setup({ initial: [{ id: 'a' }, { id: 'b', updatedAt: '2026-10-12T03:00:00Z' }] })
   await ready('保留当前草稿')
   fireEvent.click(screen.getByRole('button', { name: '历史对话' }))
@@ -331,25 +330,14 @@ test('history dialog renames and archives any conversation without switching dra
   expect(state.conversations.b.title).toBe('人物讨论')
   expect(input().value).toBe('保留当前草稿')
   expect(document.querySelector('.conversationName').textContent).toBe('讨论 0')
-  fireEvent.click(dialog.getByRole('button', { name: '更多操作：人物讨论' }))
-  fireEvent.click(dialog.getByRole('button', { name: '归档', exact: true }))
-  await waitFor(() => expect(dialog.queryByRole('button', { name: '打开对话：人物讨论' })).toBeNull())
-  fireEvent.click(dialog.getByRole('tab', { name: '已归档' }))
-  await dialog.findByRole('button', { name: '打开对话：人物讨论' })
-  fireEvent.click(dialog.getByRole('button', { name: '更多操作：人物讨论' }))
-  fireEvent.click(dialog.getByRole('button', { name: '恢复', exact: true }))
-  await waitFor(() => expect(dialog.queryByRole('button', { name: '打开对话：人物讨论' })).toBeNull())
-  fireEvent.click(dialog.getByRole('tab', { name: '最近' }))
-  await dialog.findByRole('button', { name: '打开对话：讨论 0' })
-  fireEvent.click(dialog.getByRole('button', { name: '更多操作：讨论 0' }))
-  fireEvent.click(dialog.getByRole('button', { name: '归档', exact: true }))
-  await waitFor(() => expect(dialog.queryByRole('button', { name: '打开对话：讨论 0' })).toBeNull())
+  expect(dialog.queryByRole('tab')).toBeNull()
+  expect(dialog.getAllByRole('button', { name: /打开对话：/ })).toHaveLength(2)
+  const listRequests = fetch.mock.calls.filter(([url]) => url.includes('/projects/p/conversations?'))
+  expect(listRequests.length).toBeGreaterThan(0)
+  expect(listRequests.every(([url]) => !new URL(url, 'http://localhost').searchParams.has('status'))).toBe(true)
   fireEvent.click(dialog.getByRole('button', { name: '关闭' }))
-  expect(input().disabled).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: '恢复对话' }))
-  await waitFor(() => expect(send().disabled).toBe(false))
-  expect(state.conversations.a.status).toBe('ACTIVE')
   expect(input().value).toBe('保留当前草稿')
+  expect(send().disabled).toBe(false)
 })
 
 test('history loads further pages and recovers from a list error while retaining the composer draft', async () => {
