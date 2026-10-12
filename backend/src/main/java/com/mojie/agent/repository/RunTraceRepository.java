@@ -24,6 +24,8 @@ public interface RunTraceRepository {
 
   int failModelCall(UUID id, String code, String detail);
 
+  int appendOutput(String runId, int callIndex, String text, long eventSeq);
+
   long nextMessageSequence(String runId);
 
   int insertMessage(

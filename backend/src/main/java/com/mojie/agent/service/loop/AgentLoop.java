@@ -117,7 +117,10 @@ public final class AgentLoop {
         trace.modelRequest(runId, callIndex, List.copyOf(messageSeqs), request, historyIds, "TASK");
         Response response;
         try {
-          response = model.call(request);
+          response = model.call(request, delta -> {
+            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException();
+            trace.modelText(runId, callIndex, delta.text());
+          });
         } catch (ModelGateway.ModelException e) {
           trace.modelFailed(runId, callIndex, e.code(), e.getMessage());
           return new LoopOutcome.Failed(e.code(), e.getMessage());

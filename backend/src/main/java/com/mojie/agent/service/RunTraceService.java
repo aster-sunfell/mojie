@@ -94,6 +94,17 @@ public final class RunTraceService implements LoopTrace {
   }
 
   @Override
+  public void modelText(String runId, int callIndex, String text) {
+    if (text == null || text.isEmpty()) return;
+    transactions.required(() -> {
+      requireActive(runId);
+      long seq = append(runId, "model.text.delta", Map.of("callIndex", callIndex, "text", text));
+      requireOne(trace.appendOutput(runId, callIndex, text, seq));
+      return null;
+    });
+  }
+
+  @Override
   public long modelFailed(String runId, int callIndex, String code, String detail) {
     return transactions.required(
         () -> {

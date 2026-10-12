@@ -12,6 +12,8 @@ public interface RunReadRepository {
 
   List<RunActivity> listActivities(String runId);
 
+  RunOutput latestOutput(String runId);
+
   List<TraceSource> listSourcesDetailed(String runId);
 
   List<TraceStep> listStepsDetailed(String runId);

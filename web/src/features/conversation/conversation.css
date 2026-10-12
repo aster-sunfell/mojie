@@ -30,6 +30,7 @@
 .conversationActivity{display:flex;flex-direction:column;gap:6px;min-width:0}
 .conversationActivity:empty{display:none}
 .assistantCommentary{margin:2px 0 6px}
+.assistantDraftLabel{display:block;color:#718379;font-size:12px;margin-bottom:5px}
 .conversationActivity:not(:empty)+.assistantAnswer{margin-top:16px}
 .conversationToolActivity{font-size:12px;color:#718379;min-width:0}
 .conversationToolActivity>summary{display:flex;align-items:flex-start;gap:7px;cursor:pointer;padding:3px 0;list-style:none;line-height:1.6}

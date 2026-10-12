@@ -10,6 +10,7 @@ export function ConversationTurn({ message, reply, run, chapterNames, review, pr
   const [resources, setResources] = useState(null), [resourceError, setResourceError] = useState('')
   const [retryResources, setRetryResources] = useState(0)
   const [settingStatus, setSettingStatus] = useState(null)
+  const resourceVersion = run?.steps?.map(step => `${step.toolExecutionId}:${step.status}`).join(',')
   useEffect(() => {
     setSettingStatus(null)
     if (run?.targetType !== 'SETTING' || !run.proposalId) return
@@ -26,7 +27,7 @@ export function ConversationTurn({ message, reply, run, chapterNames, review, pr
       if (!disposed) { setResources(value); setResourceError('') }
     }).catch(e => { if (!disposed) setResourceError(readableError(e)) })
     return () => { disposed = true }
-  }, [run?.id, run?.status, run?.lastEventSeq, retryResources])
+  }, [run?.id, run?.status, resourceVersion, retryResources])
   const user = message.role === 'USER'
   const assistant = reply || (!user ? message : null)
   const status = run?.status || message.status

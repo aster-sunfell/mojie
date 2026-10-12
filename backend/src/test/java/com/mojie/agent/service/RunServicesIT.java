@@ -245,8 +245,11 @@ class RunServicesIT {
                             """;
                     default -> throw new AssertionError("Unexpected model call " + index);
                 };
-                byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                byte[] bytes;
+                try { bytes = StreamingResponses.chat(response).getBytes(StandardCharsets.UTF_8); }
+                catch (Exception e) { throw new java.io.IOException(e); }
+                assertTrue(body.path("stream").asBoolean());
+                exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
                 exchange.sendResponseHeaders(200, bytes.length);
                 try (var output = exchange.getResponseBody()) { output.write(bytes); }
             });

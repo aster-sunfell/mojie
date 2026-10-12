@@ -70,6 +70,7 @@ public final class RunQueryService {
           Map<String, Object> run = scoped(runId);
           run.put("steps", fields(reads.listSteps(runId)));
           run.put("activities", fields(reads.listActivities(runId)));
+          run.put("output", fields(reads.latestOutput(runId)));
           run.put("sources", fields(reads.listSources(runId)));
           return run;
         });

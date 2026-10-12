@@ -52,10 +52,15 @@ function ToolActivity({ step, chapterNames, skills }) {
 
 export function ConversationActivity({ run, chapterNames, resources, connection, cancelRequested }) {
   if (!run) return null
+  const draft = run.output?.text && run.status !== 'SUCCEEDED'
+    && !(run.activities || []).some(item => item.modelCallIndex === run.output.modelCallIndex)
+      ? run.output : null
   // A model response's public text precedes its sequential tool calls. Stable IDs keep
   // expanded activities in place when snapshots refresh or the final answer arrives.
   const timeline = [
     ...(run.activities || []).map(item => ({ ...item, kind: 'commentary' })),
+    ...(draft ? [{ id: `draft-${draft.modelCallIndex}`, modelCallIndex: draft.modelCallIndex,
+      kind: 'draft', text: draft.text }] : []),
     ...(run.steps || []).map((step, order) => ({ id: step.toolExecutionId, modelCallIndex: step.modelCallIndex,
       kind: 'tool', step, order })),
   ].sort((a, b) => (a.modelCallIndex || 0) - (b.modelCallIndex || 0)
@@ -66,8 +71,11 @@ export function ConversationActivity({ run, chapterNames, resources, connection,
   const status = cancelRequested ? '正在停止…' : connection === 'reconnecting' ? '连接中断，正在重连并查询状态…'
     : run.status === 'QUEUED' ? '正在排队…' : '正在分析并组织回复…'
   return <div className="conversationActivity">
-    {timeline.map(item => item.kind === 'commentary'
-      ? <Markdown key={`commentary-${item.id}`} className="conversationMarkdown assistantCommentary" content={item.text} />
+    {timeline.map(item => item.kind !== 'tool'
+      ? <div key={`commentary-${item.id}`} className={item.kind === 'draft' ? 'assistantDraft' : undefined}>
+        {item.kind === 'draft' && <small className="assistantDraftLabel">{active(run.status) ? '生成中' : '未完成的回复'}</small>}
+        <Markdown className="conversationMarkdown assistantCommentary" content={item.text} />
+      </div>
       : <ToolActivity key={`tool-${item.id}`} step={item.step} chapterNames={chapterNames} skills={resources?.skills} />)}
     {processing && (!runningTool || cancelRequested || connection === 'reconnecting') && <div className="assistantProgress" role="status">
       <Icon name="loading" size={16} />{status}</div>}

@@ -94,3 +94,49 @@ test('late detail refresh for a previously selected task cannot replace the curr
   expect(result.current.run.id).toBe('run-2')
   expect(onChange.mock.calls.map(([snapshot]) => snapshot.id)).toEqual(['run-1', 'run-2'])
 })
+
+test('text deltas extend a recovered draft without querying details or duplicating replayed text', async () => {
+  globalThis.EventSource = FakeEventSource
+  const initial = { id: 'stream', status: 'RUNNING', lastEventSeq: 4,
+    output: { modelCallIndex: 1, text: '已经生成', status: 'STARTED', lastEventSeq: 4 } }
+  let snapshot = initial
+  globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ data: snapshot }) }))
+  const onChange = vi.fn()
+  const { result, unmount } = renderHook(() => useRun('stream', onChange))
+  await waitFor(() => expect(result.current.run?.output.text).toBe('已经生成'))
+  expect(FakeEventSource.current.url).toContain('afterSeq=4')
+  const delta = { runId: 'stream', seq: 5, payload: { callIndex: 1, text: '的正文😀' } }
+  act(() => FakeEventSource.current.emit('model.text.delta', delta))
+  expect(result.current.run.output.text).toBe('已经生成的正文😀')
+  expect(fetch).toHaveBeenCalledTimes(1)
+  act(() => {
+    FakeEventSource.current.emit('model.text.delta', delta)
+    FakeEventSource.current.emit('model.text.delta', { ...delta, runId: 'other', seq: 6 })
+  })
+  expect(result.current.run.output.text).toBe('已经生成的正文😀')
+  await act(async () => { await result.current.refresh() })
+  expect(result.current.run.output.text).toBe('已经生成的正文😀') // Old snapshot cannot erase new text.
+  snapshot = { ...initial, lastEventSeq: 7, output: { modelCallIndex: 2, text: '最终', status: 'STARTED' } }
+  await act(async () => { await result.current.refresh() })
+  act(() => FakeEventSource.current.emit('model.text.delta', { runId: 'stream', seq: 8, payload: { callIndex: 2, text: '回答' } }))
+  expect(result.current.run.output.text).toBe('最终回答')
+  snapshot = { ...snapshot, status: 'SUCCEEDED', lastEventSeq: 9, analysis: '最终回答' }
+  await act(async () => { FakeEventSource.current.emit('run.succeeded', { runId: 'stream', seq: 9 }) })
+  await waitFor(() => expect(result.current.run.status).toBe('SUCCEEDED'))
+  expect(FakeEventSource.current.closed).toBe(true)
+  unmount()
+})
+
+test('a new model call uses a separate draft and stale fragments cannot replace it', async () => {
+  globalThis.EventSource = FakeEventSource
+  globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ data:
+    { id: 'stream-2', status: 'RUNNING', lastEventSeq: 2, output: { modelCallIndex: 1, text: '先查阅', status: 'STARTED' } } }) }))
+  const { result, unmount } = renderHook(() => useRun('stream-2'))
+  await waitFor(() => expect(result.current.run?.id).toBe('stream-2'))
+  act(() => FakeEventSource.current.emit('model.text.delta', { runId: 'stream-2', seq: 5, payload: { callIndex: 2, text: '根据查阅结果' } }))
+  expect(result.current.run.output.text).toBe('根据查阅结果')
+  act(() => FakeEventSource.current.emit('model.text.delta', { runId: 'stream-2', seq: 6, payload: { callIndex: 1, text: '旧调用' } }))
+  expect(result.current.run.output.text).toBe('根据查阅结果')
+  expect(fetch).toHaveBeenCalledTimes(1)
+  unmount()
+})

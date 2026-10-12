@@ -84,6 +84,18 @@ SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS 
   }
 
   @Override
+  public RunOutput latestOutput(String runId) {
+    return db.firstRecord(RunOutput.class, """
+        SELECT o.call_index AS model_call_index, o.text, o.last_event_seq, m.status, m.finish_reason
+          FROM tb_agent_output o JOIN tb_agent_model_call m
+            ON m.run_id=o.run_id AND m.call_index=o.call_index
+         WHERE o.run_id=?::uuid AND m.phase='TASK'
+           AND m.call_index=(SELECT max(call_index) FROM tb_agent_model_call
+                            WHERE run_id=?::uuid AND phase='TASK')
+        """, runId, runId);
+  }
+
+  @Override
   public List<TraceSource> listSourcesDetailed(String runId) {
     return db.records(
         TraceSource.class,

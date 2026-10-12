@@ -30,7 +30,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.*;
 
 @Configuration
-@EnableConfigurationProperties(ModelProperties.class)
+@EnableConfigurationProperties({ModelProperties.class, ModelStreamingProperties.class})
 public class AgentConfiguration {
   public record Services(
       RunService runs,
@@ -209,16 +209,16 @@ public class AgentConfiguration {
   }
 
   @Bean
-  ModelGateway modelGateway(ModelApiConfig config) {
+  ModelGateway modelGateway(ModelApiConfig config, ModelStreamingProperties streaming) {
     return !config.configured()
         ? request -> {
           throw new ModelGateway.ModelException("MODEL_ERROR", "Model is not configured");
         }
         : switch (config.apiPath()) {
           case ModelApiConfig.MESSAGES ->
-              AnthropicModelGateway.configured(config.apiKey(), config.baseUrl());
+              AnthropicModelGateway.configured(config.apiKey(), config.baseUrl(), streaming.timeouts());
           case ModelApiConfig.CHAT_COMPLETIONS ->
-              new ChatCompletionsModelGateway(config.apiKey(), config.baseUrl());
+              new ChatCompletionsModelGateway(config.apiKey(), config.baseUrl(), streaming.timeouts());
           default -> throw new IllegalStateException("Unsupported model API path");
         };
   }

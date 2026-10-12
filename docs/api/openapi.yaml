@@ -206,6 +206,10 @@ paths:
         id, modelCallIndex and text. Final answers remain in analysis and conversation
         messages. Provider reasoning and compaction output are excluded. Available without
         enabling the developer trace endpoint.
+        output is the recoverable public draft for the latest TASK model call (or null),
+        with modelCallIndex, text, lastEventSeq, status and finishReason. The draft and
+        run lastEventSeq are read in one consistent snapshot; subscribe after that cursor
+        to receive subsequent increments. Drafts do not imply successful completion.
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }
@@ -221,7 +225,11 @@ paths:
       - { $ref: '#/components/parameters/Id' }
     get:
       operationId: streamRunEvents
-      description: At most 20 active subscriptions globally; excess connections receive STREAM_CAPACITY_EXCEEDED.
+      description: >-
+        At most 20 active subscriptions globally; excess connections receive STREAM_CAPACITY_EXCEEDED.
+        model.text.delta events carry payload.callIndex and payload.text (new public text only).
+        Use the envelope seq to deduplicate replay. Each model call has a separate draft.
+        Provider reasoning, partial tool arguments and history compaction output are excluded.
       parameters:
         - { name: afterSeq, in: query, schema: { type: integer, format: int64, minimum: 0 } }
         - { name: Last-Event-ID, in: header, schema: { type: string, pattern: '^[0-9]+$' } }

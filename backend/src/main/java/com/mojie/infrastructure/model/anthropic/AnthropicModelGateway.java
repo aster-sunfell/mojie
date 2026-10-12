@@ -7,20 +7,27 @@ import com.anthropic.core.RequestOptions;
 import com.anthropic.core.Timeout;
 import com.anthropic.errors.*;
 import com.anthropic.models.messages.*;
+import com.anthropic.helpers.MessageAccumulator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.mojie.agent.service.port.ModelGateway;
+import com.mojie.infrastructure.model.StreamTimeouts;
+import com.mojie.infrastructure.model.StreamWatchdog;
+import com.mojie.infrastructure.model.ModelTextBuffer;
 import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CancellationException;
+import java.util.function.Consumer;
 
 /** Anthropic Messages adapter: one SDK request, zero SDK retries, no tool execution. */
 public final class AnthropicModelGateway implements ModelGateway, AutoCloseable {
     private final AnthropicClient client;
     private final JsonMapper json = JsonMapper.builder().build();
     private final boolean ownsClient;
+    private final StreamTimeouts streamTimeouts;
 
     public static AnthropicModelGateway fromEnvironment() {
         String apiKey = System.getenv("ANTHROPIC_API_KEY");
@@ -30,6 +37,10 @@ public final class AnthropicModelGateway implements ModelGateway, AutoCloseable 
 
     public static AnthropicModelGateway configured(String apiKey, String baseUrl) {
         return new AnthropicModelGateway(createClient(apiKey, baseUrl), true);
+    }
+
+    public static AnthropicModelGateway configured(String apiKey, String baseUrl, StreamTimeouts timeouts) {
+        return new AnthropicModelGateway(createClient(apiKey, baseUrl), true, timeouts);
     }
 
     static AnthropicClient createClient(String apiKey, String baseUrl) {
@@ -44,7 +55,75 @@ public final class AnthropicModelGateway implements ModelGateway, AutoCloseable 
     /** Injection constructor for deterministic adapter tests. */
     public AnthropicModelGateway(AnthropicClient client) { this(client, false); }
     private AnthropicModelGateway(AnthropicClient client, boolean ownsClient) {
+        this(client, ownsClient, StreamTimeouts.defaults());
+    }
+    public AnthropicModelGateway(AnthropicClient client, StreamTimeouts timeouts) {
+        this(client, false, timeouts);
+    }
+    private AnthropicModelGateway(AnthropicClient client, boolean ownsClient, StreamTimeouts timeouts) {
         this.client = Objects.requireNonNull(client); this.ownsClient = ownsClient;
+        this.streamTimeouts = Objects.requireNonNull(timeouts);
+    }
+
+    @Override public Response call(Request request, Consumer<ModelGateway.TextDelta> onDelta) throws ModelException {
+        if (request.timeoutMillis() <= 0) throw new ModelException("RUN_TIMEOUT", "No request time remains");
+        Objects.requireNonNull(onDelta);
+        long started = System.nanoTime();
+        MessageCreateParams.Builder params = MessageCreateParams.builder()
+                .model(request.modelId()).maxTokens(request.maxOutputTokens())
+                .system(request.systemPrompt()).messages(toMessages(request.messages()));
+        for (ToolSpec spec : request.tools()) params.addTool(toTool(spec));
+        try (var stream = client.messages().createStreaming(params.build(),
+                RequestOptions.builder().timeout(Duration.ofMillis(Math.min(request.timeoutMillis(),
+                    streamTimeouts.firstEvent().toMillis()))).build());
+             var watchdog = new StreamWatchdog(stream, started, request.timeoutMillis(), streamTimeouts);
+             var textBuffer = new ModelTextBuffer(onDelta)) {
+            MessageAccumulator accumulator = MessageAccumulator.create();
+            boolean stopped = false;
+            long receivedChars = 0;
+            try {
+                var iterator = stream.stream().iterator();
+                while (iterator.hasNext()) {
+                    RawMessageStreamEvent event = iterator.next();
+                    watchdog.eventReceived();
+                    receivedChars += event.toString().length();
+                    if (receivedChars > 4_194_304)
+                        throw new ModelException("INVALID_MODEL_RESPONSE", "Model stream output is too large");
+                    try { accumulator.accumulate(event); }
+                    catch (IllegalArgumentException | IllegalStateException e) {
+                        throw new ModelException("INVALID_MODEL_RESPONSE", "Invalid model stream sequence");
+                    }
+                    event.contentBlockStart().flatMap(e -> e.contentBlock().text())
+                        .ifPresent(text -> { if (!text.text().isEmpty()) textBuffer.accept(new ModelGateway.TextDelta(text.text())); });
+                    event.contentBlockDelta().flatMap(e -> e.delta().text())
+                        .ifPresent(text -> { if (!text.text().isEmpty()) textBuffer.accept(new ModelGateway.TextDelta(text.text())); });
+                    if (event.isMessageStop()) { stopped = true; break; }
+                }
+            } catch (RuntimeException e) {
+                watchdog.ensureActive();
+                throw e;
+            }
+            watchdog.ensureActive();
+            if (!stopped) throw new ModelException("INVALID_MODEL_RESPONSE", "Model stream ended before message_stop");
+            try { return fromSdk(accumulator.message()); }
+            catch (IllegalArgumentException | IllegalStateException e) {
+                throw new ModelException("INVALID_MODEL_RESPONSE", "Incomplete model stream response");
+            }
+        } catch (UnauthorizedException | PermissionDeniedException e) {
+            throw new ModelException("MODEL_AUTH_ERROR", "Model authentication failed");
+        } catch (RateLimitException e) {
+            throw new ModelException("MODEL_RATE_LIMITED", "Model rate limit reached");
+        } catch (AnthropicIoException e) {
+            if (Thread.currentThread().isInterrupted()) throw new CancellationException("Model stream cancelled");
+            throw new ModelException(hasTimeoutCause(e) ? "MODEL_TIMEOUT" : "MODEL_NETWORK_ERROR", "Model stream connection failed");
+        } catch (AnthropicServiceException e) {
+            if (e.statusCode() == 402)
+                throw new ModelException("MODEL_PAYMENT_REQUIRED", "模型账户余额不足或需要开通付费权限，请检查模型服务账户。");
+            throw new ModelException("MODEL_ERROR", "Model provider failed with HTTP " + e.statusCode());
+        } catch (AnthropicException e) {
+            if (Thread.currentThread().isInterrupted()) throw new CancellationException("Model stream cancelled");
+            throw new ModelException("MODEL_ERROR", "Model stream SDK failed");
+        }
     }
 
     @Override public Response call(Request request) throws ModelException {

@@ -20,6 +20,8 @@ public interface LoopTrace {
 
   long modelFinished(String runId, int callIndex, ModelGateway.Response response);
 
+  default void modelText(String runId, int callIndex, String text) {}
+
   long modelFailed(String runId, int callIndex, String code, String detail);
 
   String toolStarted(String runId, int callIndex, ModelGateway.ToolCall call);

@@ -68,6 +68,17 @@ public final class JdbcRunTraceRepository implements RunTraceRepository {
   }
 
   @Override
+  public int appendOutput(String runId, int callIndex, String text, long eventSeq) {
+    return db.update("""
+        INSERT INTO tb_agent_output(run_id,call_index,text,last_event_seq)
+        SELECT run_id,call_index,?,? FROM tb_agent_model_call
+         WHERE run_id=?::uuid AND call_index=? AND status='STARTED' AND phase='TASK'
+        ON CONFLICT(run_id,call_index) DO UPDATE
+          SET text=tb_agent_output.text || EXCLUDED.text, last_event_seq=EXCLUDED.last_event_seq
+        """, text, eventSeq, runId, callIndex);
+  }
+
+  @Override
   public Integer reserveModelCall(String runId, int max) {
     Map<String, Object> r =
         db.first(

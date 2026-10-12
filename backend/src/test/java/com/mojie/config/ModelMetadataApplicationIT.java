@@ -80,12 +80,9 @@ class ModelMetadataApplicationIT {
         await(
             () -> {
               try {
-                return "SUCCEEDED"
-                    .equals(
-                        request(base, "GET", "/agent/runs/" + accepted, null)
-                            .path("data")
-                            .path("status")
-                            .asText());
+                JsonNode run = request(base, "GET", "/agent/runs/" + accepted, null).path("data");
+                assertFalse(Set.of("FAILED", "CANCELLED").contains(run.path("status").asText()), run.toString());
+                return "SUCCEEDED".equals(run.path("status").asText());
               } catch (Exception e) {
                 return false;
               }
@@ -221,6 +218,7 @@ class ModelMetadataApplicationIT {
             try {
               int status = 200;
               String payload;
+              boolean streaming = false;
               if (exchange.getRequestURI().getPath().equals("/v1/models")) {
                 metadataCalls.incrementAndGet();
                 int selected = window.get();
@@ -231,6 +229,7 @@ class ModelMetadataApplicationIT {
                 payload = "{}";
               } else {
                 var body = JSON.readTree(exchange.getRequestBody());
+                streaming = body.path("stream").asBoolean();
                 boolean hasToolResult = body.path("messages").toString().contains("tool_result");
                 String target =
                     body.path("messages")
@@ -270,8 +269,12 @@ class ModelMetadataApplicationIT {
                             "usage",
                             Map.of("input_tokens", 20, "output_tokens", 20)));
               }
+              if (streaming) {
+                try { payload = com.mojie.support.StreamingResponses.anthropic(payload); }
+                catch (Exception e) { throw new java.io.IOException(e); }
+              }
               byte[] bytes = payload.getBytes(StandardCharsets.UTF_8);
-              exchange.getResponseHeaders().set("Content-Type", "application/json");
+              exchange.getResponseHeaders().set("Content-Type", streaming ? "text/event-stream" : "application/json");
               exchange.sendResponseHeaders(status, bytes.length);
               exchange.getResponseBody().write(bytes);
             } finally {

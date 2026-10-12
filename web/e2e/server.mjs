@@ -14,6 +14,37 @@ const built = spawnSync('mvn', ['-B', '-ntp', '-DskipTests', '-f', path.join(roo
 if (built.status !== 0) throw new Error(`Backend build failed: ${built.status}`)
 
 let serial = 0
+async function sendMessage(reply, body, message, instruction = '') {
+  if (reply.destroyed) return
+  if (!body.stream) {
+    reply.writeHead(200, { 'content-type': 'application/json', connection: 'close' }).end(JSON.stringify(message))
+    return
+  }
+  reply.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+  const event = value => {
+    if (!reply.destroyed) reply.write(`event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`)
+  }
+  event({ type: 'message_start', message: { ...message, content: [], stop_reason: null, stop_sequence: null,
+    usage: { ...message.usage, output_tokens: 0 } } })
+  for (const [index, block] of message.content.entries()) {
+    if (block.type === 'text') {
+      event({ type: 'content_block_start', index, content_block: { type: 'text', text: '' } })
+      const middle = Math.ceil(block.text.length / 2)
+      for (const [part, text] of [block.text.slice(0, middle), block.text.slice(middle)].entries()) {
+        if (part && instruction.includes('E2E_STREAM')) await new Promise(resolve => setTimeout(resolve, 2500))
+        if (part && instruction.includes('E2E_STREAM_FAIL')) { reply.end(); return }
+        event({ type: 'content_block_delta', index, delta: { type: 'text_delta', text } })
+      }
+    } else if (block.type === 'tool_use') {
+      event({ type: 'content_block_start', index, content_block: { ...block, input: {} } })
+      event({ type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: JSON.stringify(block.input) } })
+    } else event({ type: 'content_block_start', index, content_block: block })
+    event({ type: 'content_block_stop', index })
+  }
+  event({ type: 'message_delta', delta: { stop_reason: message.stop_reason, stop_sequence: null }, usage: message.usage })
+  event({ type: 'message_stop' })
+  if (!reply.destroyed) reply.end()
+}
 const model = http.createServer(async (request, reply) => {
   if (request.method !== 'POST' || request.url !== '/v1/messages') { reply.writeHead(404).end(); return }
   try {
@@ -38,14 +69,14 @@ const model = http.createServer(async (request, reply) => {
     const currentLoads = currentBlocks.filter(block => block.type === 'tool_use' && block.name === 'read_skill')
     const missing = explicit.filter(skill => !currentLoads.some(block => block.input.skillId === skill.skillId))
     if (missing.length) {
-      reply.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: `skill-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test',
+      await sendMessage(reply, body, { id: `skill-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test',
         content: missing.map(skill => ({ type: 'tool_use', id: `browser-skill-${++serial}`, name: 'read_skill', input: { skillId: skill.skillId } })),
-        stop_reason: 'tool_use', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }))
+        stop_reason: 'tool_use', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }, instruction)
       return
     }
     if ((!targetId && !searchEdit && !settingEdit) || !instruction.includes('E2E_')) {
       const remembered = blocks.some(block => block.type === 'text' && block.text?.includes('怕火'))
-      reply.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: `chat-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test', content: [{ type: 'text', text: remembered ? '林舟怕火，因此避开火光。' : '可以一起讨论大纲。' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }))
+      await sendMessage(reply, body, { id: `chat-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test', content: [{ type: 'text', text: remembered ? '林舟怕火，因此避开火光。' : '可以一起讨论大纲。' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }, instruction)
       return
     }
     if (instruction.includes('E2E_SLOW') && !blocks.some(block => block.type === 'tool_result'))
@@ -93,10 +124,10 @@ const model = http.createServer(async (request, reply) => {
       content = [{ type: 'text', text: '已核对目标章完整正文与任务证据。' }]
       stopReason = 'end_turn'
     }
-    const encoded = JSON.stringify({ id: `browser-message-${++serial}`, type: 'message', role: 'assistant',
+    const encoded = { id: `browser-message-${++serial}`, type: 'message', role: 'assistant',
       model: 'browser-test', content, stop_reason: stopReason, stop_sequence: null,
-      usage: { input_tokens: 20, output_tokens: 20 } })
-    if (!reply.destroyed) reply.writeHead(200, { 'content-type': 'application/json', connection: 'close' }).end(encoded)
+      usage: { input_tokens: 20, output_tokens: 20 } }
+    await sendMessage(reply, body, encoded, instruction)
   } catch (error) {
     if (!reply.destroyed) reply.writeHead(500).end(error.message)
   }

@@ -31,6 +31,9 @@ mojie:
     anthropic-base-url: "${MOJIE_ANTHROPIC_BASE_URL:}"
     # Optional override for custom providers; known providers resolve their window online.
     context-tokens: "${MOJIE_MODEL_CONTEXT_TOKENS:}"
+    streaming:
+      first-event-timeout: "${MOJIE_MODEL_FIRST_EVENT_TIMEOUT:180s}"
+      idle-timeout: "${MOJIE_MODEL_STREAM_IDLE_TIMEOUT:60s}"
     metadata:
       catalog-url: "https://models.dev/api.json"
       request-timeout: 5s

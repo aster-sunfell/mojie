@@ -10,6 +10,15 @@ import java.util.Objects;
 public interface ModelGateway {
     Response call(Request request) throws ModelException;
 
+    /** Emits public text during one attempt and returns the complete protocol response. */
+    default Response call(Request request, java.util.function.Consumer<TextDelta> onDelta)
+            throws ModelException {
+        // Keep non-streaming test/custom gateways compatible without inventing incremental text.
+        return call(request);
+    }
+
+    record TextDelta(String text) {}
+
     record Request(String systemPrompt, List<Message> messages, List<ToolSpec> tools,
                    String modelId, int maxOutputTokens, long timeoutMillis) {
         public Request { messages = List.copyOf(messages); tools = List.copyOf(tools); }
