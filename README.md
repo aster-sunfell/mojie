@@ -12,6 +12,8 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 Skill 脚本使用独立执行器，需要预拉固定 Python/Node 镜像并配置 `MOJIE_SKILL_EXECUTOR_URL`；见 [执行器说明](executor/README.md)。未配置执行器时仍能读取指导及参考。部署新增 `mojie_files` 文件卷；备份须同时包含 PG 和文件，见 [恢复说明](docs/design/conversation-skills-operations.md)。验收证据与尚未签收的故障组合见 [验证记录](docs/verification/conversation-skills-2026-10-02.md)。
 
+新对话采用统一助手：可选章节提供优先上下文，助手按需检索、读取并生成建议；见 [上下文设计](docs/design/unified-assistant-context.md)。
+
 ## 本地运行
 
 本地需要 Java 21、Maven、Node 20+ 和 Docker。PostgreSQL 与 Nginx 在容器中按需运行；Java 后端和 Vite 在本机按需启动。从仓库根目录执行，后端与前端分别在自己的终端运行：

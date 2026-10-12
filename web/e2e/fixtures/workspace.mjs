@@ -45,8 +45,8 @@ export async function mockWorkspace(page, { history = true,
       if (path.endsWith('/messages')) {
         if (request.method() === 'POST') {
           const body = request.postDataJSON(); writes.push(body)
-          const run = { id: `active-${writes.length}`, status: 'RUNNING', taskType: body.taskType, targetChapterId: body.targetChapterId,
-            instruction: body.content, baseVersion: body.expectedVersion, lastEventSeq: 1, steps: [], sources: [], modelCallCount: 1, toolCallCount: 0 }
+          const run = { id: `active-${writes.length}`, status: 'RUNNING', taskType: 'ASSISTANT', contextChapterId: body.contextChapterId, contextVersion: body.contextVersion,
+            instruction: body.content, baseVersion: body.contextVersion, lastEventSeq: 1, steps: [], sources: [], modelCallCount: 1, toolCallCount: 0 }
           runs.push(run); c.activeRunId = run.id
           messages[c.id].push({ id: `u-${run.id}`, role: 'USER', content: body.content, seq: ++c.lastSeq, runId: run.id, status: 'RUNNING' })
           return data({ runId: run.id, conversationSeq: c.lastSeq })

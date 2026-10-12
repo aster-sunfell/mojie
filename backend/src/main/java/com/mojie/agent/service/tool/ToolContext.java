@@ -34,7 +34,45 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
     toolExecutionId = value;
   }
 
-  private boolean targetRead;
+  private boolean targetRead, unified;
+  private String preferredChapterId, preferredContent;
+  private long preferredVersion;
+  private final Map<String, Long> providedChapters = new HashMap<>();
+
+  public boolean unified() {
+    return unified;
+  }
+
+  public void unified(boolean value) {
+    unified = value;
+  }
+
+  public void preferredChapter(String id, long version, String content) {
+    preferredChapterId = id;
+    preferredVersion = version;
+    preferredContent = content;
+  }
+
+  public String preferredChapterId() {
+    return preferredChapterId;
+  }
+
+  public long preferredVersion() {
+    return preferredVersion;
+  }
+
+  public String preferredContent() {
+    return preferredContent;
+  }
+
+  public void markReadsProvided() {
+    readChapters.forEach((id, chapter) -> providedChapters.put(id, chapter.version()));
+  }
+
+  public boolean chapterProvided(String id, long version) {
+    return Objects.equals(providedChapters.get(id), version);
+  }
+
   private Instant deadline = Instant.MAX;
   private Clock clock = Clock.systemUTC();
   private BooleanSupplier cancelled = () -> false;
@@ -149,5 +187,14 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
 
   public record Chapter(String id, String title, int order, long version, String content) {}
 
-  public record Candidate(String proposedContent, String reason) {}
+  public record Candidate(
+      String proposedContent,
+      String reason,
+      String chapterId,
+      int baseVersion,
+      String baseContent) {
+    public Candidate(String proposedContent, String reason) {
+      this(proposedContent, reason, null, 0, null);
+    }
+  }
 }

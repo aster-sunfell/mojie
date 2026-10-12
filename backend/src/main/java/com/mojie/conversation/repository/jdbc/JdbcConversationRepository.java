@@ -16,8 +16,7 @@ public final class JdbcConversationRepository implements ConversationRepository 
   public Conversation get(String id, boolean lock) {
     return db.firstRecord(
         Conversation.class,
-        "SELECT * FROM tb_conversation WHERE id=?::uuid"
-            + (lock ? " FOR UPDATE" : ""),
+        "SELECT * FROM tb_conversation WHERE id=?::uuid" + (lock ? " FOR UPDATE" : ""),
         id);
   }
 
@@ -31,8 +30,7 @@ public final class JdbcConversationRepository implements ConversationRepository 
         config);
   }
 
-  public List<Conversation> page(
-      String project, String status, String time, String id, int size) {
+  public List<Conversation> page(String project, String status, String time, String id, int size) {
     return db.records(
         Conversation.class,
         "SELECT * FROM tb_conversation WHERE project_id=?::uuid AND (?::text IS NULL"
@@ -107,6 +105,9 @@ public final class JdbcConversationRepository implements ConversationRepository 
       String chapter,
       Long version,
       String base,
+      String contextChapter,
+      Long contextVersion,
+      String contextContent,
       String content,
       String key,
       String digest,
@@ -119,8 +120,8 @@ public final class JdbcConversationRepository implements ConversationRepository 
     String id =
         db.first(
                 """
-INSERT INTO tb_agent_run(project_id,conversation_id,trigger_message_id,input_boundary,task_type,target_chapter_id,base_version,base_content,instruction,client_request_id,request_digest,prompt_hash,tool_schema_hash,model_id,config_snapshot,status,deadline_at,process_instance_id,retry_of)
-VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUED',now()+interval '60 seconds',?::uuid,?::uuid) RETURNING id
+INSERT INTO tb_agent_run(project_id,conversation_id,trigger_message_id,input_boundary,task_type,target_chapter_id,base_version,base_content,context_chapter_id,context_version,context_content,instruction,client_request_id,request_digest,prompt_hash,tool_schema_hash,model_id,config_snapshot,status,deadline_at,process_instance_id,retry_of)
+VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUED',now()+interval '60 seconds',?::uuid,?::uuid) RETURNING id
 """,
                 project,
                 conversation,
@@ -130,6 +131,9 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUE
                 chapter,
                 version,
                 base,
+                contextChapter,
+                contextVersion,
+                contextContent,
                 content,
                 key,
                 digest,
@@ -183,7 +187,7 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUE
     return db.firstRecord(
         RunContext.class,
         "SELECT"
-            + " conversation_id,project_id,task_type,input_boundary,trigger_message_id,config_snapshot"
+            + " conversation_id,project_id,task_type,input_boundary,trigger_message_id,config_snapshot,context_chapter_id,context_version,context_content"
             + " FROM tb_agent_run WHERE id=?::uuid",
         run);
   }

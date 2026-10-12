@@ -905,7 +905,6 @@ components:
       - content
       - clientRequestId
       - expectedConversationSeq
-      - taskType
       properties:
         content:
           type: string
@@ -919,17 +918,29 @@ components:
           minimum: 0
         taskType:
           type: string
+          default: ASSISTANT
+          description: Optional compatibility field. New clients omit this and use one assistant workflow.
           enum:
+          - ASSISTANT
           - CHAT
           - CHAPTER_REVIEW
           - CHAPTER_EDIT
         targetChapterId:
           type: string
           format: uuid
-          description: Required only for chapter tasks; forbidden for CHAT.
+          description: Legacy chapter-task target; forbidden for CHAT and ASSISTANT.
         expectedVersion:
           type: integer
           minimum: 1
+        contextChapterId:
+          type: string
+          format: uuid
+          description: Optional preferred chapter for ASSISTANT turns; supply together with contextVersion. Not an edit target.
+        contextVersion:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Saved reference version fixed at acceptance; body is read only when needed.
         selectedSkills:
           type: array
           maxItems: 8

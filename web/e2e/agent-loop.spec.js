@@ -28,7 +28,6 @@ test('reload and broken event stream recover the completed run', async ({ page, 
   await page.route('**/agent/runs/*/events*', route => route.abort())
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
-  await page.getByRole('combobox', { name: '本轮任务' }).selectOption('CHAPTER_REVIEW')
   await page.getByRole('textbox', { name: '对话消息' }).fill('E2E_SLOW 检查目标章节。')
   await page.getByRole('button', { name: '发送', exact: true }).click()
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
@@ -44,7 +43,6 @@ test('reload and broken event stream recover the completed run', async ({ page, 
 test('source view and inline diff preserve customized edits through saving and reload', async ({ page, request }) => {
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
-  await page.getByRole('combobox', { name: '本轮任务' }).selectOption('CHAPTER_EDIT')
   await page.getByRole('textbox', { name: '对话消息' }).fill('E2E_EDIT 检查设定并提交候选稿。')
   await page.getByRole('button', { name: '发送', exact: true }).click()
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
@@ -73,10 +71,42 @@ test('source view and inline diff preserve customized edits through saving and r
   expect(proposal.items[0].editedContent).toBe(customized)
 })
 
+test('selected references and retrieved edit targets stay independent across conversation turns', async ({ page, request }) => {
+  const other = (await (await request.post(`${api}/projects/${projectId}/chapters`,
+    { data: { title: '另一章' } })).json()).data
+  await request.put(`${api}/chapters/${other.id}/content`,
+    { data: { content: '林舟游到了对岸。但人物设定说他不会游泳。', expectedVersion: 1 } })
+  await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
+  await expect(page.getByRole('combobox', { name: '本轮任务' })).toHaveCount(0)
+  await page.getByRole('textbox', { name: '对话消息' }).fill(`E2E_SEARCH_EDIT TARGET=${other.id} 检查另一章并修改。`)
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await expect(page.getByRole('button', { name: '在正文中查看', exact: true })).toBeVisible()
+  let runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}`)).json()).data.items
+  const first = (await (await request.get(`${api}/agent/runs/${runs[0].id}`)).json()).data
+  expect(first.contextChapterId).toBe(chapterId)
+  expect(first.targetChapterId).toBe(other.id)
+  expect(first.taskType).toBe('ASSISTANT')
+  await expect(page.locator('.messageProposal')).toContainText('另一章')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+  await expect(page.locator('.editorHeader h1')).toHaveText('另一章')
+
+  await page.getByRole('button', { name: '移除章节参考' }).click()
+  await page.getByRole('textbox', { name: '对话消息' }).fill('E2E_SEARCH_EDIT 按需查阅，检查并修改游泳矛盾。')
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await expect(page.locator('.conversationMessage.assistant')).toHaveCount(2)
+  runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}`)).json()).data.items
+  const second = (await (await request.get(`${api}/agent/runs/${runs[0].id}`)).json()).data
+  expect(second.contextChapterId).toBeNull()
+  expect(second.targetChapterId).toBe(chapterId)
+  expect(second.steps.map(step => step.toolName)).toEqual(['search_chapters', 'read_chapter', 'propose_edit'])
+  // Resolve both pending proposals before the fixture deletes this disposable project.
+  expect((await request.post(`${api}/edit-proposals/${first.proposalId}/reject`)).status()).toBe(200)
+  expect((await request.post(`${api}/edit-proposals/${second.proposalId}/reject`)).status()).toBe(200)
+})
+
 test('browser cancellation reaches a terminal state without a proposal', async ({ page, request }) => {
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
   await expect(page.locator('.editor')).toHaveValue(/林舟游到了对岸/)
-  await page.getByRole('combobox', { name: '本轮任务' }).selectOption('CHAPTER_REVIEW')
   await page.getByRole('textbox', { name: '对话消息' }).fill('E2E_BLOCK 等待取消。')
   await page.getByRole('button', { name: '发送', exact: true }).click()
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
@@ -156,7 +186,6 @@ test('SSE rejects the 21st subscription and releases capacity after completion',
 
 test('reconnection does not let a delayed running snapshot replace the terminal result', async ({ page, request }) => {
   await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
-  await page.getByRole('combobox', { name: '本轮任务' }).selectOption('CHAPTER_REVIEW')
   await page.getByRole('textbox', { name: '对话消息' }).fill('E2E_SLOW 检查目标章节。')
   await page.getByRole('button', { name: '发送', exact: true }).click()
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()

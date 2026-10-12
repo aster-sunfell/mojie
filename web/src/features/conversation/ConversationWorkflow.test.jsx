@@ -11,7 +11,7 @@ class FakeEventSource extends EventTarget {
   constructor(url) { super(); FakeEventSource.instances.set(url.split('/runs/')[1].split('/')[0], this) }
   close() {}
 }
-function setup({ initial = [], result = 'SUCCEEDED', afterPost, savePost, capabilities, detail, provideProposal = false, patchPost } = {}) {
+function setup({ initial = [], result = 'SUCCEEDED', afterPost, savePost, capabilities, detail, provideProposal = false, proposalTarget, patchPost } = {}) {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
   vi.stubGlobal('EventSource', FakeEventSource)
   const chapters = [
@@ -65,14 +65,17 @@ function setup({ initial = [], result = 'SUCCEEDED', afterPost, savePost, capabi
         let receipt = receipts.get(body.clientRequestId)
         if (!receipt) {
           const runId = `r${Object.keys(runs).length + 1}`, seq = ++c.lastSeq
-          runs[runId] = { id: runId, conversationId: id, taskType: body.taskType, targetChapterId: body.targetChapterId,
-            status: result, baseVersion: body.expectedVersion, instruction: body.content, lastEventSeq: 1, steps: [], sources: [], analysis: result === 'SUCCEEDED' ? '已核对正文' : null }
+          runs[runId] = { id: runId, conversationId: id, taskType: 'ASSISTANT', contextChapterId: body.contextChapterId, contextVersion: body.contextVersion,
+            status: result, baseVersion: body.contextVersion, instruction: body.content, lastEventSeq: 1, steps: [], sources: [], analysis: result === 'SUCCEEDED' ? '已核对正文' : null }
           records[id].push({ id: `u${runId}`, seq, role: 'USER', content: body.content, runId, status: result })
           if (result === 'SUCCEEDED') records[id].push({ id: `a${runId}`, seq: ++c.lastSeq, role: 'ASSISTANT', content: '已核对正文', runId, status: result })
           else c.activeRunId = runId
           receipt = { runId, conversationSeq: seq }; receipts.set(body.clientRequestId, receipt)
         }
-        if (provideProposal && body.taskType === 'CHAPTER_EDIT') runs[receipt.runId].proposalId = `q-${receipt.runId}`
+        if (provideProposal && body.content.includes('修改')) {
+          const run = runs[receipt.runId], target = chapters.find(c => c.id === (proposalTarget || body.contextChapterId || 'c'))
+          run.proposalId = `q-${receipt.runId}`; run.targetChapterId = target.id; run.baseVersion = target.version
+        }
         return afterPost ? afterPost(body, writes.length, receipt) : reply(receipt)
       }
     }
@@ -114,8 +117,10 @@ test('first Enter creates a conversation once and publishes only one user turn',
   await screen.findByText('已核对正文')
   expect(state.creates).toEqual(['d1'])
   expect(state.writes).toHaveLength(1)
-  expect(state.writes[0]).toMatchObject({ content: '核对前文', taskType: 'CHAT', expectedConversationSeq: 0 })
+  expect(state.writes[0]).toMatchObject({ content: '核对前文', contextChapterId: 'c', contextVersion: 1, expectedConversationSeq: 0 })
   expect(state.writes[0].targetChapterId).toBeUndefined()
+  expect(state.writes[0].taskType).toBeUndefined()
+  expect(screen.queryByRole('combobox', { name: '本轮任务' })).toBeNull()
   expect(input().value).toBe('')
   expect(document.querySelector('.assistantTabs')).toBeNull()
   expect(document.querySelector('.agentPanel')).toBeNull()
@@ -143,45 +148,50 @@ test('lost submission response retains the created conversation, text and idempo
   expect(state.records.d1).toHaveLength(2)
 })
 
-test('save and send uses the newly saved chapter version', async () => {
-  const state = setup(); await ready()
-  fireEvent.change(screen.getByRole('combobox', { name: '本轮任务' }), { target: { value: 'CHAPTER_EDIT' } })
-  fireEvent.change(screen.getByRole('textbox', { name: '章节正文', exact: true }), { target: { value: '修订正文' } })
-  fireEvent.click(screen.getByRole('button', { name: '保存并发送' }))
-  await waitFor(() => expect(state.writes).toHaveLength(1))
-  expect(state.saves[0]).toEqual({ content: '修订正文', expectedVersion: 1 })
-  expect(state.writes[0]).toMatchObject({ targetChapterId: 'c', expectedVersion: 2, taskType: 'CHAPTER_EDIT' })
+test('clearing and restoring the preferred chapter changes context without selecting a task', async () => {
+  const state = setup(); await ready('讨论人物')
+  fireEvent.click(screen.getByRole('button', { name: '移除章节参考' }))
+  expect(screen.getByRole('button', { name: '使用当前章节' })).toBeTruthy()
+  fireEvent.click(send()); await screen.findByText('已核对正文')
+  expect(state.writes[0].contextChapterId).toBeUndefined()
+  expect(state.writes[0].contextVersion).toBeUndefined()
+  fireEvent.click(screen.getByRole('button', { name: '使用当前章节' }))
+  fireEvent.change(input(), { target: { value: '审核本章，再提出修改建议' } })
+  await waitFor(() => expect(send().disabled).toBe(false)); fireEvent.click(send())
+  await waitFor(() => expect(state.writes).toHaveLength(2))
+  expect(state.writes[1]).toMatchObject({ contextChapterId: 'c', contextVersion: 1 })
+  expect(state.writes[1].taskType).toBeUndefined()
 })
 
-test('a failed save never creates a conversation or sends a chapter task', async () => {
-  const state = setup({ savePost: () => failure('VERSION_CONFLICT') }); await ready()
-  fireEvent.change(screen.getByRole('combobox', { name: '本轮任务' }), { target: { value: 'CHAPTER_REVIEW' } })
-  fireEvent.change(screen.getByRole('textbox', { name: '章节正文', exact: true }), { target: { value: '新草稿' } })
-  fireEvent.click(screen.getByRole('button', { name: '保存并发送' }))
-  await screen.findByText('正文未保存，或输入与章节已经变化。请确认后再次发送。')
-  expect(state.creates).toHaveLength(0); expect(state.writes).toHaveLength(0)
-  expect(input().value).toBe('核对前文')
-  expect(screen.getByRole('textbox', { name: '章节正文', exact: true }).value).toBe('新草稿')
+test('switching chapters after acceptance preserves the original turn reference', async () => {
+  const state = setup({ result: 'RUNNING' }); await ready('检查这一章'); fireEvent.click(send())
+  await screen.findByRole('button', { name: '停止', exact: true })
+  fireEvent.click(screen.getByRole('button', { name: /第二章.*v1/ }))
+  await screen.findByRole('heading', { name: '第二章' })
+  expect(state.writes[0]).toMatchObject({ contextChapterId: 'c', contextVersion: 1 })
+  expect(screen.getByText('参考：第一章 · v1')).toBeTruthy()
+  expect(screen.getByText('优先参考：第二章 · 已保存 v1')).toBeTruthy()
 })
 
-test('new typing while saving cancels sending and preserves the newer draft', async () => {
-  let finish
-  const pending = new Promise(resolve => { finish = resolve })
-  const state = setup({ savePost: () => pending }); await ready()
-  fireEvent.change(screen.getByRole('combobox', { name: '本轮任务' }), { target: { value: 'CHAPTER_EDIT' } })
-  const editor = screen.getByRole('textbox', { name: '章节正文', exact: true })
-  fireEvent.change(editor, { target: { value: '第一稿' } }); fireEvent.click(screen.getByRole('button', { name: '保存并发送' }))
-  fireEvent.change(editor, { target: { value: '第二稿' } })
-  await act(async () => { finish(reply({ ...state.chapters[0], version: 2, content: '第一稿' })) })
-  expect(state.writes).toHaveLength(0); expect(editor.value).toBe('第二稿')
+test('a proposal can target a different chapter from the preferred reference', async () => {
+  setup({ provideProposal: true, proposalTarget: 'c2' }); await ready('修改第二章')
+  fireEvent.click(send())
+  await screen.findByRole('button', { name: '在正文中查看' })
+  expect(screen.getByText('参考：第一章 · v1')).toBeTruthy()
+  expect(screen.getByText('第二章 · 修改建议')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '在正文中查看' }))
+  await screen.findByRole('heading', { name: '第二章' })
+  expect(window.location.pathname).toBe('/projects/p/chapters/c2')
 })
 
-test('discussion with unsaved text does not save or attach a target chapter', async () => {
+test('unsaved text is clearly excluded and sending retains the saved chapter reference', async () => {
   const state = setup(); await ready()
   fireEvent.change(screen.getByRole('textbox', { name: '章节正文', exact: true }), { target: { value: '未保存' } })
-  expect(screen.getByText('本轮不包含未保存正文。')).toBeTruthy()
+  expect(screen.getByText('助手读取已保存版本，本轮不包含未保存正文。')).toBeTruthy()
   fireEvent.click(send()); await screen.findByText('已核对正文')
-  expect(state.saves).toHaveLength(0); expect(state.writes[0].targetChapterId).toBeUndefined()
+  expect(state.saves).toHaveLength(0)
+  expect(state.writes[0]).toMatchObject({ contextChapterId: 'c', contextVersion: 1 })
+  expect(state.writes[0].targetChapterId).toBeUndefined()
 })
 
 test('changing chapters and folding messages preserve conversation input', async () => {
@@ -253,10 +263,8 @@ test('missing model metadata recovers without losing the input', async () => {
 
 test('a later chat reply preserves the explicitly opened proposal and applied draft', async () => {
   const state = setup({ provideProposal: true }); await ready('修改本章')
-  fireEvent.change(screen.getByRole('combobox', { name: '本轮任务' }), { target: { value: 'CHAPTER_EDIT' } })
   fireEvent.click(send()); fireEvent.click(await screen.findByRole('button', { name: '在正文中查看' }))
   fireEvent.click(await screen.findByRole('button', { name: '应用全部' }))
-  fireEvent.change(screen.getByRole('combobox', { name: '本轮任务' }), { target: { value: 'CHAT' } })
   fireEvent.change(input(), { target: { value: '为什么这样改？' } }); fireEvent.click(send())
   await waitFor(() => expect(state.writes).toHaveLength(2))
   await waitFor(() => expect(document.querySelectorAll('.conversationMessage.assistant')).toHaveLength(2))
@@ -267,7 +275,6 @@ test('a later chat reply preserves the explicitly opened proposal and applied dr
 
 test('opening historical advice in another chapter respects the unsaved draft decision', async () => {
   const state = setup({ provideProposal: true }); await ready('修改本章')
-  fireEvent.change(screen.getByRole('combobox', { name: '本轮任务' }), { target: { value: 'CHAPTER_EDIT' } })
   fireEvent.click(send()); await screen.findByRole('button', { name: '在正文中查看' })
   fireEvent.click(screen.getByRole('button', { name: /第二章.*v1/ })); await screen.findByRole('heading', { name: '第二章' })
   fireEvent.change(screen.getByRole('textbox', { name: '章节正文', exact: true }), { target: { value: '第二章的新草稿' } })
@@ -285,19 +292,19 @@ test('opening historical advice in another chapter respects the unsaved draft de
 
 test('refresh restores an unsent message draft without creating an empty conversation', async () => {
   const state = setup(); await ready('刷新后仍在')
-  fireEvent.change(screen.getByRole('combobox', { name: '本轮任务' }), { target: { value: 'CHAPTER_REVIEW' } })
+  fireEvent.click(screen.getByRole('button', { name: '移除章节参考' }))
   cleanup(); render(<App />)
   await screen.findByRole('textbox', { name: '章节正文', exact: true })
   expect(input().value).toBe('刷新后仍在')
-  expect(screen.getByRole('combobox', { name: '本轮任务' }).value).toBe('CHAPTER_REVIEW')
+  expect(screen.getByRole('button', { name: '使用当前章节' })).toBeTruthy()
   expect(state.creates).toHaveLength(0)
 })
 
-test('empty-conversation shortcuts prepare the matching task without sending', async () => {
+test('empty-conversation shortcuts fill instructions without selecting a task or sending', async () => {
   const state = setup()
   fireEvent.click(await screen.findByRole('button', { name: '改进章节表达' }))
-  expect(screen.getByRole('combobox', { name: '本轮任务' }).value).toBe('CHAPTER_EDIT')
-  expect(input().value).toContain('保留当前章节的情节')
+  expect(screen.queryByRole('combobox', { name: '本轮任务' })).toBeNull()
+  expect(input().value).toContain('保留章节的情节')
   expect(state.creates).toHaveLength(0); expect(state.writes).toHaveLength(0)
 })
 

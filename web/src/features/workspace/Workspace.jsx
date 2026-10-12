@@ -172,11 +172,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     }
     return true
   }
-  const reviewRef = useRef(review)
-  reviewRef.current = review
-  const getContext = useCallback(() => ({ chapter: chapterRef.current,
-    dirty: Boolean(chapterRef.current && (draftRef.current !== chapterRef.current.content || reviewDirtyRef.current)),
-    pendingEdits: reviewRef.current.hasPendingEdits }), [])
+  const getContext = useCallback(() => ({ chapter: chapterRef.current }), [])
   useEffect(() => {
     if (!review.proposal || review.loading) return
     const frame = requestAnimationFrame(() => workspaceRef.current?.querySelector('.inlineChange')?.scrollIntoView?.({ block: 'start' }))
@@ -207,7 +203,6 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onDraftChange={changeDraft} />
       <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty}
         projectBusy={runBusy} review={review} getContext={getContext}
-        onSave={async () => await save() ? chapterRef.current : null}
         onOpenProposal={openProposal} onActivityChange={refreshBusy} />
     </div>
     {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}

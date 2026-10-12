@@ -22,10 +22,13 @@ export function ConversationTurn({ message, run, chapterNames, review, onOpenPro
   const failed = user && ['FAILED', 'CANCELLED'].includes(message.status)
   const selected = review?.id === run?.proposalId
   const title = run?.targetChapterId ? chapterNames[run.targetChapterId] || '目标章节' : ''
+  const contextTitle = run?.contextChapterId ? chapterNames[run.contextChapterId] || '参考章节' : ''
+  const turnContext = run?.taskType === 'ASSISTANT'
+    ? contextTitle ? `参考：${contextTitle} · v${run.contextVersion}` : ''
+    : `${taskNames[run?.taskType] || '章节任务'}${title ? ` · ${title} · v${run.baseVersion}` : ''}`
   return <article className={`conversationMessage ${user ? 'user' : 'assistant'}`}>
     <div className="messageMeta"><span>{user ? '你' : '写作助手'}</span>
-      {user && run && <span>{taskNames[run.taskType] || (run.targetChapterId ? '章节任务' : '讨论')}
-        {title && ` · ${title} · v${run.baseVersion}`}</span>}</div>
+      {user && run && turnContext && <span>{turnContext}</span>}</div>
     {user ? <p className="userContent">{message.content}</p> : <Markdown content={message.content} />}
     {failed && <div className="turnFailure"><span>本轮{message.status === 'FAILED' ? '失败' : '已停止'}，未完成回答。</span>
       {canRetry && <button className="link" onClick={() => onRetry(message)}>重试本轮</button>}

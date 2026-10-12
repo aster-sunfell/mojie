@@ -18,14 +18,16 @@ public final class JdbcRunReadRepository implements RunReadRepository {
     return db.firstRecord(
         RunSnapshot.class,
         """
-        SELECT r.id, r.project_id, r.target_chapter_id, r.base_version, r.instruction,
-               r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
-               r.analysis, r.error_code, r.error_detail, r.model_call_count,
-               r.tool_call_count, r.tool_text_codepoints, r.last_event_seq,
-               p.id AS proposal_id,r.conversation_id,r.task_type,r.config_snapshot
-          FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
-         WHERE r.id = ?::uuid
-        """,
+SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS target_chapter_id,
+       COALESCE(p.base_version,r.base_version) AS base_version, r.instruction,
+       r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
+       r.analysis, r.error_code, r.error_detail, r.model_call_count,
+       r.tool_call_count, r.tool_text_codepoints, r.last_event_seq,
+       p.id AS proposal_id,r.conversation_id,r.task_type,r.config_snapshot,
+       r.context_chapter_id,r.context_version
+  FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
+ WHERE r.id = ?::uuid
+""",
         runId);
   }
 
@@ -119,17 +121,18 @@ public final class JdbcRunReadRepository implements RunReadRepository {
     return db.records(
         RunSummary.class,
         """
-        SELECT r.id, r.project_id, r.target_chapter_id, r.base_version, r.instruction,
-               r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
-               r.analysis, r.error_code, r.error_detail, r.last_event_seq, p.id AS proposal_id,
-               r.created_at
-          FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
-         WHERE r.project_id = ?::uuid
-           AND (?::uuid IS NULL OR r.target_chapter_id = ?::uuid)
-           AND (?::text IS NULL OR r.status = ?)
-           AND (?::timestamptz IS NULL OR (r.created_at, r.id) < (?::timestamptz, ?::uuid))
-         ORDER BY r.created_at DESC, r.id DESC LIMIT ?
-        """,
+SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS target_chapter_id,
+       COALESCE(p.base_version,r.base_version) AS base_version, r.instruction,
+       r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
+       r.analysis, r.error_code, r.error_detail, r.last_event_seq, p.id AS proposal_id,
+       r.created_at
+  FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
+ WHERE r.project_id = ?::uuid
+   AND (?::uuid IS NULL OR COALESCE(p.target_chapter_id,r.target_chapter_id,r.context_chapter_id) = ?::uuid)
+   AND (?::text IS NULL OR r.status = ?)
+   AND (?::timestamptz IS NULL OR (r.created_at, r.id) < (?::timestamptz, ?::uuid))
+ ORDER BY r.created_at DESC, r.id DESC LIMIT ?
+""",
         projectId,
         chapterId,
         chapterId,

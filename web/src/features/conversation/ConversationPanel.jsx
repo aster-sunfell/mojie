@@ -10,8 +10,8 @@ import { ConversationTurn } from './ConversationTurn.jsx'
 import { ConversationSkills } from './ConversationSkills.jsx'
 import './conversation.css'
 
-export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, onSave, onOpenProposal, onActivityChange }) {
-  const chat = useConversation({ projectId, getContext, onSave, projectBusy, onActivityChange })
+export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, onOpenProposal, onActivityChange }) {
+  const chat = useConversation({ projectId, getContext, projectBusy, onActivityChange })
   const [expanded, setExpanded] = useState(Boolean(chat.id)), [enlarged, setEnlarged] = useState(false)
   const [picker, setPicker] = useState(false), [skillPicker, setSkillPicker] = useState(false), [library, setLibrary] = useState(false)
   const [skills, setSkills] = useState([]), [source, setSource] = useState(null), [skillError, setSkillError] = useState('')
@@ -84,8 +84,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
   const panelHeight = Math.max(chromeHeight, Math.min(enlarged ? availableHeight * .6 : desiredHeight ?? availableHeight * .4, availableHeight - 260, availableHeight * .6))
   const canSend = !chat.loading && (!chat.id || Boolean(chat.conversation)) && !chat.busy && !chat.taskActive && !chat.unavailableReason && !projectBusy
     && (!chat.conversation || chat.conversation.status === 'ACTIVE') && Boolean(chat.draft.input.trim())
-    && [...chat.draft.input].length <= 8000 && (chat.draft.type === 'CHAT' || Boolean(chapter))
-    && !(chat.draft.type === 'CHAPTER_EDIT' && review.hasPendingEdits)
+    && [...chat.draft.input].length <= 8000
   function send(event) {
     event.preventDefault()
     if (!canSend) return
@@ -134,22 +133,22 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
         {chat.messages.map(m => <ConversationTurn key={m.id} message={m} run={chat.runs[m.runId]} chapterNames={chapterNames}
           review={review} connection={chat.connection} onOpenProposal={viewProposal} onSource={(value, run) => setSource({ value, run })}
           onRetry={chat.retry} canRetry={lastUser?.id === m.id && !chat.taskActive && !chat.busy && !projectBusy && chat.conversation?.status === 'ACTIVE'} />)}
-        {!chat.loading && chat.messages.length === 0 && <p className="assistantEmptyMessage">讨论人物、梳理情节，或检查当前章节。</p>}
+        {!chat.loading && chat.messages.length === 0 && <p className="assistantEmptyMessage">告诉助手你的需求，它会按需查阅作品、分析问题或提出修改建议。</p>}
         {chat.taskActive && <div className="assistantProgress" role="status"><Icon name="loading" size={16} />{status}</div>}
       </div>
     </ScrollArea>
     {unseen && expanded && <button className="newReplyButton" onClick={scrollToBottom}>查看新回复 ↓</button>}
     <form onSubmit={send} className="assistantInner conversationComposer" aria-label="写作助手输入区">
       {!chat.loading && !chat.messages.length && !chat.draft.input.trim() && <div className="assistantExamples">
-        {[['梳理人物动机', 'CHAT', '一起梳理主要人物的动机与关系，找出可以深化的地方。'],
-          ['检查前后矛盾', 'CHAPTER_REVIEW', '查阅前文与设定，检查当前章节中的人物经历和时间顺序是否矛盾，并说明依据。'],
-          ['改进章节表达', 'CHAPTER_EDIT', '保留当前章节的情节与叙述风格，提出让表达更自然、节奏更清晰的修改建议。']].map(([label, type, input]) =>
-          <button key={type} type="button" disabled={chat.busy || type !== 'CHAT' && !chapter} onClick={() => {
-            chat.updateDraft({ input, type }); textarea.current.focus()
+        {[['梳理人物动机', '一起梳理主要人物的动机与关系，找出可以深化的地方。'],
+          ['检查前后矛盾', '查阅相关章节与设定，检查人物经历和时间顺序是否矛盾，并说明依据。'],
+          ['改进章节表达', '保留章节的情节与叙述风格，提出让表达更自然、节奏更清晰的修改建议。']].map(([label, input]) =>
+          <button key={label} type="button" disabled={chat.busy} onClick={() => {
+            chat.updateDraft({ input }); textarea.current.focus()
           }}>{label}</button>)}
       </div>}
       <div className="assistantInputBox">
-        <textarea ref={textarea} aria-label="对话消息" rows={2} placeholder="继续讨论，或告诉助手想检查、改进什么…"
+        <textarea ref={textarea} aria-label="对话消息" rows={2} placeholder="告诉助手你想做什么…"
           value={chat.draft.input} disabled={chat.busy || chat.conversation?.status === 'ARCHIVED'}
           onChange={event => chat.updateDraft({ input: event.target.value })}
           onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
@@ -157,22 +156,22 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
             if (event.key === 'Enter' && !event.shiftKey && !composing.current && !event.nativeEvent.isComposing && event.keyCode !== 229) send(event)
           }} />
         <div className="assistantInputTools"><div className="assistantContext">
-          <select aria-label="本轮任务" value={chat.draft.type} disabled={chat.busy}
-            onChange={event => chat.updateDraft({ type: event.target.value })}>
-            <option value="CHAT">讨论</option><option value="CHAPTER_REVIEW">审阅本章</option><option value="CHAPTER_EDIT">修改本章</option>
-          </select>
           <button type="button" className="link" onClick={() => setSkillPicker(true)}>Skill{chat.draft.selected.length ? ` · ${chat.draft.selected.length}` : ''}</button>
-          <span>{chat.draft.type === 'CHAT' ? '作品讨论' : chapter ? `${chapter.title} · ${dirty ? '未保存' : `已保存 v${chapter.version}`}` : '请先选择章节'}</span>
+          {chapter && chat.draft.useChapter !== false ? <>
+            <span>优先参考：{chapter.title} · 已保存 v{chapter.version}</span>
+            <button type="button" className="link" aria-label="移除章节参考" disabled={chat.busy}
+              onClick={() => chat.updateDraft({ useChapter: false })}>×</button>
+          </> : chapter && <button type="button" className="link" disabled={chat.busy}
+            onClick={() => chat.updateDraft({ useChapter: true })}>使用当前章节</button>}
         </div>
           <button type={chat.taskActive ? 'button' : 'submit'} className="assistantSend" disabled={chat.taskActive ? chat.cancelRequested || chat.busy : !canSend}
             onClick={chat.taskActive ? chat.stop : undefined}>
             <Icon name={chat.busy ? 'loading' : chat.taskActive ? 'stop' : 'send'} size={16} />
-            {chat.busy ? '正在提交' : chat.taskActive ? chat.cancelRequested ? '正在停止' : '停止' : dirty && chat.draft.type !== 'CHAT' ? '保存并发送' : '发送'}
+            {chat.busy ? '正在提交' : chat.taskActive ? chat.cancelRequested ? '正在停止' : '停止' : '发送'}
           </button>
         </div>
       </div>
-      <div className="assistantHelp"><span>{chat.unavailableReason || (dirty && chat.draft.type === 'CHAT' ? '本轮不包含未保存正文。' : chat.draft.type === 'CHAPTER_EDIT' && review.hasPendingEdits
-        ? '请先应用或重置已调整的建议。' : projectBusy && !chat.taskActive ? '作品有任务正在执行，结束后可发送。' : 'Enter 发送 · Shift+Enter 换行')}
+      <div className="assistantHelp"><span>{chat.unavailableReason || (dirty && chat.draft.useChapter !== false ? '助手读取已保存版本，本轮不包含未保存正文。' : projectBusy && !chat.taskActive ? '作品有任务正在执行，结束后可发送。' : 'Enter 发送 · Shift+Enter 换行')}
       </span><span className={[...chat.draft.input].length > 8000 ? 'error' : ''}>{[...chat.draft.input].length}/8000</span></div>
       {chat.error && <p className="error assistantError" role="alert">{chat.error}</p>}
     </form>

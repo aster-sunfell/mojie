@@ -147,6 +147,7 @@ public final class AgentLoop {
           trace.modelFailed(runId, callIndex, code, response.finishReason().name());
           return new LoopOutcome.Failed(code, response.finishReason().name());
         }
+        context.markReadsProvided();
         long assistantSeq = trace.modelFinished(runId, callIndex, response);
         messages.add(Message.assistant(response.content()));
         messageSeqs.add(assistantSeq);

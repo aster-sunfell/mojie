@@ -70,9 +70,9 @@ public final class RunCompletionService {
                     proposalId,
                     runId,
                     projectId,
-                    row.targetChapterId(),
-                    row.baseVersion(),
-                    row.baseContent(),
+                    candidate.chapterId() == null ? row.targetChapterId() : candidate.chapterId(),
+                    candidate.chapterId() == null ? row.baseVersion() : candidate.baseVersion(),
+                    candidate.chapterId() == null ? row.baseContent() : candidate.baseContent(),
                     candidate.proposedContent(),
                     candidate.reason()));
           }
@@ -111,6 +111,14 @@ public final class RunCompletionService {
         && !trace.hasTargetInput(
             runId, completed.modelCalls(), row.targetChapterId(), row.baseVersion()))
       throw new IllegalStateException("Target chapter was not sent to final model call");
+    if (completed.candidate() != null
+        && completed.candidate().chapterId() != null
+        && !trace.hasTargetInput(
+            runId,
+            completed.modelCalls(),
+            completed.candidate().chapterId(),
+            completed.candidate().baseVersion()))
+      throw new IllegalStateException("Candidate chapter was not sent to final model call");
     if (completed.candidate() != null && !trace.hasCandidateStep(runId))
       throw new IllegalStateException("Candidate has no successful tool step");
     if (trace.openCalls(runId) != 0) throw new IllegalStateException("Model call remains open");

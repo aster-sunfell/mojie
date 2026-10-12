@@ -48,7 +48,10 @@ public final class ConversationModels {
       String taskType,
       long inputBoundary,
       String triggerMessageId,
-      JsonNode configSnapshot) {}
+      JsonNode configSnapshot,
+      String contextChapterId,
+      Long contextVersion,
+      String contextContent) {}
 
   public record Summary(String id, long coveredSeq, String summary) {}
 
@@ -61,7 +64,29 @@ public final class ConversationModels {
       String taskType,
       String targetChapterId,
       Long expectedVersion,
-      List<Selection> selectedSkills) {}
+      List<Selection> selectedSkills,
+      String contextChapterId,
+      Long contextVersion) {
+    public Send(
+        String content,
+        String clientRequestId,
+        Long expectedConversationSeq,
+        String taskType,
+        String targetChapterId,
+        Long expectedVersion,
+        List<Selection> selectedSkills) {
+      this(
+          content,
+          clientRequestId,
+          expectedConversationSeq,
+          taskType,
+          targetChapterId,
+          expectedVersion,
+          selectedSkills,
+          null,
+          null);
+    }
+  }
 
   public record Receipt(String messageId, long conversationSeq, String runId, String status) {}
 

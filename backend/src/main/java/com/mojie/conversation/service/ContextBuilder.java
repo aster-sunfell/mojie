@@ -40,17 +40,30 @@ public final class ContextBuilder implements ConversationRuntime {
   public Plan prepare(RunData run, ToolContext context, List<AgentTool> base) {
     RunContext meta = repo.runContext(run.runId());
     if (meta == null || meta.taskType().equals("LEGACY")) return null;
+    context.unified(meta.taskType().equals("ASSISTANT"));
+    if (meta.contextChapterId() != null)
+      context.preferredChapter(
+          meta.contextChapterId(), meta.contextVersion(), meta.contextContent());
     List<AgentTool> tools = new ArrayList<>();
     for (var t : base)
-      if (meta.taskType().equals("CHAPTER_EDIT") || !t.spec().name().equals("propose_edit"))
-        tools.add(t);
+      if (context.unified()
+          || meta.taskType().equals("CHAPTER_EDIT")
+          || !t.spec().name().equals("propose_edit"))
+        tools.add(
+            context.unified() && t.spec().name().equals("propose_edit")
+                ? explicitEditTarget(t)
+                : t);
     tools.addAll(skills.tools());
     String task =
         "\nTask type: "
             + meta.taskType()
             + ". Project ID: "
             + run.projectId()
-            + ". Chapter target: "
+            + ". Preferred chapter: "
+            + meta.contextChapterId()
+            + " (saved version "
+            + meta.contextVersion()
+            + "). Legacy chapter target: "
             + run.targetChapterId()
             + " (version "
             + run.baseVersion()
@@ -258,6 +271,20 @@ public final class ContextBuilder implements ConversationRuntime {
         List.copyOf(tools));
   }
 
+  private static AgentTool explicitEditTarget(AgentTool tool) {
+    var schema = new LinkedHashMap<>(tool.spec().inputSchema());
+    schema.put("required", List.of("chapterId", "expectedVersion", "proposedContent", "reason"));
+    return new AgentTool() {
+      public ToolSpec spec() {
+        return new ToolSpec(tool.spec().name(), tool.spec().description(), schema);
+      }
+
+      public ToolResult execute(com.fasterxml.jackson.databind.JsonNode args, ToolContext context) {
+        return tool.execute(args, context);
+      }
+    };
+  }
+
   private static long estimate(Request r) {
     return encode(r).getBytes(StandardCharsets.UTF_8).length;
   }
@@ -282,10 +309,15 @@ public final class ContextBuilder implements ConversationRuntime {
     result.addAll(history.messages());
     result.add(
         Message.user(
-            context.targetChapterId() == null
-                ? run.instruction()
-                : LoopInput.initialUserMessage(
-                    context.targetChapterId(), context.baseVersion(), run.instruction())));
+            context.unified()
+                ? LoopInput.assistantUserMessage(
+                    context.preferredChapterId(),
+                    context.preferredChapterId() == null ? null : context.preferredVersion(),
+                    run.instruction())
+                : context.targetChapterId() == null
+                    ? run.instruction()
+                    : LoopInput.initialUserMessage(
+                        context.targetChapterId(), context.baseVersion(), run.instruction())));
     return result;
   }
 

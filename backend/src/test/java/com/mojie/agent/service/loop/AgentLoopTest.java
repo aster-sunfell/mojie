@@ -565,6 +565,60 @@ class AgentLoopTest {
                 JSON.valueToTree(Map.of("keyword", "人物", "cursor", cursor)), context));
     }
 
+    @Test void unifiedPreferredChapterDoesNotForceAReadForGeneralDiscussion() {
+        Script model = new Script(List.of(response("可以讨论人物", List.of(), FinishReason.FINAL)));
+        LoopOutcome.Completed result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
+        assertEquals(0, result.toolCalls());
+        assertNull(result.candidate());
+        assertFalse(model.requests.getFirst().messages().toString().contains("参考快照正文"));
+    }
+
+    @Test void unifiedReadAndProposalInOneBatchMustWaitForTheReadToReachTheModel() {
+        ToolCall read = call("read", "read_chapter", "{\"chapterId\":\"prior\"}");
+        ToolCall premature = call("premature", "propose_edit", "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}");
+        Script model = new Script(List.of(
+                response("", List.of(read, premature), FinishReason.TOOL_CALLS),
+                response("", List.of(call("retry", "propose_edit", "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("已提出建议", List.of(), FinishReason.FINAL)));
+        LoopOutcome.Completed result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
+        assertTrue(trace.wireResults.get(1).contains("INSUFFICIENT_CONTEXT"));
+        assertTrue(trace.wireResults.get(2).contains("accepted"));
+        assertEquals("prior", result.candidate().chapterId());
+        assertEquals(1, result.candidate().baseVersion());
+        assertEquals("林舟不会游泳，也不想游泳", result.candidate().baseContent());
+    }
+
+    @Test void unifiedProposalUsesThePinnedReferenceVersionAndRejectsAMismatchedVersion() {
+        Script model = new Script(List.of(
+                response("", List.of(call("read", "read_chapter", "{\"chapterId\":\"target\"}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("wrong", "propose_edit", "{\"chapterId\":\"target\",\"expectedVersion\":2,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("", List.of(call("right", "propose_edit", "{\"chapterId\":\"target\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("已提出建议", List.of(), FinishReason.FINAL)));
+        LoopOutcome.Completed result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
+        assertTrue(trace.wireResults.getFirst().contains("参考快照正文"));
+        assertTrue(trace.wireResults.get(1).contains("VERSION_CONFLICT"));
+        assertEquals(1, result.candidate().baseVersion());
+        assertEquals("参考快照正文", result.candidate().baseContent());
+    }
+
+    @Test void unifiedProposalCannotUseAnUnreadChapter() {
+        Script model = new Script(List.of(
+                response("", List.of(call("unread", "propose_edit", "{\"chapterId\":\"foreign\",\"expectedVersion\":1,\"proposedContent\":\"修正正文\",\"reason\":\"修正\"}")), FinishReason.TOOL_CALLS),
+                response("需要先查阅章节", List.of(), FinishReason.FINAL)));
+        LoopOutcome.Completed result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
+        assertTrue(trace.wireResults.getFirst().contains("INSUFFICIENT_CONTEXT"));
+        assertNull(result.candidate());
+    }
+
+    private LoopInput unifiedInput() {
+        ToolContext context = new ToolContext(UUID.randomUUID().toString(), "p", null, 0, null);
+        context.unified(true);
+        context.preferredChapter("target", 1, "参考快照正文");
+        return new LoopInput(context, "按需处理", "系统约束", "scripted", 100,
+                Instant.now().plusSeconds(180), List.of(Message.user(
+                        LoopInput.assistantUserMessage("target", 1L, "按需处理"))), List.of(), 0);
+    }
+
     private AgentLoop loop(ModelGateway model, LoopLimits limits) {
         return new AgentLoop(model, ContentTools.all(content, KEY), trace, limits, Clock.systemUTC(), cancelled::get);
     }

@@ -22,8 +22,10 @@ const model = http.createServer(async (request, reply) => {
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
     const blocks = body.messages.flatMap(message => message.content || [])
     const instruction = body.messages.filter(message => message.role === 'user').flatMap(message => message.content || []).filter(block => block.type === 'text').at(-1)?.text || ''
-    const targetId = instruction.match(/目标章节 ID: ([a-f0-9-]+)/)?.[1]
-    if (!targetId) {
+    const targetId = instruction.match(/TARGET=([a-f0-9-]+)/)?.[1]
+      || instruction.match(/(?:目标章节 ID|本轮优先参考章节 ID): ([a-f0-9-]+)/)?.[1]
+    const searchEdit = instruction.includes('E2E_SEARCH_EDIT')
+    if ((!targetId && !searchEdit) || !instruction.includes('E2E_')) {
       const remembered = blocks.some(block => block.type === 'text' && block.text?.includes('怕火'))
       reply.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: `chat-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test', content: [{ type: 'text', text: remembered ? '林舟怕火，因此避开火光。' : '可以一起讨论大纲。' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }))
       return
@@ -33,17 +35,28 @@ const model = http.createServer(async (request, reply) => {
     if (instruction.includes('E2E_BLOCK') && !blocks.some(block => block.type === 'tool_result'))
       await new Promise(resolve => setTimeout(resolve, 30_000))
 
-    const replies = blocks.filter(block => block.type === 'tool_result')
+    const currentTurn = body.messages.findLastIndex(message => message.role === 'user'
+      && message.content?.some(block => block.type === 'text'))
+    const replies = body.messages.slice(currentTurn + 1).flatMap(message => message.content || [])
+      .filter(block => block.type === 'tool_result')
     let content
     let stopReason
-    if (!replies.length) {
+    if (searchEdit && !replies.length) {
+      content = [{ type: 'tool_use', id: `browser-search-${++serial}`, name: 'search_chapters', input: { keyword: '游泳' } }]
+      stopReason = 'tool_use'
+    } else if (searchEdit && !replies.some(block => block.tool_use_id.startsWith('browser-read-'))) {
+      const search = JSON.parse(replies.at(-1).content)
+      const match = search.data.matches.find(match => match.chapterId === targetId) || search.data.matches[0]
+      content = [{ type: 'tool_use', id: `browser-read-${++serial}`, name: 'read_chapter', input: { chapterId: match.chapterId } }]
+      stopReason = 'tool_use'
+    } else if (!replies.length) {
       content = [{ type: 'tool_use', id: `browser-read-${++serial}`, name: 'read_chapter', input: { chapterId: targetId } }]
       stopReason = 'tool_use'
-    } else if (instruction.includes('E2E_EDIT') && !replies.some(block => block.tool_use_id.startsWith('browser-edit-'))) {
-      const read = JSON.parse(replies.at(-1).content)
+    } else if ((instruction.includes('E2E_EDIT') || searchEdit) && !replies.some(block => block.tool_use_id.startsWith('browser-edit-'))) {
+      const read = JSON.parse(replies.findLast(block => block.tool_use_id.startsWith('browser-read-')).content)
       const proposedContent = read.data.content.replace('林舟游到了对岸', '林舟沿桥走到了对岸')
       content = [{ type: 'tool_use', id: `browser-edit-${++serial}`, name: 'propose_edit',
-        input: { proposedContent, reason: '人物设定表明林舟不会游泳，改为过桥。' } }]
+        input: { chapterId: read.data.chapterId, expectedVersion: read.data.version, proposedContent, reason: '人物设定表明林舟不会游泳，改为过桥。' } }]
       stopReason = 'tool_use'
     } else {
       content = [{ type: 'text', text: '已核对目标章完整正文与任务证据。' }]

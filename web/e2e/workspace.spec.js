@@ -96,12 +96,11 @@ test('keyboard sending creates one conversation, accepts line breaks and permits
   await input.fill('核对人物经历'); await input.press('Shift+Enter'); await input.press('a')
   expect(state.writes).toHaveLength(0); expect(state.creates).toHaveLength(0)
   const content = await input.inputValue(); expect(content).toContain('\n')
-  await page.getByRole('combobox', { name: '本轮任务' }).selectOption('CHAPTER_REVIEW')
   await input.press('Enter')
   await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
   await expect(input).toHaveValue('')
   expect(state.creates).toHaveLength(1); expect(state.writes).toHaveLength(1)
-  expect(state.writes[0]).toMatchObject({ targetChapterId: 'c', expectedVersion: 3, content })
+  expect(state.writes[0]).toMatchObject({ contextChapterId: 'c', contextVersion: 3, content })
   await input.fill('下一轮追问'); await input.press('Enter'); expect(state.writes).toHaveLength(1)
   await page.getByRole('button', { name: '停止', exact: true }).click()
   await expect(page.getByRole('button', { name: '正在停止', exact: true })).toBeDisabled()
@@ -133,16 +132,18 @@ test('mobile bottom assistant preserves input across chapter navigation, expansi
   const box = await send.boundingBox(); expect(box.y + box.height).toBeLessThanOrEqual(500)
 })
 
-test('save failure preserves both drafts and does not send or create a conversation', async ({ page }) => {
+test('sending with unsaved text uses the saved reference without saving the draft', async ({ page }) => {
   const state = await mockWorkspace(page, { history: false, saveFailure: true })
   await page.goto('/projects/p/chapters/c')
   await page.getByRole('textbox', { name: '章节正文', exact: true }).fill('未保存正文')
   await page.getByRole('textbox', { name: '对话消息' }).fill('检查本章')
-  await page.getByRole('combobox', { name: '本轮任务' }).selectOption('CHAPTER_REVIEW')
-  await page.getByRole('button', { name: '保存并发送' }).click()
-  await expect(page.locator('.assistantError')).toContainText('正文未保存')
-  expect(state.writes).toHaveLength(0); expect(state.creates).toHaveLength(0)
-  await expect(page.getByRole('textbox', { name: '对话消息' })).toHaveValue('检查本章')
+  await expect(page.locator('.assistantHelp')).toContainText('助手读取已保存版本')
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await expect(page.getByRole('button', { name: '停止', exact: true })).toBeVisible()
+  expect(state.writes).toHaveLength(1); expect(state.creates).toHaveLength(1)
+  expect(state.saves).toHaveLength(0)
+  expect(state.writes[0]).toMatchObject({ contextChapterId: 'c', contextVersion: 3 })
+  await expect(page.getByRole('textbox', { name: '章节正文', exact: true })).toHaveValue('未保存正文')
 })
 
 test('folding messages restores reading position and the height control supports keyboard and drag', async ({ page }) => {

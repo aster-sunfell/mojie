@@ -32,7 +32,11 @@ public final class ContentTools {
         tool("read_settings", "Read complete settings", readSettings(repository)),
         tool(
             "search_settings", "Search setting text literally", searchSettings(repository, cursor)),
-        tool("propose_edit", "Submit one candidate edit for the target chapter", propose()));
+        tool(
+            "propose_edit",
+            "Submit a candidate edit after reading the complete chapter; ASSISTANT requires"
+                + " chapterId and expectedVersion from that read",
+            propose()));
   }
 
   private interface Action {
@@ -90,6 +94,8 @@ public final class ContentTools {
         required.add("keyword");
       }
       case "propose_edit" -> {
+        props.put("chapterId", stringSchema());
+        props.put("expectedVersion", integerSchema(1, Integer.MAX_VALUE));
         props.put("proposedContent", stringSchema());
         props.put("reason", stringSchema());
         required.addAll(List.of("proposedContent", "reason"));
@@ -153,6 +159,20 @@ public final class ContentTools {
         chapter =
             new ToolContext.Chapter(
                 id, metadata.title(), metadata.order(), ctx.baseVersion(), ctx.baseContent());
+      } else if (id.equals(ctx.preferredChapterId())) {
+        ToolContentReader.ChapterMetadata metadata =
+            repository.chapters(ctx.projectId()).stream()
+                .filter(c -> c.id().equals(id))
+                .findFirst()
+                .orElse(null);
+        if (metadata == null) return missing();
+        chapter =
+            new ToolContext.Chapter(
+                id,
+                metadata.title(),
+                metadata.order(),
+                ctx.preferredVersion(),
+                ctx.preferredContent());
       } else {
         chapter = ctx.readChapters().get(id);
         if (chapter == null) {
@@ -197,10 +217,12 @@ public final class ContentTools {
         String keyword = required(args, "keyword", 1, 128);
         if (keyword.contains("\n") || keyword.contains("\r"))
           throw new IllegalArgumentException("keyword cannot contain a newline");
+        String anchor =
+            ctx.targetChapterId() == null ? ctx.preferredChapterId() : ctx.targetChapterId();
         String scope =
             optional(
-                args, "scope", ctx.targetChapterId() == null ? "ALL_CHAPTERS" : "BEFORE_TARGET");
-        if (ctx.targetChapterId() == null && scope.equals("BEFORE_TARGET"))
+                args, "scope", ctx.unified() || anchor == null ? "ALL_CHAPTERS" : "BEFORE_TARGET");
+        if (anchor == null && scope.equals("BEFORE_TARGET"))
           throw new IllegalArgumentException("CHAT without a target supports ALL_CHAPTERS only");
         if (!scope.equals("BEFORE_TARGET") && !scope.equals("ALL_CHAPTERS"))
           throw new IllegalArgumentException("Invalid scope");
@@ -219,8 +241,8 @@ public final class ContentTools {
               repository.captureChapterView(
                   ctx.runId(),
                   ctx.projectId(),
-                  ctx.targetChapterId(),
-                  ctx.baseVersion(),
+                  anchor,
+                  ctx.targetChapterId() == null ? ctx.preferredVersion() : ctx.baseVersion(),
                   ctx.readChapters(),
                   searchRemaining(ctx, searchEnd),
                   ctx);
@@ -229,10 +251,10 @@ public final class ContentTools {
         String query = "search_chapters:" + ctx.chapterViewId() + ":" + keyword + ":" + scope;
         SearchPosition after = cursor.searchPosition(args, ctx, query);
         int targetOrder =
-            ctx.targetChapterId() == null
+            anchor == null
                 ? 0
                 : chapters.stream()
-                    .filter(c -> c.id().equals(ctx.targetChapterId()))
+                    .filter(c -> c.id().equals(anchor))
                     .findFirst()
                     .map(ToolContentReader.ChapterMetadata::order)
                     .orElseThrow(() -> new IllegalArgumentException("Target chapter unavailable"));
@@ -481,17 +503,43 @@ public final class ContentTools {
 
   private static Action propose() {
     return (args, ctx) -> {
-      requireKeys(args, "proposedContent", "reason");
-      if (!ctx.targetRead())
-        return ToolResult.error("INSUFFICIENT_CONTEXT", "Read the target chapter first", true);
+      requireKeys(args, "chapterId", "expectedVersion", "proposedContent", "reason");
+      String chapterId = ctx.targetChapterId();
+      int version = Math.toIntExact(ctx.baseVersion());
+      String base = ctx.baseContent();
+      if (ctx.unified()) {
+        chapterId = required(args, "chapterId", 1, 128);
+        if (!args.has("expectedVersion"))
+          throw new IllegalArgumentException("expectedVersion is required for assistant edits");
+        version = number(args, "expectedVersion", -1, 1, Integer.MAX_VALUE);
+        ToolContext.Chapter chapter = ctx.readChapters().get(chapterId);
+        if (chapter == null || !ctx.chapterProvided(chapterId, chapter.version()))
+          return ToolResult.error(
+              "INSUFFICIENT_CONTEXT",
+              "Read the complete chapter and consume its result before proposing an edit",
+              true);
+        if (chapter.version() != version)
+          return ToolResult.error(
+              "VERSION_CONFLICT", "Use the version returned by read_chapter", true);
+        base = chapter.content();
+      } else {
+        if (!ctx.targetRead())
+          return ToolResult.error("INSUFFICIENT_CONTEXT", "Read the target chapter first", true);
+        if (args.has("chapterId") && !Objects.equals(chapterId, required(args, "chapterId", 1, 128))
+            || args.has("expectedVersion")
+                && number(args, "expectedVersion", -1, 1, Integer.MAX_VALUE) != version)
+          return ToolResult.error(
+              "VALIDATION_ERROR", "Legacy edits must use the fixed target and version", true);
+      }
       if (ctx.candidate() != null)
         return ToolResult.error("PROPOSAL_ALREADY_EXISTS", "One candidate already exists", false);
       String content = required(args, "proposedContent", 1, 6000);
       String reason = required(args, "reason", 1, 2000);
-      if (content.equals(ctx.baseContent()))
+      if (content.equals(base))
         return ToolResult.error("VALIDATION_ERROR", "Candidate matches base content", true);
-      ctx.setCandidate(new ToolContext.Candidate(content, reason));
-      return ToolResult.ok(Map.of("accepted", true, "baseVersion", ctx.baseVersion()), List.of());
+      ctx.setCandidate(new ToolContext.Candidate(content, reason, chapterId, version, base));
+      return ToolResult.ok(
+          Map.of("accepted", true, "chapterId", chapterId, "baseVersion", version), List.of());
     };
   }
 

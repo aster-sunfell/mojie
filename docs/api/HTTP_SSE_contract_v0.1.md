@@ -40,3 +40,7 @@
 新 Conversation 入口由 [连续对话与 Skill 设计](../design/conversation-skills.md) 承接。CHAT 无目标章，CHAPTER_REVIEW 不提供 propose_edit，CHAPTER_EDIT 保留当前基准全文与作者采纳边界；旧 Run API 保持原预算和独立任务语义。新任务 16 次模型/32 次工具、120000 新增工具码点和 300 秒运行预算，存入配置快照；请求保存历史来源 ID 与完整逻辑输入。终态展示消息和对话活动槽在数据库事务内收尾。
 
 Skill 目录固定于 Run，版本包在文件卷不可变保存，PG 保存状态及引用；Skill 指导不授予权限。新增 context.compacted、skill.loaded、script.started、script.finished、artifact.created 持久化事件，继续使用按 Run 序号恢复的 SSE。文件下载 attachment/nosniff。独立脚本沙箱及协调备份见 [运维说明](../design/conversation-skills-operations.md)。
+
+## 统一助手上下文（2026-10-12）
+
+新 Conversation 消息默认 `ASSISTANT`，客户端不再提交任务模式，可通过 `contextChapterId/contextVersion` 指定优先参考。接收事务固定已保存参考快照，模型按需 list/search/read；参考不要求完整读取，也不自动成为修改目标。`propose_edit` 在统一轮次显式传入实际章节 ID 和已读取版本，正文需在本轮完整读取并进入后续模型请求；完成事务按候选稿绑定的目标发布建议，仍由作者独立采纳。详情区分 `contextChapterId/contextVersion` 与实际建议的 `targetChapterId/baseVersion`。旧任务模式与独立 Run 接口继续兼容。V10 通过新增上下文列及调整约束保留历史，见 [实现设计](../design/unified-assistant-context.md)。

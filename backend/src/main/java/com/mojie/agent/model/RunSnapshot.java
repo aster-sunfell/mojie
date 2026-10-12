@@ -24,13 +24,17 @@ public record RunSnapshot(
     String proposalId,
     String conversationId,
     String taskType,
-    com.fasterxml.jackson.databind.JsonNode configSnapshot)
+    com.fasterxml.jackson.databind.JsonNode configSnapshot,
+    String contextChapterId,
+    Long contextVersion)
     implements QueryResult {
   public Map<String, Object> fields() {
     Map<String, Object> fields = new LinkedHashMap<>();
     fields.put("id", id);
     fields.put("conversationId", conversationId);
     fields.put("taskType", taskType);
+    fields.put("contextChapterId", contextChapterId);
+    fields.put("contextVersion", contextVersion);
     if (configSnapshot != null)
       fields.put(
           "budget",

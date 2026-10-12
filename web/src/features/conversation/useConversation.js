@@ -3,17 +3,17 @@ import { api, readableError } from '../../shared/api/client.js'
 import { useRun } from '../agent/useRun.js'
 import { active } from '../agent/status.js'
 
-const emptyDraft = () => ({ input: '', type: 'CHAT', selected: [], discoveryEnabled: true, pending: null })
+const emptyDraft = () => ({ input: '', useChapter: true, selected: [], discoveryEnabled: true, pending: null })
 const latestRun = (current, incoming) => current && ((current.lastEventSeq || 0) > (incoming.lastEventSeq || 0)
   || !active(current.status) && active(incoming.status)) ? current : incoming
 
-export function useConversation({ projectId, getContext, onSave, projectBusy, onActivityChange }) {
+export function useConversation({ projectId, getContext, projectBusy, onActivityChange }) {
   const storageKey = `mojie:conversation:${projectId}`
   const [id, setId] = useState(() => localStorage.getItem(storageKey) || '')
   const scope = useRef(id), drafts = useRef({}), mounted = useRef(true)
   const [draft, setDraft] = useState(() => {
     try { drafts.current = JSON.parse(sessionStorage.getItem(`${storageKey}:drafts`) || '{}') } catch { /* Start with a fresh draft. */ }
-    return drafts.current[id] || emptyDraft()
+    return { ...emptyDraft(), ...drafts.current[id] }
   })
   drafts.current[id] = draft
   const [conversation, setConversation] = useState(null), [messages, setMessages] = useState([])
@@ -22,11 +22,11 @@ export function useConversation({ projectId, getContext, onSave, projectBusy, on
   const [pins, setPins] = useState([]), [busy, setBusy] = useState(false), [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState(''), [cancelRequested, setCancelRequested] = useState(false)
   const [capabilities, setCapabilities] = useState(null)
-  const counter = useRef(0), listCounter = useRef(0), submitting = useRef(false), draftRevision = useRef(0)
+  const counter = useRef(0), listCounter = useRef(0), submitting = useRef(false)
   const mutating = useRef(false), retryRequests = useRef(new Map())
   const runCache = useRef({}), terminalSeen = useRef(new Set()), loadRef = useRef(null), listRef = useRef(null)
-  const options = useRef({ getContext, onSave, projectBusy, onActivityChange })
-  options.current = { getContext, onSave, projectBusy, onActivityChange }
+  const options = useRef({ getContext, projectBusy, onActivityChange })
+  options.current = { getContext, projectBusy, onActivityChange }
 
   function persistDrafts() {
     try {
@@ -37,7 +37,7 @@ export function useConversation({ projectId, getContext, onSave, projectBusy, on
   }
   function updateDraft(value, invalidate = true) {
     const next = { ...(drafts.current[scope.current] || emptyDraft()), ...value }
-    if (invalidate) { next.pending = null; draftRevision.current++ }
+    if (invalidate) next.pending = null
     drafts.current[scope.current] = next
     setDraft(next)
     persistDrafts()
@@ -51,7 +51,7 @@ export function useConversation({ projectId, getContext, onSave, projectBusy, on
       delete drafts.current['']
     }
     setId(nextId)
-    setDraft(drafts.current[nextId] || emptyDraft())
+    setDraft({ ...emptyDraft(), ...drafts.current[nextId] })
     setConversation(null); setMessages([]); setPins([]); setRunId(null); setError(''); setLoading(Boolean(nextId)); setCancelRequested(false)
     if (nextId) localStorage.setItem(storageKey, nextId)
     else localStorage.removeItem(storageKey)
@@ -153,26 +153,11 @@ export function useConversation({ projectId, getContext, onSave, projectBusy, on
     if (submitting.current || mutating.current || busy || loading || id && !conversation || taskActive || unavailableReason || options.current.projectBusy
       || conversation && conversation.status !== 'ACTIVE' || !originalDraft.input.trim() || [...originalDraft.input].length > 8000) return
     const initialContext = options.current.getContext()
-    if (originalDraft.type !== 'CHAT' && !initialContext.chapter) return
-    if (originalDraft.type === 'CHAPTER_EDIT' && initialContext.pendingEdits) {
-      setError('还有已调整但未应用的建议，请先应用或重置这些调整。'); return
-    }
     submitting.current = true; setBusy(true); setError('')
     let currentId = scope.current
-    const revision = draftRevision.current
+    // Capture only the selected saved reference; body text is read by tools on demand.
+    const target = originalDraft.useChapter !== false ? initialContext.chapter : null
     try {
-      let target = initialContext.chapter
-      if (originalDraft.type !== 'CHAT' && initialContext.dirty) {
-        target = await options.current.onSave()
-        const current = options.current.getContext()
-        if (!target || current.dirty || current.chapter?.id !== initialContext.chapter.id || revision !== draftRevision.current) {
-          setError('正文未保存，或输入与章节已经变化。请确认后再次发送。'); return
-        }
-      }
-      if (originalDraft.pending && originalDraft.type !== 'CHAT'
-        && (originalDraft.pending.targetChapterId !== target.id || originalDraft.pending.expectedVersion !== target.version)) {
-        setError('上次提交的章节或版本已变化，请调整要求后重新发送。'); return
-      }
       let c = conversation
       if (!currentId) {
         c = await api(`/projects/${projectId}/conversations`, 'POST')
@@ -187,8 +172,8 @@ export function useConversation({ projectId, getContext, onSave, projectBusy, on
         setConversation(c)
       }
       const request = originalDraft.pending || { content: originalDraft.input.trim(), clientRequestId: crypto.randomUUID(),
-        expectedConversationSeq: c.lastSeq, taskType: originalDraft.type,
-        ...(originalDraft.type !== 'CHAT' ? { targetChapterId: target.id, expectedVersion: target.version } : {}),
+        expectedConversationSeq: c.lastSeq,
+        ...(target ? { contextChapterId: target.id, contextVersion: target.version } : {}),
         selectedSkills: originalDraft.selected }
       updateDraft({ pending: request }, false)
       const receipt = await api(`/conversations/${currentId}/messages`, 'POST', request)
