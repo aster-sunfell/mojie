@@ -39,7 +39,7 @@ export function ConversationTurn({ message, run, chapterNames, review, proposalS
     <div className="messageMeta"><span>{user ? '你' : '写作助手'}</span>
       {user && run && turnContext && <span>{turnContext}</span>}</div>
     {user && message.skillMentions?.length > 0 && <div className="messageMeta">{message.skillMentions.map(s => <span key={s.skillId}>引用：{s.name}</span>)}</div>}
-    {user ? <p className="userContent">{message.content}</p> : <Markdown content={message.content} />}
+    {user ? <p className="userContent">{message.content}</p> : <Markdown className="conversationMarkdown" content={message.content} />}
     {failed && <div className="turnFailure"><span>本轮{message.status === 'FAILED' ? '失败' : '已停止'}，未完成回答。</span>
       {canRetry && <button className="link" onClick={() => onRetry(message)}>重试本轮</button>}
       {run?.errorDetail && <p className="error">{readableError({ code: run.errorCode, message: run.errorDetail })}</p>}</div>}

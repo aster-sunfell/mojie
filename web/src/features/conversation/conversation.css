@@ -1,27 +1,21 @@
-.conversationPanel{display:flex;flex-direction:column;flex-shrink:0;min-width:0;min-height:0;border-top:1px solid var(--color-border);background:#fafbf8;position:relative;padding-bottom:12px;overflow:hidden}
-.conversationPanel.collapsed{height:auto}
-.assistantInner{width:calc(100% - 56px);max-width:840px;margin-inline:auto;min-width:0}
-.assistantResize{display:flex;justify-content:center;align-items:center;flex-shrink:0;height:10px;width:100%;padding:0;border:0;border-radius:0;background:transparent;cursor:ns-resize;touch-action:none}
-.assistantResize span{display:block;width:36px;height:3px;border-radius:3px;background:#d4dfd5}
-.assistantResize:hover:not(:disabled){background:#edf2ee}
-.assistantResize:disabled{opacity:.5}
-.assistantHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;padding:2px 0 6px}
-.assistantHeading,.assistantActions{display:flex;align-items:center;gap:8px;min-width:0}
-.assistantHeading{flex:1;color:#526f63}
-.assistantHeading>svg,.assistantHeading h2,.assistantHeadingSeparator{flex-shrink:0}
+.conversationPanel{display:flex;flex-direction:column;min-width:0;min-height:0;background:#fafbf8;position:relative;padding:20px 0 12px;overflow:hidden}
+.conversationPanel[hidden]{display:none}
+.assistantInner{width:calc(100% - 40px);max-width:760px;margin-inline:auto;min-width:0}
+.assistantHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;padding:0 0 14px;border-bottom:1px solid var(--color-border)}
+.assistantHeading{display:flex;flex-direction:column;align-items:flex-start;gap:4px;flex:1;min-width:0;color:#526f63}
+.assistantTitle,.assistantActions{display:flex;align-items:center;gap:8px;min-width:0}
+.assistantTitle{width:100%}
+.assistantTitle>svg,.assistantHeading h2{flex-shrink:0}
 .assistantHeading h2{font-family:var(--font-sans);font-size:14px;margin:0;white-space:nowrap}
-.assistantHeadingSeparator{color:#a2aea5}
 .assistantActions{gap:2px;flex-shrink:0}
 .assistantIconButton{display:inline-flex;align-items:center;justify-content:center;position:relative;width:32px;height:32px;flex-shrink:0;padding:0;border-radius:8px;background:transparent;color:#526f63}
 .assistantIconButton:hover:not(:disabled){background:#edf2ee}
-.conversationName{font-size:12px;min-width:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.assistantStatus{font-size:12px;color:#718379;min-width:0;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.assistantMessageToolbar{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;color:#7b8981;font-size:12px;border-bottom:1px solid #edf0e9}
-.assistantMessageToolbar .assistantIconButton{height:28px;width:28px}
-.conversationMessages{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 0 6px}
-.conversationMessages[hidden]{display:none}
+.conversationName{font-size:12px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.assistantStatus{font-size:12px;color:#718379;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversationMessages{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:20px 0 12px}
 .messageList{display:flex;flex-direction:column;gap:18px}
-.conversationMessage{min-width:0;overflow-wrap:anywhere;font-size:14px}
+.conversationMessage{min-width:0;overflow-wrap:anywhere;font-size:16px;line-height:1.8}
+.conversationMessage .conversationMarkdown{font-size:16px;line-height:1.8}
 .conversationMessage.user{align-self:flex-end;max-width:90%;padding:10px 14px;background:#edf2ee;border-radius:12px}
 .conversationMessage.assistant{padding:0 2px}
 .messageMeta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:#718379;margin-bottom:5px}
@@ -35,13 +29,13 @@
 .messageSources .sources{padding:8px 0}
 .conversationExecution .runDetail{margin-top:4px}
 .messageAttachments{display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:13px}
-.assistantEmptyMessage{color:#7b8981;font-size:13px;margin:4px 0 12px}
+.assistantEmptyMessage{color:#718379;font-size:14px;margin:4px 0 12px}
 .assistantProgress{display:flex;align-items:center;gap:8px;color:#718379;font-size:13px;padding:8px 0}
 .assistantProgress svg{animation:assistant-spin 1s linear infinite}
 .conversationComposer{flex-shrink:0;margin-top:4px}
 .assistantInputBox{border:1px solid #d7dfd8;border-radius:12px;background:var(--color-surface);padding:10px 12px 8px;transition:border-color 150ms ease,box-shadow 150ms ease}
 .assistantInputBox:focus-within{border-color:#75a08b;box-shadow:0 0 0 3px #3c806e14}
-.assistantInputBox textarea{display:block;width:100%;min-height:48px;max-height:120px;border:0;border-radius:0;box-shadow:none;background:transparent;padding:0 2px 6px;resize:none;overflow-y:auto;font:16px/24px var(--font-sans)}
+.assistantInputBox textarea{display:block;width:100%;min-height:24px;max-height:120px;border:0;border-radius:0;box-shadow:none;background:transparent;padding:0 2px 6px;resize:none;overflow-y:auto;font:16px/24px var(--font-sans)}
 .assistantInputBox textarea::placeholder{color:#8b988f}
 .assistantInputBox textarea:focus{box-shadow:none;outline:none}
 .assistantInputTools{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -57,7 +51,7 @@
 .assistantUseChapter{font-size:12px;white-space:nowrap;padding:5px 0}
 .assistantSend{display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex-shrink:0;padding:0;border-radius:8px}
 .assistantSend[aria-label='正在提交'] svg{animation:assistant-spin 1s linear infinite}
-.assistantHelp{display:flex;justify-content:space-between;gap:12px;color:#929d95;font-size:11px;margin-top:5px;line-height:18px}
+.assistantHelp{display:flex;justify-content:space-between;gap:12px;color:#718379;font-size:12px;margin-top:5px;line-height:18px}
 .assistantHelp>span:last-child{white-space:nowrap}
 .assistantHelp>span:first-child{white-space:normal}
 .assistantError{margin:6px 0 0;font-size:12px;max-height:54px;overflow-y:auto}
@@ -87,22 +81,18 @@
 .conversationHistoryError{display:flex;align-items:center;gap:8px;font-size:12px}
 .conversationHistory .conversationHistoryError .error{color:var(--color-danger,#b44b45);font-size:12px;overflow-wrap:anywhere}
 .conversationHistoryLoadMore{align-self:center;font-size:12px;padding:4px}
-.writingColumn{position:relative}
 @keyframes assistant-spin{to{transform:rotate(360deg)}}
 @media(max-width:640px){
   .assistantInner{width:calc(100% - 32px)}
   .assistantHeader{gap:4px}
   .assistantHeading{gap:5px}
-  .assistantHeading>svg{display:none}
   .assistantHeading h2{font-size:13px}
   .assistantStatus{max-width:80px}
   .assistantContext{gap:6px}
   .assistantChapterReference{max-width:180px}
   .assistantInputBox{padding:8px}
   .conversationHistoryDialog{padding:20px}
-  .conversationPanel{padding-bottom:max(10px,env(safe-area-inset-bottom))}
-  .conversationPanel.enlarged{position:absolute;inset:0;z-index:5;height:auto!important;max-height:none}
-  .writingColumn:has(.conversationPanel.enlarged)>.editorArea,.writingColumn:has(.conversationPanel.enlarged)>.workspaceToolbar{visibility:hidden}
+  .conversationPanel{padding-top:14px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
   .messageProposal{padding-left:9px}
 }
 @media(max-height:560px){

@@ -21,6 +21,7 @@
   padding: 12px 16px;
   border-bottom: 1px solid #edf0e9;
   background: var(--color-surface);
+  flex-wrap: wrap;
 }
 
 .workspaceToolbar button {
@@ -32,6 +33,62 @@
 
 .workspaceSettingsButton {
   margin-left: auto;
+}
+
+.readingModes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.readingModes button {
+  background: transparent;
+  color: #526f63;
+  padding: 8px 10px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.readingModes button:hover:not(:disabled) {
+  background: #edf2ee;
+}
+
+.readingModes button[aria-pressed='true'] {
+  background: #dce9e0;
+  color: var(--color-primary);
+}
+
+.assistantReplyBadge {
+  font-size: 11px;
+  color: var(--color-primary);
+}
+
+.workspacePanes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspacePanes.split {
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 34%, 480px);
+}
+
+.chapterPane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chapterPane[hidden] {
+  display: none;
+}
+
+.workspacePanes.split > .conversationPanel {
+  border-left: 1px solid var(--color-border);
 }
 
 .sidebar {

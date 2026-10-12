@@ -24,9 +24,19 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   const [proposalStatuses, setProposalStatuses] = useState({})
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
+  const [assistantHasReply, setAssistantHasReply] = useState(false)
   const accepting = false
   const [showChapters, setShowChapters] = useState(false)
   const mobile = useMediaQuery('(max-width: 640px)')
+  const compact = useMediaQuery('(max-width: 1199px)')
+  const [readingMode, setReadingMode] = useState(() => selectedChapterId ? compact ? 'chapter' : 'split' : 'conversation')
+  const previousChapterId = useRef(selectedChapterId)
+  const layoutMode = !selectedChapterId ? 'conversation' : readingMode === 'split' && compact ? 'chapter' : readingMode
+  useEffect(() => {
+    if (previousChapterId.current === selectedChapterId) return
+    previousChapterId.current = selectedChapterId
+    setReadingMode(current => !selectedChapterId ? 'conversation' : current === 'chapter' || compact ? 'chapter' : 'split')
+  }, [selectedChapterId, compact])
   const selectedRef = useRef(selectedChapterId)
   const chapterRef = useRef(chapter)
   const draftRef = useRef(draft)
@@ -177,6 +187,7 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
       setReviewRun(run)
       requestAnimationFrame(() => workspaceRef.current?.querySelector('.inlineChange')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
     }
+    setReadingMode(compact ? 'chapter' : 'split')
     return true
   }
   const getContext = useCallback(() => ({ chapter: chapterRef.current }), [])
@@ -198,20 +209,33 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
         {mobile && <button className="secondary" onClick={() => setShowChapters(true)}>
           <Icon name="menu" size={16} />章节
         </button>}
+        <div className="readingModes" role="group" aria-label="阅读布局">
+          <button aria-pressed={layoutMode === 'chapter'} disabled={!selectedChapterId}
+            onClick={() => setReadingMode('chapter')}><Icon name="book" size={16} />专注章节</button>
+          {!compact && <button aria-pressed={layoutMode === 'split'} disabled={!selectedChapterId}
+            onClick={() => setReadingMode('split')}><Icon name="columns" size={16} />并排阅读</button>}
+          <button aria-pressed={layoutMode === 'conversation'} onClick={() => setReadingMode('conversation')}>
+            <Icon name="message" size={16} />专注对话{assistantHasReply && <span className="assistantReplyBadge" role="status">有新回复</span>}</button>
+        </div>
         <button className="secondary workspaceSettingsButton" aria-haspopup="dialog" onClick={() => { setSettingProposalId(null); setShowSettings(true) }}>
           <Icon name="book" size={16} />作品设定
         </button>
         <button className="secondary appSettingsButton" aria-haspopup="dialog" onClick={onSettings}><Icon name="settings" size={17} />设置</button>
       </header>
-      <ChapterEditor chapter={chapter} draft={draft}
-    saveStatus={saveStatus} dirty={dirty} accepting={accepting} error={error}
-    showHistory={showHistory}
-    onHistoryChange={setShowHistory} onSave={save}
-    review={review}
-    onDraftChange={changeDraft} />
-      <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty} skillRevision={skillRevision}
-        projectBusy={runBusy} review={review} getContext={getContext} proposalStatuses={proposalStatuses}
-        onOpenProposal={openProposal} onActivityChange={refreshBusy} />
+      <div className={`workspacePanes ${layoutMode}`}>
+        <div className="chapterPane" hidden={layoutMode === 'conversation'}>
+          <ChapterEditor chapter={chapter} draft={draft}
+            saveStatus={saveStatus} dirty={dirty} accepting={accepting} error={error}
+            showHistory={showHistory}
+            onHistoryChange={setShowHistory} onSave={save}
+            review={review}
+            onDraftChange={changeDraft} />
+        </div>
+        <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty} skillRevision={skillRevision}
+          visible={layoutMode !== 'chapter'} onUnreadChange={setAssistantHasReply}
+          projectBusy={runBusy} review={review} getContext={getContext} proposalStatuses={proposalStatuses}
+          onOpenProposal={openProposal} onActivityChange={refreshBusy} />
+      </div>
     </div>
     {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}
     {showSettings && <Settings key={projectId} projectId={projectId} disabled={runBusy} proposalId={settingProposalId}

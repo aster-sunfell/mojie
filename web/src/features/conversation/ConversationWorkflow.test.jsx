@@ -145,7 +145,7 @@ test('natural-language analysis and editing use the same conversation without a 
   expect(state.writes[0].content).toBe('只分析人物动机')
   expect(state.writes[0]).not.toHaveProperty('analysisOnly')
   expect(state.writes[0].taskType).toBeUndefined()
-  fireEvent.click(screen.getByRole('button', { name: '收起消息' }))
+  fireEvent.click(screen.getByRole('button', { name: '专注对话' }))
   fireEvent.change(input(), { target: { value: '现在修改人物设定' } })
   fireEvent.click(send())
   await waitFor(() => expect(state.writes).toHaveLength(2))
@@ -211,14 +211,21 @@ test('unsaved text is clearly excluded and sending retains the saved chapter ref
   expect(state.writes[0].targetChapterId).toBeUndefined()
 })
 
-test('changing chapters and folding messages preserve conversation input', async () => {
+test('changing chapters and reading modes preserve conversation and chapter drafts', async () => {
   setup({ initial: [{ id: 'a' }], initialMessages: { a: [{ id: 'm', role: 'USER', content: '之前的消息', seq: 1 }] } })
   await ready('这段输入应继续保留')
   fireEvent.click(screen.getByRole('button', { name: /第二章.*v1/ }))
   await screen.findByRole('heading', { name: '第二章' })
   expect(input().value).toBe('这段输入应继续保留')
-  fireEvent.click(screen.getByRole('button', { name: '收起消息' }))
-  fireEvent.click(screen.getByRole('button', { name: '展开消息' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '章节正文', exact: true }), { target: { value: '尚未保存的第二章' } })
+  fireEvent.click(screen.getByRole('button', { name: '专注章节' }))
+  expect(screen.queryByRole('textbox', { name: '对话消息' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: '专注对话' }))
+  expect(screen.queryByRole('textbox', { name: '章节正文', exact: true })).toBeNull()
+  expect(screen.getByText('之前的消息')).toBeTruthy()
+  expect(input().value).toBe('这段输入应继续保留')
+  fireEvent.click(screen.getByRole('button', { name: '并排阅读' }))
+  expect(screen.getByRole('textbox', { name: '章节正文', exact: true }).value).toBe('尚未保存的第二章')
   expect(input().value).toBe('这段输入应继续保留')
   fireEvent.click(screen.getByRole('button', { name: '作品设定' }))
   await screen.findByRole('dialog', { name: '作品设定' }); expect(input().value).toBe('这段输入应继续保留')
@@ -258,6 +265,27 @@ test('active turns allow drafting the next message and stop waits for the server
   await act(async () => { FakeEventSource.instances.get('r1').dispatchEvent(new MessageEvent('run.cancelled', { data: JSON.stringify({ runId: 'r1', seq: 3 }) })) })
   await waitFor(() => expect(send().disabled).toBe(false))
   expect(input().value).toBe('下一轮的输入')
+})
+
+test('a background reply stays connected in chapter focus and can be read without losing either draft', async () => {
+  const state = setup({ result: 'RUNNING' }); await ready(); fireEvent.click(send())
+  await screen.findByRole('button', { name: '停止', exact: true })
+  fireEvent.change(input(), { target: { value: '下一轮追问' } })
+  fireEvent.click(screen.getByRole('button', { name: '专注章节', exact: true }))
+  fireEvent.change(screen.getByRole('textbox', { name: '章节正文', exact: true }), { target: { value: '正在编辑的正文' } })
+  state.runs.r1.status = 'SUCCEEDED'; state.runs.r1.lastEventSeq = 3
+  state.conversations.d1.activeRunId = null; state.conversations.d1.lastSeq = 2
+  state.records.d1.push({ id: 'background-answer', seq: 2, role: 'ASSISTANT', content: '后台完成的回复', runId: 'r1', status: 'SUCCEEDED' })
+  await waitFor(() => expect(FakeEventSource.instances.has('r1')).toBe(true))
+  await act(async () => { FakeEventSource.instances.get('r1').dispatchEvent(new MessageEvent('run.succeeded', { data: JSON.stringify({ runId: 'r1', seq: 3 }) })) })
+  await screen.findByRole('button', { name: /专注对话.*有新回复/ })
+  expect(screen.queryByRole('textbox', { name: '对话消息' })).toBeNull()
+  expect(screen.getByRole('textbox', { name: '章节正文', exact: true }).value).toBe('正在编辑的正文')
+  fireEvent.click(screen.getByRole('button', { name: /专注对话/ }))
+  expect(screen.getByText('后台完成的回复')).toBeTruthy()
+  expect(input().value).toBe('下一轮追问')
+  expect(screen.queryByText('有新回复')).toBeNull()
+  expect(state.saves).toHaveLength(0)
 })
 
 test('whitespace and over-limit text are blocked while Unicode code points count once', async () => {

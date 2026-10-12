@@ -13,6 +13,18 @@
   .workspace {
     grid-template-columns: minmax(0,1fr);
   }
+  .workspaceToolbar {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .readingModes {
+    order: 1;
+    flex-basis: 100%;
+  }
+  .readingModes button {
+    flex: 1;
+    justify-content: center;
+  }
   .editorArea {
     --editor-block-padding: 18px;
     --editor-inline-padding: 16px;

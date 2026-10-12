@@ -3,7 +3,7 @@
   --editor-inline-padding: 28px;
   --editor-font-size: 18px;
   --editor-line-height: 1.9;
-  --editor-reading-width: 840px;
+  --editor-reading-width: 760px;
   flex: 1;
   min-height: 0;
   background: var(--color-surface);
