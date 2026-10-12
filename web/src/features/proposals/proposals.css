@@ -4,8 +4,6 @@
 .proposalReason { margin-bottom: 12px; }
 .badge { font: 600 10px 'DM Sans',sans-serif; color: #25765d; background: #e0f2e6; padding: 4px 7px; border-radius: 20px; }
 
-.reviewFooter { border-top: 1px solid #e1e8df; padding: 8px 16px; background: var(--color-surface); display: flex; justify-content: flex-end; flex-shrink: 0; }
-.reviewFooter button { font-size: 12px; }
 .proposalReview { min-width: 0; padding-bottom: 24px; }
 .reviewToolbar { position: sticky; top: calc(-1 * var(--editor-block-padding)); z-index: 3; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: 'count controls'; align-items: center; gap: 10px; margin-inline: calc(-1 * var(--editor-inline-padding)); padding: 12px var(--editor-inline-padding); background: var(--color-surface); border-bottom: 1px solid #e1e8df; }
 .reviewToolbarControls { grid-area: controls; display: flex; align-items: center; gap: 12px; }

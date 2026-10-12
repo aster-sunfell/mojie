@@ -1,108 +1,198 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, readableError } from '../../shared/api/client.js'
-import { Markdown } from '../../shared/ui/Markdown.jsx'
-import { useRun } from '../agent/useRun.js'
-import { active } from '../agent/status.js'
-import { RunResult } from '../agent/RunResult.jsx'
+import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
+import { Dialog } from '../../shared/ui/Dialog.jsx'
+import { Icon } from '../../shared/ui/Icon.jsx'
 import { SourceView } from '../history/SourceView.jsx'
 import { SkillLibrary } from '../skills/SkillLibrary.jsx'
+import { useConversation } from './useConversation.js'
+import { ConversationTurn } from './ConversationTurn.jsx'
+import { ConversationSkills } from './ConversationSkills.jsx'
 import './conversation.css'
 
-export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, onSelectRun }) {
-  const [items, setItems] = useState([]), [listCursor, setListCursor] = useState(null), [archived, setArchived] = useState(false)
-  const [id, setId] = useState(() => localStorage.getItem(`mojie:conversation:${projectId}`) || '')
-  const [conversation, setConversation] = useState(null), [messages, setMessages] = useState([])
-  const [input, setInput] = useState(''), [type, setType] = useState('CHAT'), [error, setError] = useState(''), [busy, setBusy] = useState(false)
-  const [library, setLibrary] = useState(false), [skills, setSkills] = useState([]), [pins, setPins] = useState([]), [selected, setSelected] = useState([])
-  const [versions, setVersions] = useState({}), [runId, setRunId] = useState(null), [resources, setResources] = useState(null), [source, setSource] = useState(null)
-  const scope = useRef(id), counter = useRef(0), pending = useRef(null), submitting = useRef(false)
-  const listRequest = useRef(0), listLoadRef = useRef(null)
-  const loadRef = useRef(null), onRunRef = useRef(onSelectRun)
-  scope.current = id; onRunRef.current = onSelectRun
-  const loadList = useCallback(async (after = null) => {
-    const request = ++listRequest.current
-    const value = await api(`/projects/${projectId}/conversations?status=${archived ? 'ARCHIVED' : 'ACTIVE'}&limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
-    if (request !== listRequest.current) return
-    setItems(current => after ? [...current, ...value.items] : value.items); setListCursor(value.nextCursor)
-  }, [projectId, archived])
-  listLoadRef.current = loadList
-  const load = useCallback(async () => {
-    if (!id) return
-    const token = ++counter.current
-    const [c, preferences] = await Promise.all([api(`/conversations/${id}`), api(`/conversations/${id}/skills`)])
-    let page, cursor, all = []
-    do { page = await api(`/conversations/${id}/messages?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`); all.push(...page.items); cursor = page.nextCursor } while (cursor)
-    if (scope.current !== id || counter.current !== token) return
-    setConversation(c); setMessages(all); setPins(preferences)
-    setRunId(c.activeRunId || all.at(-1)?.runId || null)
-  }, [id])
-  loadRef.current = load
-  const loadSkills = useCallback(async () => { let all = [], cursor; do { const page = await api(`/skills?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`); all.push(...page.items); cursor = page.nextCursor } while (cursor); setSkills(all) }, [])
-  useEffect(() => { loadList().catch(e => setError(readableError(e))) }, [loadList])
-  useEffect(() => { loadSkills().catch(e => setError(readableError(e))) }, [loadSkills])
-  useEffect(() => { counter.current++; setConversation(null); setMessages([]); setRunId(null); setPins([]); setSelected([]); setResources(null); setSource(null); setError(''); setInput(''); pending.current = null; if (id) localStorage.setItem(`mojie:conversation:${projectId}`, id); load().catch(e => { if (scope.current === id) setError(readableError(e)) }); return () => { counter.current++ } }, [id, projectId, load])
-  const onChange = useCallback(snapshot => { if (!active(snapshot.status)) { loadRef.current?.().catch(() => {}); listLoadRef.current?.().catch(() => {}) } }, [])
-  const { run, connection, refresh, error: runError } = useRun(runId, onChange)
-  useEffect(() => { if (runId) onRunRef.current?.(runId) }, [runId, chapter?.id])
+export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, onSave, onOpenProposal, onActivityChange }) {
+  const chat = useConversation({ projectId, getContext, onSave, projectBusy, onActivityChange })
+  const [expanded, setExpanded] = useState(Boolean(chat.id)), [enlarged, setEnlarged] = useState(false)
+  const [picker, setPicker] = useState(false), [skillPicker, setSkillPicker] = useState(false), [library, setLibrary] = useState(false)
+  const [skills, setSkills] = useState([]), [source, setSource] = useState(null), [skillError, setSkillError] = useState('')
+  const [newReply, setNewReply] = useState(false), [unseen, setUnseen] = useState(false)
+  const [availableHeight, setAvailableHeight] = useState(720), [desiredHeight, setDesiredHeight] = useState(null), [chromeHeight, setChromeHeight] = useState(190)
+  const root = useRef(null), messagesArea = useRef(null), textarea = useRef(null), composing = useRef(false)
+  const atBottom = useRef(true), lastMessage = useRef(null), readingPositions = useRef({}), restoreReading = useRef(true)
+  const [chapterNames, setChapterNames] = useState({})
+  const loadSkills = useCallback(async () => {
+    let all = [], cursor
+    do {
+      const page = await api(`/skills?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+      all.push(...page.items); cursor = page.nextCursor
+    } while (cursor)
+    setSkills(all); setSkillError('')
+  }, [])
+  useEffect(() => { loadSkills().catch(e => setSkillError(readableError(e))) }, [loadSkills])
+  useEffect(() => { if (chapter) setChapterNames(current => ({ ...current, [chapter.id]: chapter.title })) }, [chapter?.id, chapter?.title])
   useEffect(() => {
-    setResources(null)
-    if (!runId) return
     let disposed = false
-    api(`/agent/runs/${runId}/resources`).then(value => { if (!disposed) setResources(value) }).catch(() => {})
+    api(`/projects/${projectId}/chapters?limit=50`).then(page => {
+      if (!disposed) setChapterNames(current => ({ ...Object.fromEntries(page.items.map(c => [c.id, c.title])), ...current }))
+    }).catch(() => {})
     return () => { disposed = true }
-  }, [runId, run?.lastEventSeq])
-  useEffect(() => { if (!conversation?.activeRunId) return; const timer = setInterval(() => loadRef.current?.().catch(() => {}), 3000); return () => clearInterval(timer) }, [conversation?.activeRunId])
-  async function action(fn) { setBusy(true); setError(''); const current = id; try { await fn(); if (scope.current === current) { await load(); await loadList() } } catch (e) { if (scope.current === current) { setError(readableError(e)); if (e.code === 'CONVERSATION_VERSION_CONFLICT') { pending.current = null; await load().catch(() => {}) } } } finally { setBusy(false) } }
-  async function create() { setError(''); try { const c = await api(`/projects/${projectId}/conversations`, 'POST'); setId(c.id); await loadList() } catch (e) { setError(readableError(e)) } }
-  async function patch(value) { await action(() => api(`/conversations/${id}`, 'PATCH', { expectedVersion: conversation.version, ...value })) }
-  async function send(event) {
-    event.preventDefault(); if (submitting.current || busy || conversation?.activeRunId) return
-    submitting.current = true
-    const current = id
-    const request = pending.current || { content: input, clientRequestId: crypto.randomUUID(), expectedConversationSeq: conversation.lastSeq, taskType: type, ...(type !== 'CHAT' ? { targetChapterId: chapter.id, expectedVersion: chapter.version } : {}), selectedSkills: selected }
-    pending.current = request
-    await action(async () => {
-      const receipt = await api(`/conversations/${current}/messages`, 'POST', request)
-      pending.current = null
-      if (scope.current === current) { setInput(''); setSelected([]); setRunId(receipt.runId) }
-    }); submitting.current = false
+  }, [projectId])
+  useEffect(() => {
+    const area = root.current?.parentElement
+    if (!area || !globalThis.ResizeObserver) return
+    const header = root.current.querySelector('.assistantHeader'), form = root.current.querySelector('form')
+    const observer = new ResizeObserver(() => {
+      setAvailableHeight(area.clientHeight)
+      setChromeHeight(header.offsetHeight + form.offsetHeight + 18 + parseFloat(getComputedStyle(root.current).paddingBottom))
+    })
+    observer.observe(area); observer.observe(header); observer.observe(form); setAvailableHeight(area.clientHeight)
+    return () => observer.disconnect()
+  }, [])
+  useLayoutEffect(() => {
+    const element = textarea.current
+    element.style.height = 'auto'
+    element.style.height = `${Math.min(120, Math.max(48, element.scrollHeight))}px`
+  }, [chat.draft.input])
+  const scrollToBottom = useCallback(() => {
+    const area = messagesArea.current
+    if (area) area.scrollTop = area.scrollHeight
+    atBottom.current = true; setUnseen(false); setNewReply(false)
+  }, [])
+  useLayoutEffect(() => {
+    if (expanded && !chat.loading && restoreReading.current) {
+      const saved = readingPositions.current[chat.id]
+      atBottom.current = saved?.bottom ?? true
+      if (atBottom.current) scrollToBottom()
+      else if (messagesArea.current) messagesArea.current.scrollTop = saved.top
+      restoreReading.current = false
+    }
+    const key = chat.messages.at(-1)?.id
+    if (key && lastMessage.current !== key) {
+      if (!expanded) setNewReply(true)
+      else if (atBottom.current) scrollToBottom()
+      else setUnseen(true)
+    }
+    lastMessage.current = key
+  }, [chat.messages, chat.loading, chat.id, expanded, scrollToBottom])
+  useEffect(() => {
+    if (!expanded || !globalThis.ResizeObserver) return
+    const observer = new ResizeObserver(() => { if (atBottom.current) scrollToBottom() })
+    observer.observe(messagesArea.current.firstElementChild)
+    return () => observer.disconnect()
+  }, [expanded, scrollToBottom])
+  useEffect(() => { lastMessage.current = null; setSource(null); setUnseen(false); setNewReply(false) }, [chat.id])
+  const panelHeight = Math.max(chromeHeight, Math.min(enlarged ? availableHeight * .6 : desiredHeight ?? availableHeight * .4, availableHeight - 260, availableHeight * .6))
+  const canSend = !chat.loading && (!chat.id || Boolean(chat.conversation)) && !chat.busy && !chat.taskActive && !chat.unavailableReason && !projectBusy
+    && (!chat.conversation || chat.conversation.status === 'ACTIVE') && Boolean(chat.draft.input.trim())
+    && [...chat.draft.input].length <= 8000 && (chat.draft.type === 'CHAT' || Boolean(chapter))
+    && !(chat.draft.type === 'CHAPTER_EDIT' && review.hasPendingEdits)
+  function send(event) {
+    event.preventDefault()
+    if (!canSend) return
+    setExpanded(true); atBottom.current = true
+    chat.send()
   }
-  async function chooseSkill(skill) {
-    const currentId = id
-    const history = versions[skill.skill.id] || (await api(`/skills/${skill.skill.id}/versions?limit=50`)).items
-    if (scope.current !== currentId) return
-    setVersions(current => ({ ...current, [skill.skill.id]: history }))
-    setSelected(current => current.some(s => s.skillId === skill.skill.id) ? current.filter(s => s.skillId !== skill.skill.id) : [...current, { skillId: skill.skill.id, versionId: pins.find(s => s.skillId === skill.skill.id)?.versionId || skill.skill.currentVersionId }]); pending.current = null
+  function saveReading() { if (expanded && messagesArea.current) readingPositions.current[chat.id] = { top: messagesArea.current.scrollTop, bottom: atBottom.current } }
+  function toggleMessages() { saveReading(); restoreReading.current = true; setExpanded(value => !value); setNewReply(false); setEnlarged(false) }
+  function resize(event) {
+    if (event.button !== 0 || !expanded || enlarged) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const start = event.clientY, initialHeight = root.current.offsetHeight
+    const handle = move => setDesiredHeight(Math.max(190, Math.min(initialHeight + start - move.clientY, availableHeight * .6)))
+    const target = event.currentTarget
+    const finish = () => { target.removeEventListener('pointermove', handle); target.removeEventListener('pointerup', finish); target.removeEventListener('pointercancel', finish) }
+    target.addEventListener('pointermove', handle); target.addEventListener('pointerup', finish); target.addEventListener('pointercancel', finish)
   }
-  const taskActive = Boolean(conversation?.activeRunId || run && active(run.status))
-  const blocked = !conversation || conversation.status !== 'ACTIVE' || taskActive || projectBusy || busy || !input.trim() || [...input].length > 8000 || type !== 'CHAT' && (!chapter || dirty)
-  return <aside className="conversationPanel" aria-label="连续对话">
-    <div className="conversationToolbar"><button onClick={create} disabled={busy}>新建对话</button><button className="secondary" onClick={() => setLibrary(true)}>Skill 库</button></div>
-    <label>当前对话<select aria-label="当前对话" value={id} onChange={e => setId(e.target.value)}><option value="">选择或新建对话</option>{!items.some(c => c.id === id) && conversation && <option value={id}>{conversation.title}</option>}{items.map(c => <option key={c.id} value={c.id}>{c.title}{c.activeRunId ? ' · 执行中' : ''}</option>)}</select></label>
-    <label className="archiveFilter"><input type="checkbox" checked={archived} onChange={e => setArchived(e.target.checked)} />查看归档</label>{listCursor && <button className="link" onClick={() => loadList(listCursor)}>更多对话</button>}
-    {conversation && <div className="conversationToolbar"><button className="link" disabled={taskActive || busy} onClick={() => { const title = window.prompt('对话标题', conversation.title); if (title) patch({ title }) }}>重命名</button><button className="link" disabled={taskActive || busy} onClick={() => patch({ status: conversation.status === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE' })}>{conversation.status === 'ACTIVE' ? '归档' : '恢复'}</button><small>模型 {conversation.modelId}</small></div>}
-    {(error || runError) && <p className="error" role="alert">{error || runError}</p>}
-    <div className="conversationMessages">{messages.map(m => <article key={m.id} className={`conversationMessage ${m.role.toLowerCase()}`}><small>{m.role === 'USER' ? '你' : '助手'}</small>{m.role === 'USER' ? <p>{m.content}</p> : <Markdown content={m.content} />}
-      {m.role === 'USER' && ['FAILED', 'CANCELLED'].includes(m.status) && <p className="muted">本轮{m.status === 'FAILED' ? '失败' : '已停止'}，未完成回答。{m.seq === conversation?.lastSeq && <button className="link" disabled={taskActive || busy || projectBusy} onClick={() => action(() => api(`/conversations/${id}/messages/${m.id}/retry`, 'POST', { clientRequestId: crypto.randomUUID() }))}>重试本轮</button>}</p>}
-    </article>)}{!id && <p className="muted">新建独立对话，持续讨论人物、大纲或章节。</p>}</div>
-    {conversation && <form onSubmit={send} className="conversationComposer">
-      <label>本轮任务<select aria-label="本轮任务" value={type} disabled={taskActive || busy} onChange={e => { setType(e.target.value); pending.current = null }}><option value="CHAT">普通聊天</option><option value="CHAPTER_REVIEW">章节审阅</option><option value="CHAPTER_EDIT">章节修改</option></select></label>
-      {type !== 'CHAT' && <p className="muted">目标：{chapter?.title || '请先选择章节'} · 版本 {chapter?.version || '—'}{dirty ? ' · 请先保存正文' : ''}</p>}
-      {dirty && type === 'CHAT' && <p className="hint">当前未保存草稿未提供给模型，只讨论已保存内容。</p>}
-      <details className="conversationSkills"><summary>本轮 Skill 与对话固定项 · {selected.length} / {pins.length}</summary>
-        <label><input type="checkbox" checked={conversation.discoveryEnabled} disabled={taskActive || busy} onChange={e => patch({ discoveryEnabled: e.target.checked })} />允许自动发现其他 Skill</label>
-        {pins.map(p => <p key={p.skillId}>固定：{skills.find(s => s.skill.id === p.skillId)?.skill.name || p.skillId} · {p.versionId}<button type="button" className="link" disabled={taskActive || busy} onClick={() => action(() => api(`/conversations/${id}/skills`, 'PUT', pins.filter(s => s.skillId !== p.skillId)))}>取消固定</button></p>)}
-        {skills.filter(s => s.skill.enabled).map(s => { const choice = selected.find(p => p.skillId === s.skill.id); return <div key={s.skill.id}><label><input type="checkbox" checked={Boolean(choice)} disabled={taskActive || busy} onChange={() => chooseSkill(s).catch(e => setError(readableError(e)))} />{s.skill.name}</label>{choice && <><select aria-label={`${s.skill.name} 版本`} value={choice.versionId} onChange={e => { setSelected(current => current.map(p => p.skillId === s.skill.id ? { ...p, versionId: e.target.value } : p)); pending.current = null }}>{!(versions[s.skill.id] || []).some(v => v.id === choice.versionId) && <option value={choice.versionId}>{choice.versionId}</option>}{(versions[s.skill.id] || []).map(v => <option key={v.id} value={v.id}>{v.id}</option>)}</select><button type="button" className="link" disabled={taskActive || busy} onClick={() => action(() => api(`/conversations/${id}/skills`, 'PUT', [...pins.filter(p => p.skillId !== s.skill.id), choice]))}>固定到对话</button></>}</div> })}
-      </details>
-      <textarea aria-label="对话消息" placeholder="继续讨论，或提出新的写作问题…" value={input} disabled={taskActive || busy || conversation.status !== 'ACTIVE'} onChange={e => { setInput(e.target.value); pending.current = null }} />
-      <div className="conversationToolbar"><small>{[...input].length}/8000</small><button disabled={blocked}>发送</button>{taskActive && <button type="button" className="secondary" onClick={() => action(() => api(`/agent/runs/${conversation.activeRunId || runId}/cancel`, 'POST'))}>停止</button>}</div>
-      {projectBusy && !taskActive && <p className="hint">作品有任务正在执行，结束后可发送。</p>}
-    </form>}
-    {run && <details className="conversationExecution" open={active(run.status)}><summary>本轮执行详情</summary><RunResult task={{ run, connection, refresh }} review={review} onSource={setSource} />
-      {resources?.skills.map(s => <p key={s.skillId} className="muted">{s.metadata.name} · {s.versionId} · {s.providedToModel ? '已进入模型请求' : s.loaded ? '已加载，尚未确认送达' : '可发现'}</p>)}
-      {resources?.artifacts.map(a => <p key={a.id}><a href={`/api/v1/artifacts/${a.id}/download`} download>{a.name}</a> · {run.status === 'SUCCEEDED' ? '附件' : '未完成任务产物'} · 到期 {new Date(a.expiresAt).toLocaleDateString()}</p>)}
-    </details>}
-    {source && <SourceView key={source.id} source={source} step={run?.steps?.find(s => s.toolExecutionId === source.toolExecutionId)} close={() => setSource(null)} />}
+  function selectConversation(id) { saveReading(); restoreReading.current = true; chat.select(id); setPicker(false); setExpanded(Boolean(id)); setEnlarged(false) }
+  async function viewProposal(run) {
+    if (await onOpenProposal(run)) {
+      setEnlarged(false)
+      if (window.matchMedia?.('(max-width: 640px)').matches) setExpanded(false)
+    }
+  }
+  const lastUser = chat.messages.filter(m => m.role === 'USER').at(-1)
+  const status = chat.taskActive ? chat.cancelRequested ? '正在停止…' : chat.connection === 'reconnecting' ? '连接中断，正在重连并查询状态…' : '正在处理…'
+    : newReply ? '有新回复' : chat.conversation?.status === 'ARCHIVED' ? '已归档 · 恢复后可以继续发送' : ''
+  return <section ref={root} className={`conversationPanel ${expanded ? 'expanded' : 'collapsed'} ${enlarged ? 'enlarged' : ''}`}
+    aria-label="写作助手" style={expanded ? { height: panelHeight } : undefined}>
+    <button className="assistantResize" aria-label="调整对话高度" disabled={!expanded || enlarged}
+      onPointerDown={resize} onKeyDown={event => {
+        if (['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); setDesiredHeight(h => Math.min(availableHeight * .6, Math.max(190, (h ?? panelHeight) + (event.key === 'ArrowUp' ? 30 : -30)))) }
+      }}><span /></button>
+    <div className="assistantInner assistantHeader">
+      <div className="assistantHeading"><Icon name="message" size={17} /><h2>写作助手</h2>
+        <button className="link conversationName" disabled={chat.busy} onClick={() => setPicker(true)}>{chat.conversation?.title || '新对话'} ▾</button>
+        {status && <span className="assistantStatus" role="status">{status}</span>}</div>
+      <div className="assistantActions"><button className="link" disabled={chat.busy} onClick={() => selectConversation('')}>新对话</button>
+        {expanded && <button className="link" aria-pressed={enlarged} onClick={() => setEnlarged(value => !value)}>{enlarged ? '恢复高度' : '扩大对话'}</button>}
+        <button className="link" aria-expanded={expanded} aria-controls="assistant-messages" onClick={toggleMessages}>{expanded ? '收起消息' : '展开消息'}</button></div>
+    </div>
+    <ScrollArea ref={messagesArea} id="assistant-messages" className="conversationMessages" hidden={!expanded}
+      onScroll={event => { const area = event.currentTarget; atBottom.current = area.scrollHeight - area.scrollTop - area.clientHeight < 48; if (atBottom.current) setUnseen(false) }}>
+      <div className="assistantInner messageList">
+        {chat.loading && <p className="muted">正在恢复对话…</p>}
+        {chat.messages.map(m => <ConversationTurn key={m.id} message={m} run={chat.runs[m.runId]} chapterNames={chapterNames}
+          review={review} connection={chat.connection} onOpenProposal={viewProposal} onSource={(value, run) => setSource({ value, run })}
+          onRetry={chat.retry} canRetry={lastUser?.id === m.id && !chat.taskActive && !chat.busy && !projectBusy && chat.conversation?.status === 'ACTIVE'} />)}
+        {!chat.loading && chat.messages.length === 0 && <p className="assistantEmptyMessage">讨论人物、梳理情节，或检查当前章节。</p>}
+        {chat.taskActive && <div className="assistantProgress" role="status"><Icon name="loading" size={16} />{status}</div>}
+      </div>
+    </ScrollArea>
+    {unseen && expanded && <button className="newReplyButton" onClick={scrollToBottom}>查看新回复 ↓</button>}
+    <form onSubmit={send} className="assistantInner conversationComposer" aria-label="写作助手输入区">
+      {!chat.loading && !chat.messages.length && !chat.draft.input.trim() && <div className="assistantExamples">
+        {[['梳理人物动机', 'CHAT', '一起梳理主要人物的动机与关系，找出可以深化的地方。'],
+          ['检查前后矛盾', 'CHAPTER_REVIEW', '查阅前文与设定，检查当前章节中的人物经历和时间顺序是否矛盾，并说明依据。'],
+          ['改进章节表达', 'CHAPTER_EDIT', '保留当前章节的情节与叙述风格，提出让表达更自然、节奏更清晰的修改建议。']].map(([label, type, input]) =>
+          <button key={type} type="button" disabled={chat.busy || type !== 'CHAT' && !chapter} onClick={() => {
+            chat.updateDraft({ input, type }); textarea.current.focus()
+          }}>{label}</button>)}
+      </div>}
+      <div className="assistantInputBox">
+        <textarea ref={textarea} aria-label="对话消息" rows={2} placeholder="继续讨论，或告诉助手想检查、改进什么…"
+          value={chat.draft.input} disabled={chat.busy || chat.conversation?.status === 'ARCHIVED'}
+          onChange={event => chat.updateDraft({ input: event.target.value })}
+          onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
+          onKeyDown={event => {
+            if (event.key === 'Enter' && !event.shiftKey && !composing.current && !event.nativeEvent.isComposing && event.keyCode !== 229) send(event)
+          }} />
+        <div className="assistantInputTools"><div className="assistantContext">
+          <select aria-label="本轮任务" value={chat.draft.type} disabled={chat.busy}
+            onChange={event => chat.updateDraft({ type: event.target.value })}>
+            <option value="CHAT">讨论</option><option value="CHAPTER_REVIEW">审阅本章</option><option value="CHAPTER_EDIT">修改本章</option>
+          </select>
+          <button type="button" className="link" onClick={() => setSkillPicker(true)}>Skill{chat.draft.selected.length ? ` · ${chat.draft.selected.length}` : ''}</button>
+          <span>{chat.draft.type === 'CHAT' ? '作品讨论' : chapter ? `${chapter.title} · ${dirty ? '未保存' : `已保存 v${chapter.version}`}` : '请先选择章节'}</span>
+        </div>
+          <button type={chat.taskActive ? 'button' : 'submit'} className="assistantSend" disabled={chat.taskActive ? chat.cancelRequested || chat.busy : !canSend}
+            onClick={chat.taskActive ? chat.stop : undefined}>
+            <Icon name={chat.busy ? 'loading' : chat.taskActive ? 'stop' : 'send'} size={16} />
+            {chat.busy ? '正在提交' : chat.taskActive ? chat.cancelRequested ? '正在停止' : '停止' : dirty && chat.draft.type !== 'CHAT' ? '保存并发送' : '发送'}
+          </button>
+        </div>
+      </div>
+      <div className="assistantHelp"><span>{chat.unavailableReason || (dirty && chat.draft.type === 'CHAT' ? '本轮不包含未保存正文。' : chat.draft.type === 'CHAPTER_EDIT' && review.hasPendingEdits
+        ? '请先应用或重置已调整的建议。' : projectBusy && !chat.taskActive ? '作品有任务正在执行，结束后可发送。' : 'Enter 发送 · Shift+Enter 换行')}
+      </span><span className={[...chat.draft.input].length > 8000 ? 'error' : ''}>{[...chat.draft.input].length}/8000</span></div>
+      {chat.error && <p className="error assistantError" role="alert">{chat.error}</p>}
+    </form>
+    {picker && <Dialog title="作品对话" onCancel={() => setPicker(false)}>
+      <div className="conversationPicker">
+        {chat.error && <p className="error" role="alert">{chat.error}</p>}
+        <label>当前对话<select aria-label="当前对话" value={chat.id} disabled={chat.busy} onChange={event => selectConversation(event.target.value)}>
+          <option value="">新对话</option>{!chat.items.some(c => c.id === chat.id) && chat.conversation && <option value={chat.id}>{chat.conversation.title}</option>}
+          {chat.items.map(c => <option key={c.id} value={c.id}>{c.title}{c.activeRunId ? ' · 执行中' : ''}</option>)}</select></label>
+        <label className="archiveFilter"><input type="checkbox" checked={chat.archived} onChange={event => chat.setArchived(event.target.checked)} />查看归档</label>
+        {chat.cursor && <button className="link" onClick={() => chat.loadList(chat.cursor).catch(() => {})}>更多对话</button>}
+        {chat.conversation && <><small>模型 {chat.conversation.modelId}</small><div className="row">
+          <button className="secondary" disabled={chat.taskActive || chat.busy} onClick={() => { const title = window.prompt('对话标题', chat.conversation.title); if (title?.trim()) chat.patch({ title: title.trim() }) }}>重命名</button>
+          <button className="secondary" disabled={chat.taskActive || chat.busy} onClick={() => chat.patch({ status: chat.conversation.status === 'ACTIVE' ? 'ARCHIVED' : 'ACTIVE' })}>{chat.conversation.status === 'ACTIVE' ? '归档' : '恢复'}</button>
+        </div></>}
+        <button className="secondary" onClick={() => setPicker(false)}>关闭</button>
+      </div>
+    </Dialog>}
+    {skillPicker && <ConversationSkills chat={chat} skills={skills} loadError={skillError} onClose={() => setSkillPicker(false)} onLibrary={() => { setSkillPicker(false); setLibrary(true) }} />}
+    {source && <SourceView key={source.value.id} source={source.value} step={source.run.steps?.find(s => s.toolExecutionId === source.value.toolExecutionId)} close={() => setSource(null)} />}
     {library && <SkillLibrary onClose={() => setLibrary(false)} onChange={loadSkills} />}
-  </aside>
+  </section>
 }

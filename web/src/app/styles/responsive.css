@@ -6,12 +6,7 @@
     --editor-block-padding: 24px;
     --editor-inline-padding: 24px;
   }
-  .agentBody {
-    padding: 15px;
-  }
-  .panelHeader {
-    padding: 22px 15px;
-  }
+
 }
 
 @media (max-width:640px) {

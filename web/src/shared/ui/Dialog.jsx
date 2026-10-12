@@ -15,7 +15,7 @@ export function Dialog({ title, busy = false, onCancel, children }) {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const focusable = () => [...dialog.current.querySelectorAll(
-      'button:not(:disabled), input:not(:disabled), [tabindex="0"]')]
+      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]')]
     ;(dialog.current.querySelector('[data-autofocus]') || focusable()[0] || dialog.current).focus()
     const handleKey = event => {
       if (event.key === 'Escape') {

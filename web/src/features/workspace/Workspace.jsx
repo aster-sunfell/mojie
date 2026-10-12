@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api, readableError } from '../../shared/api/client.js'
 import { ConversationPanel } from '../conversation/ConversationPanel.jsx'
-import { AgentPanel } from '../agent/AgentPanel.jsx'
-import { AgentComposer } from '../agent/AgentComposer.jsx'
-import { useAgentTask } from '../agent/useAgentTask.js'
 import { ChapterEditor } from '../editor/ChapterEditor.jsx'
 import { active } from '../agent/status.js'
 import { ChapterSidebar } from './ChapterSidebar.jsx'
@@ -20,37 +17,40 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
   const [draft, setDraft] = useState('')
   const [saveStatus, setSaveStatus] = useState('已保存')
   const [error, setError] = useState('')
-  const [assistantMode, setAssistantMode] = useState('legacy')
+  const [reviewRun, setReviewRun] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
   const accepting = false
-  const [showAssistant, setShowAssistant] = useState(false)
   const [showChapters, setShowChapters] = useState(false)
-  const [showComposer, setShowComposer] = useState(false)
-  const compact = useMediaQuery('(max-width: 1100px)')
   const mobile = useMediaQuery('(max-width: 640px)')
   const selectedRef = useRef(selectedChapterId)
   const chapterRef = useRef(chapter)
   const draftRef = useRef(draft)
   const saveInFlight = useRef(null)
   const reviewDirtyRef = useRef(false)
+  const workspaceRef = useRef(null)
   selectedRef.current = selectedChapterId
   chapterRef.current = chapter
   const dirty = chapter && (draft !== chapter.content || reviewDirtyRef.current)
-  const task = useAgentTask({ projectId, chapterId: selectedChapterId, chapter,
-    dirty, accepting, projectBusy: runBusy })
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!mobile || !viewport) return
+    const resize = () => { if (workspaceRef.current) workspaceRef.current.style.height = `${viewport.height}px` }
+    resize(); viewport.addEventListener('resize', resize)
+    return () => { viewport.removeEventListener('resize', resize); if (workspaceRef.current) workspaceRef.current.style.height = '' }
+  }, [mobile])
   const changeDraft = useCallback(value => {
     draftRef.current = value; setDraft(value); setSaveStatus('未保存')
   }, [])
-  const review = useProposalReview({ chapterId: selectedChapterId, run: task.run, draftRef,
+  const review = useProposalReview({ chapterId: selectedChapterId,
+    run: reviewRun?.targetChapterId === selectedChapterId ? reviewRun : null, draftRef,
     onDraftChange: changeDraft, onDirtyChange: value => {
       reviewDirtyRef.current = value
       if (value) setSaveStatus(current => current === '保存中' ? current : '未保存')
       else if (draftRef.current === chapterRef.current?.content)
         setSaveStatus(current => current === '保存中' ? current : '已保存')
     } })
-  useEffect(() => { setShowComposer(false) }, [review.id])
   const loadChapters = useCallback((after = null) => api(`/projects/${projectId}/chapters?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
     .then(page => {
       setChapters(current => after
@@ -145,31 +145,57 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     }
     catch (e) { setError(readableError(e)) }
   }
-  useEffect(() => {
-    if (!projectId) return
-    const timer = window.setInterval(() => api(`/agent/runs?projectId=${projectId}&limit=20`).then(page => setRunBusy(page.items.some(item => active(item.status)))).catch(() => {}), 5000)
-    return () => window.clearInterval(timer)
+  const busyRequest = useRef(0)
+  const refreshBusy = useCallback(async () => {
+    const request = ++busyRequest.current
+    try {
+      const page = await api(`/agent/runs?projectId=${projectId}&limit=20`)
+      if (request === busyRequest.current) setRunBusy(page.items.some(item => active(item.status)))
+    } catch { /* Keep the last known activity state until the next poll. */ }
   }, [projectId])
+  useEffect(() => {
+    refreshBusy()
+    const timer = window.setInterval(refreshBusy, 5000)
+    return () => { window.clearInterval(timer); busyRequest.current++ }
+  }, [refreshBusy])
+  async function openProposal(run) {
+    if (run?.status !== 'SUCCEEDED' || !run.proposalId || !run.targetChapterId) return false
+    if (run.targetChapterId !== selectedRef.current) {
+      if (!(await prepareLeave())) return false
+      setShowSettings(false)
+      setReviewRun(run)
+      navigate(`/projects/${projectId}/chapters/${run.targetChapterId}`)
+    } else {
+      // Same-chapter review sessions remain cached, including unsaved choices.
+      setShowSettings(false)
+      setReviewRun(run)
+      requestAnimationFrame(() => workspaceRef.current?.querySelector('.inlineChange')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
+    }
+    return true
+  }
+  const reviewRef = useRef(review)
+  reviewRef.current = review
+  const getContext = useCallback(() => ({ chapter: chapterRef.current,
+    dirty: Boolean(chapterRef.current && (draftRef.current !== chapterRef.current.content || reviewDirtyRef.current)),
+    pendingEdits: reviewRef.current.hasPendingEdits }), [])
+  useEffect(() => {
+    if (!review.proposal || review.loading) return
+    const frame = requestAnimationFrame(() => workspaceRef.current?.querySelector('.inlineChange')?.scrollIntoView?.({ block: 'start' }))
+    return () => cancelAnimationFrame(frame)
+  }, [review.id, review.loading])
   if (error && !project) return <main className="home"><p className="error">{error}</p><button onClick={() => navigate('/')}>返回作品列表</button></main>
   const sidebar = <ChapterSidebar projectId={projectId} project={project} chapters={chapters} selectedChapterId={selectedChapterId}
-    busy={runBusy || task.taskActive} cursor={chapterCursor} showSettings={showSettings}
+    busy={runBusy} cursor={chapterCursor} showSettings={showSettings}
     onLeave={leave} onAddChapter={addChapter}
     onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))}
     onSettingsToggle={() => { setShowSettings(!showSettings); setShowChapters(false) }} />
-  const panel = <div className="assistantContainer">
-    <nav className="assistantTabs" aria-label="助手模式"><button className="secondary" aria-pressed={assistantMode === 'legacy'} onClick={() => setAssistantMode('legacy')}>章节任务</button><button className="secondary" aria-pressed={assistantMode === 'conversation'} onClick={() => setAssistantMode('conversation')}>连续对话</button></nav>
-    {assistantMode === 'conversation' ? <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty} projectBusy={runBusy} review={review} onSelectRun={task.selectRun} /> : <AgentPanel task={task} chapter={chapter} review={review} embedded={compact} />}
-  </div>
 
-  return <div className="workspace">
+  return <div ref={workspaceRef} className="workspace">
     {!mobile && sidebar}
     <div className="writingColumn">
-      {compact && <div className="workspaceToolbar">
-        {mobile && <button className="secondary" onClick={() => setShowChapters(true)}>
+      {mobile && <div className="workspaceToolbar">
+        <button className="secondary" onClick={() => setShowChapters(true)}>
           <Icon name="menu" size={16} />章节
-        </button>}
-        <button className="secondary assistantToggle" onClick={() => setShowAssistant(true)}>
-          <Icon name="message" size={16} />{task.taskActive ? '查看进度' : '助手结果'}
         </button>
       </div>}
       <ChapterEditor projectId={projectId} chapter={chapter} draft={draft}
@@ -178,13 +204,11 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onHistoryChange={setShowHistory} onSave={save}
     review={review}
     onDraftChange={changeDraft} />
-      {assistantMode === 'legacy' && chapter && chapter.id === selectedChapterId && !showSettings && (review.proposal && !showComposer
-        ? <div className="reviewFooter"><button className="secondary" onClick={() => setShowComposer(true)}>向助手提要求</button></div>
-        : <>{review.proposal && <div className="reviewFooter"><button className="link" onClick={() => setShowComposer(false)}>收起输入框</button></div>}
-          <AgentComposer chapter={chapter} task={task} dirty={dirty} onSave={save} saveStatus={saveStatus} /></>)}
+      <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty}
+        projectBusy={runBusy} review={review} getContext={getContext}
+        onSave={async () => await save() ? chapterRef.current : null}
+        onOpenProposal={openProposal} onActivityChange={refreshBusy} />
     </div>
-    {!compact && panel}
-    {compact && showAssistant && <Drawer title="写作助手" onClose={() => setShowAssistant(false)}>{panel}</Drawer>}
     {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}
   </div>
 }

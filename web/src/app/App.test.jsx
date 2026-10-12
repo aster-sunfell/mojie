@@ -8,7 +8,25 @@ const project = { id: 'p', title: '作品' }
 const chapter = { id: 'c', projectId: 'p', chapterOrder: 1, title: '第一章', content: '原文', version: 1 }
 const reply = data => ({ ok: true, status: 200, json: async () => ({ data }) })
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState({}, '', '/') })
+
+function renderApp(runIds = []) {
+  const previous = fetch
+  const conversation = { id: 'dialog', title: '章节讨论', status: 'ACTIVE', lastSeq: runIds.length * 2, version: 1, discoveryEnabled: true }
+  if (runIds.length) localStorage.setItem('mojie:conversation:p', conversation.id)
+  globalThis.fetch = vi.fn((url, options) => {
+    if (url.startsWith('/api/v1/projects/p/conversations?')) return Promise.resolve(reply({ items: runIds.length ? [conversation] : [], nextCursor: null }))
+    if (url === '/api/v1/conversations/dialog') return Promise.resolve(reply(conversation))
+    if (url === '/api/v1/conversations/dialog/skills') return Promise.resolve(reply([]))
+    if (url.startsWith('/api/v1/conversations/dialog/messages?')) return Promise.resolve(reply({ items: runIds.map((runId, index) => ({ id: `m${index}`, runId, role: 'ASSISTANT', content: `建议 ${runId}`, seq: index * 2 + 2 })), nextCursor: null }))
+    if (url === '/api/v1/skills?limit=50') return Promise.resolve(reply({ items: [], nextCursor: null }))
+    if (url === '/api/v1/agent/runs?projectId=p&limit=20') return Promise.resolve(reply({ items: [], nextCursor: null }))
+    if (url.endsWith('/resources')) return Promise.resolve(reply({ skills: [], artifacts: [] }))
+    return previous(url, options)
+  })
+  return render(<App />)
+}
+
+afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear(); vi.restoreAllMocks(); window.history.replaceState({}, '', '/') })
 
 test('late save response preserves newer typing and uses the returned version on next save', async () => {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
@@ -27,7 +45,7 @@ test('late save response preserves newer typing and uses the returned version on
     }
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('原文'))
   const editor = document.querySelector('.editor')
   fireEvent.change(editor, { target: { value: '第一稿' } })
@@ -59,7 +77,7 @@ test('save response from a previous chapter cannot replace the selected chapter'
     if (url === '/api/v1/chapters/c/content' && options.method === 'PUT') return pending
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('原文'))
   fireEvent.change(document.querySelector('.editor'), { target: { value: '第一章新稿' } })
   fireEvent.click(screen.getByRole('button', { name: '保存正文' }))
@@ -72,80 +90,6 @@ test('save response from a previous chapter cannot replace the selected chapter'
   await act(async () => { finishSave(reply({ ...chapter, content: '第一章新稿', version: 2 })) })
   expect(document.querySelector('.editor').value).toBe('第二章正文')
   expect(document.querySelector('.editorHeader h1').textContent).toBe('第二章')
-})
-
-test('late task list from a previous chapter cannot appear after switching chapters', async () => {
-  window.history.replaceState({}, '', '/projects/p/chapters/c')
-  const other = { ...chapter, id: 'c2', chapterOrder: 2, title: '第二章', content: '第二章正文' }
-  let finishOldRuns
-  const oldRuns = new Promise(resolve => { finishOldRuns = resolve })
-  globalThis.fetch = vi.fn((url) => {
-    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
-    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply({ items: [chapter, other], nextCursor: null }))
-    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
-    if (url === '/api/v1/chapters/c2') return Promise.resolve(reply(other))
-    if (url === '/api/v1/agent/runs?projectId=p&chapterId=c&limit=50') return oldRuns
-    if (url === '/api/v1/agent/runs?projectId=p&chapterId=c2&limit=50') return Promise.resolve(reply({ items: [], nextCursor: null }))
-    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
-    throw new Error(`Unexpected request ${url}`)
-  })
-  render(<App />)
-  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/agent/runs?projectId=p&chapterId=c&limit=50', expect.any(Object)))
-  fireEvent.click(await screen.findByRole('button', { name: /第二章.*v1/ }))
-  await waitFor(() => expect(document.querySelector('.editorHeader h1')?.textContent).toBe('第二章'))
-  await act(async () => { finishOldRuns(reply({ items: [{ id: 'old-run', status: 'FAILED', queuedAt: '2026-09-29T00:00:00Z' }], nextCursor: null })) })
-  expect(document.querySelector('.agentPanel .runList').textContent).toContain('当前章节暂无任务')
-  expect(document.querySelector('.agentPanel .runDetail')).toBeNull()
-  expect(fetch.mock.calls.some(([url]) => url === '/api/v1/agent/runs/old-run')).toBe(false)
-})
-
-test('late task pagination from a previous chapter cannot replace the current list', async () => {
-  window.history.replaceState({}, '', '/projects/p/chapters/c')
-  const other = { ...chapter, id: 'c2', chapterOrder: 2, title: '第二章', content: '第二章正文' }
-  let finishOldPage
-  const oldPage = new Promise(resolve => { finishOldPage = resolve })
-  globalThis.fetch = vi.fn((url) => {
-    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
-    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply({ items: [chapter, other], nextCursor: null }))
-    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
-    if (url === '/api/v1/chapters/c2') return Promise.resolve(reply(other))
-    if (url === '/api/v1/agent/runs?projectId=p&chapterId=c&limit=50') return Promise.resolve(reply({ items: [], nextCursor: 'old-page' }))
-    if (url === '/api/v1/agent/runs?projectId=p&chapterId=c&limit=50&cursor=old-page') return oldPage
-    if (url === '/api/v1/agent/runs?projectId=p&chapterId=c2&limit=50') return Promise.resolve(reply({ items: [], nextCursor: null }))
-    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
-    throw new Error(`Unexpected request ${url}`)
-  })
-  render(<App />)
-  fireEvent.click(await screen.findByRole('button', { name: '加载更多任务' }))
-  await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/agent/runs?projectId=p&chapterId=c&limit=50&cursor=old-page', expect.any(Object)))
-  fireEvent.click(screen.getByRole('button', { name: /第二章.*v1/ }))
-  await waitFor(() => expect(document.querySelector('.editorHeader h1')?.textContent).toBe('第二章'))
-  await act(async () => { finishOldPage(reply({ items: [{ id: 'old-page-run', status: 'FAILED', queuedAt: '2026-09-29T00:00:00Z' }], nextCursor: 'another-old-page' })) })
-  expect(document.querySelector('.agentPanel .runList').textContent).toContain('当前章节暂无任务')
-  expect(screen.queryByRole('button', { name: '加载更多任务' })).toBeNull()
-})
-
-test('an older task list response cannot overwrite a newer refresh', async () => {
-  window.history.replaceState({}, '', '/projects/p/chapters/c')
-  let finishFirstList
-  const firstList = new Promise(resolve => { finishFirstList = resolve })
-  let listReads = 0
-  globalThis.fetch = vi.fn(url => {
-    if (url === '/api/v1/projects/p') return Promise.resolve(reply(project))
-    if (url === '/api/v1/projects/p/chapters?limit=50') return Promise.resolve(reply({ items: [chapter], nextCursor: null }))
-    if (url === '/api/v1/chapters/c') return Promise.resolve(reply(chapter))
-    if (url === '/api/v1/agent/runs?projectId=p&chapterId=c&limit=50')
-      return ++listReads === 1 ? firstList : Promise.resolve(reply({ items: [], nextCursor: null }))
-    if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
-    throw new Error(`Unexpected request ${url}`)
-  })
-  render(<App />)
-  await waitFor(() => expect(listReads).toBe(1))
-  fireEvent.click(screen.getByRole('button', { name: '刷新任务' }))
-  await waitFor(() => expect(listReads).toBe(2))
-  await act(async () => { finishFirstList(reply({ items: [{ id: 'stale-run', status: 'FAILED', queuedAt: '2026-09-29T00:00:00Z' }], nextCursor: 'stale-cursor' })) })
-  expect(document.querySelector('.agentPanel .runList').textContent).toContain('当前章节暂无任务')
-  expect(screen.queryByRole('button', { name: '加载更多任务' })).toBeNull()
 })
 
 test('late proposal detail from a previously selected task cannot appear under another task', async () => {
@@ -164,16 +108,17 @@ test('late proposal detail from a previously selected task cannot appear under a
     if (url === '/api/v1/agent/runs/r2') return Promise.resolve(reply(run('r2')))
     if (url === '/api/v1/edit-proposals/q-r1') return oldProposal
     if (url === '/api/v1/edit-proposals/q-r2')
-      return Promise.resolve(reply({ id: 'q-r2', status: 'PENDING', baseVersion: 1, baseContent: '原文', proposedContent: '第二份建议', reason: '第二份理由', items: [] }))
+      return Promise.resolve(reply({ id: 'q-r2', status: 'PENDING', baseVersion: 1, baseContent: '原文', proposedContent: '第二份建议', reason: '第二份理由', items: [{ id: 0, start: 0, end: 2, lineNumber: 1, before: '原文', after: '第二份建议', contextBefore: '', contextAfter: '', status: 'PENDING' }] }))
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp(['r1', 'r2'])
+  fireEvent.click((await screen.findAllByRole('button', { name: '在正文中查看' }))[0])
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/edit-proposals/q-r1', expect.any(Object)))
-  fireEvent.change(screen.getByRole('combobox', { name: '历史任务' }), { target: { value: 'r2' } })
-  await screen.findByText('第二份理由')
+  fireEvent.click(screen.getAllByRole('button', { name: '在正文中查看' }).at(-1))
+  await screen.findByRole('textbox', { name: '修改 1 建议（应用前可编辑）' })
   await act(async () => { finishOldProposal(reply({ id: 'q-r1', status: 'PENDING', baseVersion: 1, baseContent: '原文', proposedContent: '第一份旧建议', reason: '旧理由', items: [] })) })
-  expect(screen.getByText('第二份理由')).toBeTruthy()
+  expect(screen.getByRole('textbox', { name: '修改 1 建议（应用前可编辑）' }).value).toBe('第二份建议')
   expect(screen.queryByText('旧理由')).toBeNull()
 })
 
@@ -194,7 +139,7 @@ test('chapter navigation loads the next page without losing the first page', asy
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   fireEvent.click(await screen.findByRole('button', { name: '加载更多章节' }))
   await screen.findByRole('button', { name: /第五十一章/ })
   expect(screen.getByRole('button', { name: /第一章/ })).toBeTruthy()
@@ -224,7 +169,7 @@ test('setting search queries the server beyond the loaded page', async () => {
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   fireEvent.click(await screen.findByRole('button', { name: '管理设定' }))
   fireEvent.change(screen.getByPlaceholderText('筛选标题或正文'), { target: { value: '河流' } })
   await screen.findByText('远处的山谷')
@@ -251,7 +196,7 @@ test.each([
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('原文'))
   fireEvent.change(document.querySelector('.editor'), { target: { value: '未保存的草稿' } })
   fireEvent.click(screen.getByRole('button', { name: /第二章/ }))
@@ -276,7 +221,7 @@ test('failed save during chapter switch preserves the draft and stays on the cha
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   await waitFor(() => expect(document.querySelector('.editor')?.value).toBe('原文'))
   fireEvent.change(document.querySelector('.editor'), { target: { value: '未保存的草稿' } })
   fireEvent.click(screen.getByRole('button', { name: /第二章/ }))
@@ -306,7 +251,8 @@ test('saving applied suggestions preserves newer typing without follow-up reads'
     if (url === '/api/v1/system/capabilities') return Promise.resolve(reply({ agentConfigured: false }))
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp(['r'])
+  fireEvent.click(await screen.findByRole('button', { name: '在正文中查看' }))
   fireEvent.click(await screen.findByRole('button', { name: '应用全部' }))
   expect(screen.queryByRole('button', { name: '编辑正文' })).toBeNull()
   expect(screen.getByRole('textbox', { name: '修改 1 后的正文' }).value).toBe('采纳后的正文')
@@ -328,7 +274,7 @@ test('home removes a project after confirming in the dialog', async () => {
     if (url === '/api/v1/projects/p' && options.method === 'DELETE') { deleted.push(url); return Promise.resolve({ ok: true, status: 204 }) }
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   fireEvent.click(await screen.findByRole('button', { name: '删除' }))
   fireEvent.click(await screen.findByRole('button', { name: '确认删除' }))
   await waitFor(() => expect(screen.queryByText('旧作')).toBeNull())
@@ -344,7 +290,7 @@ test('home keeps the project when the deletion dialog is cancelled', async () =>
     if (options.method === 'DELETE') { deleteCalled = true; return Promise.resolve({ ok: true, status: 204 }) }
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   fireEvent.click(await screen.findByRole('button', { name: '删除' }))
   fireEvent.click(screen.getByRole('button', { name: '取消' }))
   expect(screen.queryByRole('dialog')).toBeNull()
@@ -363,7 +309,7 @@ test('home shows the busy error and keeps the project when deletion is rejected'
       return Promise.resolve({ ok: false, status: 409, json: async () => ({ code: 'RESOURCE_BUSY', message: 'Project has an active run' }) })
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   fireEvent.click(await screen.findByRole('button', { name: '删除' }))
   fireEvent.click(await screen.findByRole('button', { name: '确认删除' }))
   await screen.findByText('作品有正在运行的任务或待确认建议。')
@@ -379,7 +325,7 @@ test('home loads the next project page', async () => {
       return Promise.resolve(reply({ items: [{ id: 'p2', title: '第二卷', updatedAt: '2026-08-01T00:00:00Z' }], nextCursor: null }))
     throw new Error(`Unexpected request ${url}`)
   })
-  render(<App />)
+  renderApp()
   await screen.findByText('第一卷')
   fireEvent.click(screen.getByRole('button', { name: '加载更多作品' }))
   await screen.findByText('第二卷')

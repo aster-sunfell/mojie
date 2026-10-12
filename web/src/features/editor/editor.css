@@ -1,9 +1,9 @@
 .editorArea {
   --editor-block-padding: 35px;
-  --editor-inline-padding: max(26px,5vw);
+  --editor-inline-padding: 28px;
   --editor-font-size: 18px;
   --editor-line-height: 1.9;
-  --editor-reading-width: 720px;
+  --editor-reading-width: 840px;
   flex: 1;
   min-height: 0;
   background: var(--color-surface);

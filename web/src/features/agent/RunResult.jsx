@@ -4,11 +4,11 @@ import { proposalStatusName } from '../proposals/Proposal.jsx'
 import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 import { Markdown } from '../../shared/ui/Markdown.jsx'
 
-export function RunResult({ task, review, onSource }) {
+export function RunResult({ task, review, onSource, compact = false }) {
   const { run, connection, refresh } = task
   return <div className="runDetail">
-    <div className="sectionTitle"><h3>{statusName(run.status)}</h3></div>
-    {run.instruction && <section className="requestMessage">
+    {!compact && <div className="sectionTitle"><h3>{statusName(run.status)}</h3></div>}
+    {!compact && run.instruction && <section className="requestMessage">
       <h3>本次要求</h3><ScrollArea as="p" tabIndex={0} aria-label="本次要求">{run.instruction}</ScrollArea>
     </section>}
     <p className="muted">{run.targetChapterId ? `基准版本 ${run.baseVersion} · ` : ''}模型 {run.modelCallCount ?? 0}/{run.budget?.maxModelCalls || 8} · 工具 {run.toolCallCount ?? 0}/{run.budget?.maxToolCalls || 12}</p>
@@ -16,8 +16,8 @@ export function RunResult({ task, review, onSource }) {
       ? '事件连接中断，正在重连并查询状态…'
       : task.cancelRequested ? '正在停止…' : '正在处理，页面关闭后任务继续运行。'}</p>}
     {run.status === 'FAILED' && <p className="error">{run.errorCode}：{run.errorDetail}</p>}
-    {run.analysis && <section className="analysis"><h3>最终分析</h3><Markdown content={run.analysis} /></section>}
-    {run.status === 'SUCCEEDED' && run.proposalId && <section className="proposal">
+    {!compact && run.analysis && <section className="analysis"><h3>最终分析</h3><Markdown content={run.analysis} /></section>}
+    {!compact && run.status === 'SUCCEEDED' && run.proposalId && <section className="proposal">
       <h3>修改建议 {review?.proposal && <span className="badge">{proposalStatusName(review.proposal.status)}</span>}</h3>
       {review?.proposal && <><Markdown className="proposalReason" content={review.proposal.reason} />
         <p className="muted">共 {review.items.length} 处修改 · {review.items.filter(item => item.status === 'PENDING').length} 处待处理</p>

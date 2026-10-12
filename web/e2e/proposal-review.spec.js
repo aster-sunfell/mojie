@@ -15,6 +15,8 @@ async function mockReview(page, { baseContent = base, currentContent = baseConte
     proposedContent: changes.reduce((text, [before, after]) => text.replace(before, after), baseContent),
     reason: '修正游泳设定与灯笼颜色。', status: 'PENDING', items }
   const writes = []
+  const conversation = { id: 'd', title: '章节修改', status: 'ACTIVE', lastSeq: 2, version: 1, discoveryEnabled: true }
+  await page.addInitScript(() => localStorage.setItem('mojie:conversation:p', 'd'))
   await page.route('**/api/v1/**', async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname.replace('/api/v1', '')
     const data = value => route.fulfill({ json: { data: value } })
@@ -33,6 +35,12 @@ async function mockReview(page, { baseContent = base, currentContent = baseConte
       return data(chapter)
     }
     if (path === '/system/maintenance') return data({ active: false })
+    if (path === '/projects/p/conversations') return data({ items: [conversation], nextCursor: null })
+    if (path === '/conversations/d') return data(conversation)
+    if (path === '/conversations/d/skills') return data([])
+    if (path === '/conversations/d/messages') return data({ items: [{ id: 'm', seq: 2, runId: 'r', role: 'ASSISTANT', content: run.analysis }], nextCursor: null })
+    if (path === '/skills') return data({ items: [], nextCursor: null })
+    if (path === '/agent/runs/r/resources') return data({ skills: [], artifacts: [] })
     if (path === '/system/capabilities') return data({ agentConfigured: true })
     if (path === '/agent/runs') return data({ items: [run], nextCursor: null })
     if (path === '/agent/runs/r') return data(run)
@@ -50,9 +58,11 @@ for (const width of [1280, 390]) {
     const baseContent = `${prefix}\n\n傍晚，林舟游过河。`
     await mockReview(page, { baseContent, changes: [['游过河', '走过桥']] })
     await page.goto('/projects/p/chapters/c')
+    await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
     const input = page.getByRole('textbox', { name: '章节正文', exact: true }).first()
     await expect(input).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
+    await page.locator('.editorArea').evaluate(element => { element.scrollTop = 0 })
     // An independently laid-out copy measures the actual text, including wraps,
     // rather than accepting an oversized textarea's own scrollHeight as proof.
     const surplusHeight = () => input.evaluate(element => {
@@ -97,6 +107,7 @@ for (const width of [1280, 390]) {
 test('one continuous document supports partial saves, manual editing and reload', async ({ page }) => {
   const state = await mockReview(page)
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   const changes = page.locator('.inlineChange')
   await expect(changes).toHaveCount(2)
   await expect(page.locator('.editorTabs')).toHaveCount(0)
@@ -116,6 +127,7 @@ test('one continuous document supports partial saves, manual editing and reload'
   expect(state.writes[0].content).toBe(manual)
   expect(state.writes[0].proposalReviews).toEqual([{ proposalId: 'q', decisions: [{ itemId: 0, status: 'APPLIED' }] }])
   await page.reload()
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(changes.first()).toContainText('已保存 · 版本 2')
   await expect(changes.last().getByRole('button', { name: '应用', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '应用剩余', exact: true }).click()
@@ -129,6 +141,7 @@ test('one continuous document supports partial saves, manual editing and reload'
 test('an edited suggestion only enters the draft when applied, and persists after saving', async ({ page }) => {
   const state = await mockReview(page)
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   const edited = '傍晚，林舟沿山路走到旧桥。'
   const input = page.getByRole('textbox', { name: '修改 1 建议（应用前可编辑）' })
   await input.fill(edited)
@@ -144,6 +157,7 @@ test('an edited suggestion only enters the draft when applied, and persists afte
   expect(state.chapter.content).toBe(base.replace('林舟游过河。', `${edited}他还检查了桥板。`))
   expect(state.writes[0].proposalReviews[0].decisions[0].editedContent).toBe(edited)
   await page.reload()
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '修改 1 后的正文' })).toHaveValue(`${edited}他还检查了桥板。`)
   await expect(page.locator('.inlineChange').last().getByRole('button', { name: '应用', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '应用剩余', exact: true }).click()
@@ -157,6 +171,7 @@ test('apply all preserves a same-position manual change and allows direct confli
   const manual = `${base.replace('红', '紫')}我自己补充的情节。`
   const state = await mockReview(page, { currentContent: manual })
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(page.locator('.inlineChange')).toHaveCount(2)
   await expect(page.locator('.inlineChange').last()).toContainText('需要手动确认')
   await page.getByRole('button', { name: '应用全部', exact: true }).click()
@@ -176,6 +191,7 @@ test('mobile inline diff allows editing and navigation without tabs or overflow'
   await page.setViewportSize({ width: 390, height: 844 })
   await mockReview(page)
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(page.getByRole('region', { name: '正文行内修改' })).toBeVisible()
   await expect(page.locator('.inlineChange')).toHaveCount(2)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
@@ -184,13 +200,13 @@ test('mobile inline diff allows editing and navigation without tabs or overflow'
   await expect(proposal).toBeEditable()
   expect(await proposal.evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true)
   await page.screenshot({ path: 'test-results/proposal-inline-mobile.png' })
-  await page.getByRole('button', { name: '助手结果', exact: true }).click()
-  const assistant = page.getByRole('dialog', { name: '写作助手', exact: true })
+  await page.getByRole('button', { name: '展开消息', exact: true }).click()
+  await page.getByRole('button', { name: '扩大对话', exact: true }).click()
+  const assistant = page.getByRole('region', { name: '写作助手', exact: true })
   await expect(assistant).toContainText('共 2 处修改 · 2 处待处理')
   await expect(page.getByRole('button', { name: '在正文区审阅修改' })).toHaveCount(0)
   await expect(page.locator('.proposalIndex')).toHaveCount(0)
-  await assistant.getByRole('button', { name: '关闭写作助手', exact: true }).click()
-  await expect(assistant).toHaveCount(0)
+  await assistant.getByRole('button', { name: '恢复高度', exact: true }).click()
   await page.getByRole('button', { name: '下一处待处理修改' }).click()
   await expect(page.locator('.inlineChange').last()).toHaveClass(/selectedChange/)
 })
@@ -198,6 +214,7 @@ test('mobile inline diff allows editing and navigation without tabs or overflow'
 test('refreshing server review choices keeps the current manual draft', async ({ page }) => {
   const state = await mockReview(page)
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(page.locator('.inlineChange')).toHaveCount(2)
   await page.locator('.inlineChange').first().getByRole('button', { name: '应用', exact: true }).click()
   const applied = page.getByRole('textbox', { name: '修改 1 后的正文' })
@@ -217,6 +234,7 @@ test('refreshing server review choices keeps the current manual draft', async ({
 test('continuous typing and manual resolution preserve text and clear discarded suggestion edits', async ({ page }) => {
   const state = await mockReview(page, { currentContent: base.replace('红', '紫') })
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   const tail = page.getByRole('textbox', { name: '章节正文', exact: true }).last()
   await tail.focus()
   await tail.press('ControlOrMeta+End')
@@ -239,6 +257,7 @@ test('continuous typing and manual resolution preserve text and clear discarded 
   expect(state.chapter.content).toBe(`${base.replace('他拿起红灯。', '他拿起紫灯。 manual')}extra details`)
   expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
   await page.reload()
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '修改 2 后的正文' })).toHaveValue('他拿起紫灯。 manual')
 })
 
@@ -247,6 +266,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
     await page.setViewportSize(viewport)
     await mockReview(page, { currentContent: base + Array.from({ length: 70 }, (_, i) => `第${i}行正文内容。`).join('\n') })
     await page.goto('/projects/p/chapters/c')
+    await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
     await expect(page.locator('.inlineDocument')).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
     const tail = page.getByRole('textbox', { name: '章节正文', exact: true }).last()
@@ -288,6 +308,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 
 test('clearing a text segment keeps its input focused and allows continued typing', async ({ page }) => {
   const state = await mockReview(page)
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(page.locator('.inlineDocument')).toBeVisible()
   for (const position of ['first', 'last']) {
     const inputs = page.getByRole('textbox', { name: '章节正文', exact: true })
@@ -311,14 +332,15 @@ test('the document toolbar skips processed changes, includes conflicts and never
     changes: [['雨', '雪'], ['游过河', '走过桥'], ['红', '蓝']] })
   Object.assign(state.proposal.items[1], { status: 'IGNORED', savedVersion: 1 })
   await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   const toolbar = page.getByRole('region', { name: '修改导航工具栏' })
   const changes = page.locator('.inlineChange')
   await expect(toolbar).toContainText('待处理 2 处')
   await expect(toolbar).toContainText('待确认 1 处')
   await expect(toolbar.getByRole('combobox')).toHaveCount(0)
   await expect(page.locator('.reviewHint')).toHaveCount(0)
-  await expect(page.locator('.agentPanel .proposal button')).toHaveCount(0)
-  await expect(page.locator('.agentPanel .proposal')).toContainText('共 3 处修改 · 2 处待处理')
+  await expect(page.locator('.messageProposal button')).toHaveCount(1)
+  await expect(page.locator('.messageProposal')).toContainText('共 3 处修改 · 2 处待处理')
   await toolbar.getByRole('button', { name: '下一处待处理修改' }).click()
   await expect(changes.nth(0)).toBeFocused()
   await toolbar.getByRole('button', { name: '下一处待处理修改' }).click()
@@ -353,6 +375,7 @@ for (const width of [1280, 390]) {
     await mockReview(page, { currentContent: Array.from({ length: 40 }, (_, i) => `前文第 ${i} 行。`).join('\n') + '\n' + base,
       changes: [['红', '蓝']] })
     await page.goto('/projects/p/chapters/c')
+    await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
     const toolbar = page.getByRole('region', { name: '修改导航工具栏' })
     const next = toolbar.getByRole('button', { name: '下一处待处理修改' })
     const change = page.locator('.inlineChange')

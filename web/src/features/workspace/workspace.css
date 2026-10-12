@@ -1,6 +1,6 @@
 .workspace {
   display: grid;
-  grid-template-columns: 220px minmax(0,1fr) 360px;
+  grid-template-columns: 220px minmax(0,1fr);
   height: 100dvh;
   overflow: hidden;
 }
@@ -28,10 +28,6 @@
   align-items: center;
   gap: 7px;
   font-size: 12px;
-}
-
-.assistantToggle {
-  margin-left: auto;
 }
 
 .sidebar {
