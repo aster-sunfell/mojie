@@ -93,7 +93,7 @@ def main():
         driver.verify(initial)
         gateway_config = (BASE / 'deploy/gateway/default.conf.template').read_text().replace('${MOJIE_GATEWAY_BIND}', '127.0.0.1').replace('${MOJIE_GATEWAY_PORT}', str(gateway_port))
         (root / 'gateway.conf').write_text(gateway_config)
-        shutil.copy(BASE / 'deploy/maintenance.html', root / 'maintenance.html')
+        shutil.copy(BASE / 'web/public/maintenance.html', root / 'maintenance.html')
         (root / 'control/upstream.conf').write_text(f'set $mojie_upstream "http://127.0.0.1:{ports[0]}";\n')
         execute(['docker', 'run', '-d', '--name', config['gatewayContainer'], '--network', 'host',
                  '-v', str(root / 'control') + ':/control:ro,z', '-v', str(root / 'gateway.conf') + ':/etc/nginx/conf.d/default.conf:ro,z',

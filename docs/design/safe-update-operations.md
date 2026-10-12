@@ -8,12 +8,15 @@
 
 新打开或刷新的页面由独立 Nginx 入口提供维护页，返回 HTTP 503 和 `Retry-After: 5`。即使应用后端停止，页面仍能显示并检查恢复状态；恢复后自动重新加载工作台。API 在维护期间返回 `MAINTENANCE_MODE` 和 HTTP 503。
 
+维护页源码位于 [web/public/maintenance.html](../../web/public/maintenance.html)，样式和脚本内嵌，不依赖 React 或应用构建资源。Vite 构建会将它原样复制到 `web/dist/maintenance.html`；独立入口直接只读挂载源码文件，因此无需构建前端也能提供维护页。
+
 维护状态保存在宿主机的 `control/maintenance` 文件中，后端只读挂载该目录。没有公开切换维护状态的 HTTP 管理接口。直连内部应用端口的写入也会由后端拦截。健康检查和内部只读状态查询仍可用于排空及验收。
 
 ## 首次安装条件
 
 - 安装 Docker、支持 `up --wait` 的 Compose v2、Python 3.9 或更新版本，以及支持 `gh attestation verify` 的 GitHub CLI。
 - 将经过审阅的本仓库文件安装到 `/opt/mojie`。它包含固定的部署程序、Compose 和入口资源；自动更新只下载发布清单和镜像，不执行下载的脚本，也不自动更新宿主机部署配置。
+- 保留 `/opt/mojie/web/public/maintenance.html`，独立入口通过 `deploy/compose.gateway.yaml` 中的相对路径挂载该文件；仅安装 `deploy/` 和 `scripts/` 不足以启动入口。
 - 当前镜像为 `linux/amd64`。确认服务器架构及足够的备份、候选数据和保留版本空间。
 - 仓库需要能够使用 GitHub artifact attestations。CI 的发布 job 必须成功生成并上传 `deployment-release`；若仓库套餐或权限不支持 attestations，先解决该能力，不能关闭验签来启用自动更新。
 - 生产入口继续放在受保护的 HTTPS 代理之后。当前应用没有完整用户鉴权，默认部署端口仅监听回环地址。
@@ -55,6 +58,14 @@ sudo python3 scripts/mojie_deploy.py recover
 登记要求已有后端支持维护状态接口、挂载指定维护目录，并且运行中的三个镜像有本仓库对应的 GHCR digest。初始 Compose 项目应使用默认的独立命名卷，不支持导入共享外部卷或共享外部网络。登记保存实际运行镜像和配置，并让写服务由部署程序负责开机恢复。
 
 入口使用 Linux 主机网络访问回环应用端口。SELinux 主机上的维护目录和执行工作目录使用共享标签；可信执行协调器允许访问 Docker socket，上传脚本仍在独立受限容器中运行。
+
+已安装旧路径 `deploy/maintenance.html` 的服务器，需要同步新的 `web/public/maintenance.html` 和 `deploy/compose.gateway.yaml`。确认新文件存在后执行以下命令，重建入口以应用新挂载；重建期间入口会短暂中断。单独发布应用镜像不会完成这次路径迁移。
+
+```bash
+cd /opt/mojie
+test -f web/public/maintenance.html
+sudo docker compose --env-file /etc/mojie/production.env -f deploy/compose.gateway.yaml -p mojie-gateway up -d --force-recreate gateway
+```
 
 ## 配置只读凭据和定时更新
 
