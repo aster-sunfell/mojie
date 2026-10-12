@@ -7,7 +7,7 @@ import { CreateProjectDialog } from './CreateProjectDialog.jsx'
 import { useProjects } from './useProjects.js'
 import styles from './ProjectHome.module.css'
 
-export function ProjectHome({ open }) {
+export function ProjectHome({ open, onSettings }) {
   const [keyword, setKeyword] = useState('')
   const [creating, setCreating] = useState(false)
   const { projects, cursor, error, loading, loadingMore, removing, setRemoving,
@@ -16,7 +16,9 @@ export function ProjectHome({ open }) {
   return <main className={styles.home}>
     <header className={styles.header}>
       <span className="brand">墨界 <small>Mojie</small></span>
-      <ProjectSearch value={keyword} onChange={setKeyword} />
+      <div className="homeHeaderActions"><ProjectSearch value={keyword} onChange={setKeyword} />
+        <button className="secondary appSettingsButton" onClick={onSettings} aria-haspopup="dialog"><Icon name="settings" size={17} />设置</button>
+      </div>
     </header>
     {error && <div className={styles.error} role="alert">
       <p className="error">{error}</p>

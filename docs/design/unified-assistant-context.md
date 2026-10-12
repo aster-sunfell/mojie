@@ -4,7 +4,7 @@
 
 ## 消息与参考
 
-客户端提交 content、clientRequestId、expectedConversationSeq、selectedSkills，以及可选 contextChapterId/contextVersion；不提交 taskType 时使用 ASSISTANT。当前编辑器章节默认提供优先参考，允许移除、恢复，无参考也可发送。快捷提示只填文字。
+客户端提交 content、clientRequestId、expectedConversationSeq、skillMentions，以及可选 contextChapterId/contextVersion；不提交 taskType 时使用 ASSISTANT。当前编辑器章节默认提供优先参考，允许移除、恢复，无参考也可发送。快捷提示只填文字。
 
 接收事务检查章节归属和版本，保存 context_chapter_id/context_version/context_content；该快照与修改目标分开。模型首个请求只包含参考 ID 与版本，不注入正文。切换编辑器章节不改变正在运行的参考；失败重试复用原参考快照。未知受理结果重试沿用原请求及幂等键。
 

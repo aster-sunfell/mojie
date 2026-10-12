@@ -153,6 +153,9 @@ public final class AgentLoop {
         messageSeqs.add(assistantSeq);
         List<ToolCall> batch = response.calls();
         if (batch.isEmpty()) {
+          if (!context.requiredSkillsProvided())
+            return new LoopOutcome.Failed(
+                "SKILL_GUIDANCE_REQUIRED", "Explicitly mentioned Skill guidance was not consumed");
           String analysis = response.text();
           if (analysis == null || analysis.isBlank())
             return new LoopOutcome.Failed("INVALID_MODEL_RESPONSE", "Empty final analysis");
@@ -246,6 +249,11 @@ public final class AgentLoop {
   }
 
   private ToolResult execute(ToolCall call, ToolContext context) {
+    if (!context.requiredSkillsProvided() && !"read_skill".equals(call.name()))
+      return ToolResult.error(
+          "SKILL_GUIDANCE_REQUIRED",
+          "Read all explicitly mentioned Skills first, then plan dependent work in a later request",
+          true);
     AgentTool tool = tools.get(call.name());
     if (tool == null) return ToolResult.error("UNKNOWN_TOOL", "Unknown tool", true);
     if (call.arguments() == null || !call.arguments().isObject())
@@ -263,6 +271,8 @@ public final class AgentLoop {
 
   private static void acknowledgeRead(ToolCall call, ToolResult result, ToolContext context) {
     if (!result.success() || !(result.data() instanceof Map<?, ?> data)) return;
+    if ("read_skill".equals(call.name()) && data.get("skillId") instanceof String skillId)
+      context.skillRead(skillId);
     if ("read_settings".equals(call.name()) && data.get("settings") instanceof List<?> settings) {
       for (Object value : settings)
         if (value instanceof Map<?, ?> setting

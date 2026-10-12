@@ -26,17 +26,20 @@ class ConversationSkillsIT {
   @TempDir Path data;
 
   @Test
-  void continuousHistoryIsolationDiscoveryAndVersionPins() throws Exception {
+  void continuousHistoryIsolationDiscoveryAndExplicitMentions() throws Exception {
     try (TestDatabase database = new TestDatabase()) {
       var source = database.source();
       var tx = TestServices.transactions(source);
       var content = TestServices.content(source);
       var requests = Collections.synchronizedList(new ArrayList<Request>());
+      var skipGuidance = new java.util.concurrent.atomic.AtomicBoolean(false);
       ModelGateway gateway =
           request -> {
             requests.add(request);
             String last = request.messages().getLast().content().toString();
-            if (last.contains("请检查") && request.messages().getLast().replies().isEmpty()) {
+            if ((last.contains("请检查") || last.contains("$character-"))
+                && !skipGuidance.get()
+                && request.messages().getLast().replies().isEmpty()) {
               var catalog =
                   tree(
                       request
@@ -86,8 +89,9 @@ class ConversationSkillsIT {
                 new HttpSkillExecutor(null),
                 tx,
                 PageCursor.configured());
-        var metadata = new java.util.concurrent.atomic.AtomicReference<Map<String, Object>>(
-            Map.of("contextWindowTokens", 1000000, "contextWindowSource", "first"));
+        var metadata =
+            new java.util.concurrent.atomic.AtomicReference<Map<String, Object>>(
+                Map.of("contextWindowTokens", 1000000, "contextWindowSource", "first"));
         var service =
             new ConversationConfiguration()
                 .createConversationService(
@@ -99,9 +103,12 @@ class ConversationSkillsIT {
                     skills,
                     new ModelApiConfig(
                         ModelApiConfig.MESSAGES, "http://127.0.0.1", "test", "test-model"),
-                    gateway, process, () -> {
-                      if (metadata.get() == null) throw new BusinessException(
-                          "MODEL_METADATA_UNAVAILABLE", "Metadata unavailable");
+                    gateway,
+                    process,
+                    () -> {
+                      if (metadata.get() == null)
+                        throw new BusinessException(
+                            "MODEL_METADATA_UNAVAILABLE", "Metadata unavailable");
                       return metadata.get();
                     });
         String project = (String) content.projects().createProject("测试小说").get("id");
@@ -122,14 +129,28 @@ class ConversationSkillsIT {
         var skill = skills.requireSkill(upload.skillId());
         skills.patch(skill.id(), skill.version(), true, null, false);
         Send first =
-            new Send("记住林舟怕火", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of());
+            new Send(
+                "记住林舟怕火", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of());
         Receipt receipt = service.send(a.id(), first);
         await(agent, receipt.runId());
         metadata.set(null);
         assertEquals(receipt.runId(), service.send(a.id(), first).runId());
-        assertEquals("MODEL_METADATA_UNAVAILABLE", assertThrows(BusinessException.class,
-            () -> service.send(a.id(), new Send("继续", UUID.randomUUID().toString(), 2L,
-                "ASSISTANT", null, null, List.of()))).code());
+        assertEquals(
+            "MODEL_METADATA_UNAVAILABLE",
+            assertThrows(
+                    BusinessException.class,
+                    () ->
+                        service.send(
+                            a.id(),
+                            new Send(
+                                "继续",
+                                UUID.randomUUID().toString(),
+                                2L,
+                                "ASSISTANT",
+                                null,
+                                null,
+                                List.of())))
+                .code());
         metadata.set(Map.of("contextWindowTokens", 900000, "contextWindowSource", "refreshed"));
         assertEquals(2, service.get(a.id()).lastSeq());
         assertEquals(
@@ -152,27 +173,49 @@ class ConversationSkillsIT {
             service.send(
                 a.id(),
                 new Send(
-                    "他为什么避开火？", UUID.randomUUID().toString(), 2L, "ASSISTANT", null, null, List.of()));
+                    "他为什么避开火？",
+                    UUID.randomUUID().toString(),
+                    2L,
+                    "ASSISTANT",
+                    null,
+                    null,
+                    List.of()));
         await(agent, second.runId());
         var snapshotDb = new JdbcAccess(source);
-        assertEquals(1000000, ((Number) snapshotDb.first(
-            "SELECT (config_snapshot->>'contextWindowTokens')::int AS tokens FROM tb_agent_run WHERE id=?::uuid",
-            receipt.runId()).get("tokens")).intValue());
-        assertEquals(900000, ((Number) snapshotDb.first(
-            "SELECT (config_snapshot->>'contextWindowTokens')::int AS tokens FROM tb_agent_run WHERE id=?::uuid",
-            second.runId()).get("tokens")).intValue());
+        assertEquals(
+            1000000,
+            ((Number)
+                    snapshotDb
+                        .first(
+                            "SELECT (config_snapshot->>'contextWindowTokens')::int AS tokens FROM"
+                                + " tb_agent_run WHERE id=?::uuid",
+                            receipt.runId())
+                        .get("tokens"))
+                .intValue());
+        assertEquals(
+            900000,
+            ((Number)
+                    snapshotDb
+                        .first(
+                            "SELECT (config_snapshot->>'contextWindowTokens')::int AS tokens FROM"
+                                + " tb_agent_run WHERE id=?::uuid",
+                            second.runId())
+                        .get("tokens"))
+                .intValue());
         assertTrue(requests.get(1).messages().toString().contains("记住林舟怕火"));
         assertTrue(requests.get(1).messages().toString().contains("林舟怕火"));
         Receipt independent =
             service.send(
                 b.id(),
-                new Send("讨论大纲", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of()));
+                new Send(
+                    "讨论大纲", UUID.randomUUID().toString(), 0L, "ASSISTANT", null, null, List.of()));
         await(agent, independent.runId());
         assertFalse(requests.get(2).messages().toString().contains("林舟怕火"));
         Receipt third =
             service.send(
                 a.id(),
-                new Send("请检查人物", UUID.randomUUID().toString(), 4L, "ASSISTANT", null, null, List.of()));
+                new Send(
+                    "请检查人物", UUID.randomUUID().toString(), 4L, "ASSISTANT", null, null, List.of()));
         await(agent, third.runId());
         assertEquals("SUCCEEDED", agent.query().detail(third.runId()).get("status"));
         var loaded = skills.runSkills(third.runId()).getFirst();
@@ -181,7 +224,9 @@ class ConversationSkillsIT {
         assertEquals(upload.versionId(), loaded.versionId());
         assertTrue(
             requests.stream()
-                .allMatch(r -> r.tools().stream().anyMatch(t -> t.name().equals("propose_chapter_edit"))));
+                .allMatch(
+                    r ->
+                        r.tools().stream().anyMatch(t -> t.name().equals("propose_chapter_edit"))));
         var db = new JdbcAccess(source);
         assertEquals(
             5,
@@ -195,7 +240,6 @@ class ConversationSkillsIT {
                                 + " NULL")
                         .get("n"))
                 .intValue());
-        service.pins(a.id(), List.of(new Selection(skill.id(), upload.versionId())));
         var update =
             skills.importPackage(
                 skill.id(),
@@ -204,37 +248,180 @@ class ConversationSkillsIT {
                     "---\nname: character-check\ndescription: 新说明\n---\n新版指导\n"
                         .getBytes(StandardCharsets.UTF_8)));
         assertEquals("READY", update.status());
-        assertEquals(upload.versionId(), service.pins(a.id()).getFirst().versionId());
+        int explicitIndex = requests.size();
+        Receipt mentioned =
+            service.send(
+                a.id(),
+                new Send(
+                    "使用 $character-check 检查",
+                    UUID.randomUUID().toString(),
+                    6L,
+                    "ASSISTANT",
+                    null,
+                    null,
+                    List.of(new SkillMention(skill.id(), "character-check"))));
+        await(agent, mentioned.runId());
+        assertEquals("SUCCEEDED", agent.query().detail(mentioned.runId()).get("status"));
+        var explicit = skills.runSkills(mentioned.runId()).getFirst();
+        assertEquals("EXPLICIT", explicit.source());
+        assertEquals(update.versionId(), explicit.versionId());
+        assertTrue(explicit.loaded());
+        assertTrue(explicit.providedToModel());
+        assertFalse(requests.get(explicitIndex).systemPrompt().contains("新版指导"));
+        assertTrue(requests.get(explicitIndex + 1).messages().toString().contains("新版指导"));
         assertEquals(
-            "SKILL_VERSION_CONFLICT",
+            skill.id(),
+            service.messages(a.id(), null, 50).get("items") instanceof List<?> rows
+                ? ((DisplayMessage) rows.get(rows.size() - 2))
+                    .skillMentions()
+                    .get(0)
+                    .path("skillId")
+                    .asText()
+                : "");
+        var before = service.get(a.id());
+        service.patch(a.id(), before.version(), "人物讨论");
+        assertEquals("人物讨论", service.get(a.id()).title());
+        assertEquals(
+            "CONVERSATION_VERSION_CONFLICT",
+            assertThrows(
+                    BusinessException.class, () -> service.patch(a.id(), before.version(), "过期标题"))
+                .code());
+        Receipt continued =
+            service.send(
+                a.id(),
+                new Send(
+                    "继续", UUID.randomUUID().toString(), 8L, "ASSISTANT", null, null, List.of()));
+        await(agent, continued.runId());
+        assertEquals(10, service.get(a.id()).lastSeq());
+        var discoverable = skills.runSkills(continued.runId()).getFirst();
+        assertEquals("DISCOVERABLE", discoverable.source());
+        assertFalse(discoverable.loaded());
+        assertEquals(update.versionId(), discoverable.versionId());
+        assertEquals(
+            "SKILL_UNAVAILABLE",
             assertThrows(
                     BusinessException.class,
                     () ->
                         service.send(
                             a.id(),
                             new Send(
-                                "继续",
+                                "使用 $unknown-skill",
                                 UUID.randomUUID().toString(),
-                                6L,
+                                10L,
                                 "ASSISTANT",
                                 null,
                                 null,
-                                List.of(new Selection(skill.id(), update.versionId())))))
+                                List.of())))
                 .code());
-        var before = service.get(a.id());
-        service.patch(a.id(), before.version(), "人物讨论", false);
-        assertEquals("人物讨论", service.get(a.id()).title());
-        assertFalse(service.get(a.id()).discoveryEnabled());
-        assertEquals("CONVERSATION_VERSION_CONFLICT", assertThrows(BusinessException.class,
-            () -> service.patch(a.id(), before.version(), "过期标题", null)).code());
-        Receipt continued = service.send(a.id(), new Send(
-            "继续", UUID.randomUUID().toString(), 6L, "ASSISTANT", null, null, List.of()));
-        await(agent, continued.runId());
-        assertEquals(8, service.get(a.id()).lastSeq());
+        var renamed =
+            skills.importPackage(
+                skill.id(),
+                Map.of(
+                    "SKILL.md",
+                    "---\nname: character-renamed\ndescription: 改名说明\n---\n改名时的指导\n"
+                        .getBytes(StandardCharsets.UTF_8)));
+        skipGuidance.set(true);
+        var skipped =
+            service.send(
+                a.id(),
+                new Send(
+                    "使用 $character-check 检查",
+                    UUID.randomUUID().toString(),
+                    10L,
+                    "ASSISTANT",
+                    null,
+                    null,
+                    List.of(new SkillMention(skill.id(), "character-check"))));
+        awaitTerminal(agent, skipped.runId());
+        assertEquals("FAILED", agent.query().detail(skipped.runId()).get("status"));
+        assertEquals(
+            "SKILL_GUIDANCE_REQUIRED", agent.query().detail(skipped.runId()).get("errorCode"));
+        assertFalse(skills.runSkills(skipped.runId()).getFirst().loaded());
+        var newer =
+            skills.importPackage(
+                skill.id(),
+                Map.of(
+                    "SKILL.md",
+                    "---\nname: character-renamed\ndescription: 更新说明\n---\n后续新版指导\n"
+                        .getBytes(StandardCharsets.UTF_8)));
+        skipGuidance.set(false);
+        var retried = service.retry(a.id(), skipped.messageId(), UUID.randomUUID().toString());
+        await(agent, retried.runId());
+        assertEquals("SUCCEEDED", agent.query().detail(retried.runId()).get("status"));
+        assertEquals(renamed.versionId(), skills.runSkills(retried.runId()).getFirst().versionId());
+        assertTrue(skills.runSkills(retried.runId()).getFirst().providedToModel());
+        assertEquals(12, service.get(a.id()).lastSeq());
+        var typed =
+            service.send(
+                a.id(),
+                new Send(
+                    "使用 $character-renamed 检查",
+                    UUID.randomUUID().toString(),
+                    12L,
+                    "ASSISTANT",
+                    null,
+                    null,
+                    List.of()));
+        await(agent, typed.runId());
+        assertEquals("SUCCEEDED", agent.query().detail(typed.runId()).get("status"));
+        assertEquals("EXPLICIT", skills.runSkills(typed.runId()).getFirst().source());
+        assertEquals(newer.versionId(), skills.runSkills(typed.runId()).getFirst().versionId());
       } finally {
         agent.sweeper().close();
         agent.executor().close();
       }
+    }
+  }
+
+  @Test
+  void upgradeRemovesDiscoveryAndPinsWithoutLosingMessagesOrVersions() throws Exception {
+    try (TestDatabase database = new TestDatabase()) {
+      var source = database.source();
+      org.flywaydb.core.Flyway.configure().dataSource(source).target("12").load().migrate();
+      var db = new JdbcAccess(source);
+      String project =
+          db.first("INSERT INTO tb_project(name) VALUES('旧作品') RETURNING id").get("id").toString();
+      String conversation =
+          db.first(
+                  "INSERT INTO tb_conversation(project_id,model_id,model_config,discovery_enabled)"
+                      + " VALUES(?::uuid,'test','{}',false) RETURNING id",
+                  project)
+              .get("id")
+              .toString();
+      db.update(
+          "INSERT INTO tb_conversation_message(conversation_id,seq,role,content,status)"
+              + " VALUES(?::uuid,1,'USER','历史消息','SUCCEEDED')",
+          conversation);
+      String skill =
+          db.first("INSERT INTO tb_skill(name) VALUES('旧技能') RETURNING id").get("id").toString();
+      String version = UUID.randomUUID().toString();
+      db.update(
+          "INSERT INTO"
+              + " tb_skill_version(id,skill_id,package_hash,storage_key,status,metadata,size_bytes,file_count,compatibility)"
+              + " VALUES(?::uuid,?::uuid,repeat('a',64),'old-package','READY','{}',10,1,'{}')",
+          version,
+          skill);
+      db.update(
+          "INSERT INTO tb_conversation_skill VALUES(?::uuid,?::uuid,?::uuid)",
+          conversation,
+          skill,
+          version);
+      org.flywaydb.core.Flyway.configure().dataSource(source).load().migrate();
+      assertNull(
+          db.first("SELECT to_regclass(current_schema() || '.tb_conversation_skill') AS name")
+              .get("name"));
+      assertEquals(
+          0,
+          ((Number)
+                  db.first(
+                          "SELECT count(*) AS n FROM information_schema.columns WHERE"
+                              + " table_schema=current_schema() AND table_name='tb_conversation'"
+                              + " AND column_name='discovery_enabled'")
+                      .get("n"))
+              .intValue());
+      assertEquals("历史消息", db.first("SELECT content FROM tb_conversation_message").get("content"));
+      assertEquals(
+          1, ((Number) db.first("SELECT count(*) AS n FROM tb_skill_version").get("n")).intValue());
     }
   }
 
@@ -301,7 +488,9 @@ class ConversationSkillsIT {
                     skills,
                     new ModelApiConfig(
                         ModelApiConfig.MESSAGES, "http://127.0.0.1", "test", "test-model"),
-                    gateway, process, () -> Map.of("contextWindowTokens", 1000000));
+                    gateway,
+                    process,
+                    () -> Map.of("contextWindowTokens", 1000000));
         String project = (String) content.projects().createProject("压缩测试").get("id");
         var a = service.create(project);
         for (int n = 0; n < 4; n++) {
@@ -357,15 +546,14 @@ class ConversationSkillsIT {
         var failed =
             service.send(
                 b.id(),
-                new Send("触发失败", UUID.randomUUID().toString(), 6L, "ASSISTANT", null, null, List.of()));
+                new Send(
+                    "触发失败", UUID.randomUUID().toString(), 6L, "ASSISTANT", null, null, List.of()));
         long end = System.nanoTime() + 10_000_000_000L;
         while (System.nanoTime() < end
             && Set.of("QUEUED", "RUNNING")
-                .contains(agent.query().detail(failed.runId()).get("status")))
-          Thread.sleep(20);
+                .contains(agent.query().detail(failed.runId()).get("status"))) Thread.sleep(20);
         assertEquals(
-            "CONTEXT_COMPACTION_FAILED",
-            agent.query().detail(failed.runId()).get("errorCode"));
+            "CONTEXT_COMPACTION_FAILED", agent.query().detail(failed.runId()).get("errorCode"));
         assertEquals(
             7,
             ((Number)
@@ -383,11 +571,16 @@ class ConversationSkillsIT {
   }
 
   private static void await(AgentConfiguration.Services agent, String run) throws Exception {
+    awaitTerminal(agent, run);
+    var snapshot = agent.query().detail(run);
+    assertEquals("SUCCEEDED", snapshot.get("status"), snapshot.toString());
+  }
+
+  private static void awaitTerminal(AgentConfiguration.Services agent, String run) throws Exception {
     long end = System.nanoTime() + 10_000_000_000L;
     while (System.nanoTime() < end) {
       var snapshot = agent.query().detail(run);
       if (Set.of("SUCCEEDED", "FAILED", "CANCELLED").contains(snapshot.get("status"))) {
-        assertEquals("SUCCEEDED", snapshot.get("status"), snapshot.toString());
         return;
       }
       Thread.sleep(20);

@@ -10,7 +10,7 @@ public interface ConversationRepository {
 
   List<Conversation> page(String project, String afterTime, String afterId, int size);
 
-  int patch(String id, long version, String title, boolean discovery);
+  int patch(String id, long version, String title);
 
   List<DisplayMessage> messages(String id, long after, int size);
 
@@ -18,7 +18,7 @@ public interface ConversationRepository {
 
   Existing existing(String client);
 
-  String insertMessage(String conversation, long seq, String content);
+  String insertMessage(String conversation, long seq, String content, String skillMentions);
 
   String insertRun(
       String project,
@@ -44,10 +44,6 @@ public interface ConversationRepository {
       boolean analysisOnly);
 
   int occupy(String conversation, long expected, String run, boolean retry, String title);
-
-  void pins(String conversation, List<Selection> selections);
-
-  List<Selection> pins(String conversation);
 
   RunContext runContext(String run);
 

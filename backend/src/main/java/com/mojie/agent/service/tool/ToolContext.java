@@ -3,8 +3,10 @@ package com.mojie.agent.service.tool;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -40,6 +42,20 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   private final Map<String, Long> providedChapters = new HashMap<>();
   private final Map<String, Integer> providedSettings = new HashMap<>();
   private boolean analysisOnly;
+  private Set<String> requiredSkills = Set.of();
+  private final Set<String> readSkills = new HashSet<>(), providedSkills = new HashSet<>();
+
+  public void requiredSkills(Set<String> ids) {
+    requiredSkills = Set.copyOf(ids);
+  }
+
+  public void skillRead(String id) {
+    readSkills.add(id);
+  }
+
+  public boolean requiredSkillsProvided() {
+    return providedSkills.containsAll(requiredSkills);
+  }
 
   public boolean analysisOnly() {
     return analysisOnly;
@@ -76,6 +92,7 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   }
 
   public void markReadsProvided() {
+    providedSkills.addAll(readSkills);
     readChapters.forEach((id, chapter) -> providedChapters.put(id, chapter.version()));
     readSettings.forEach((id, setting) -> providedSettings.put(id, setting.version()));
   }

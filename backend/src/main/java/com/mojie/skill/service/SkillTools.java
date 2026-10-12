@@ -49,28 +49,18 @@ public final class SkillTools {
   }
 
   public List<Map<String, Object>> explicit(String run) {
-    List<Map<String, Object>> results = new ArrayList<>();
-    for (var s : service.repository().runSkills(run))
-      if (!s.source().equals("DISCOVERABLE")) {
-        Map<String, Object> data = read(run, s.skillId());
-        tx.required(
-            () -> {
-              service.repository().loaded(run, s.skillId(), null, encode(data));
-              event(
-                  run,
-                  "skill.loaded",
-                  Map.of(
-                      "skillId",
-                      s.skillId(),
-                      "versionId",
-                      s.versionId(),
-                      "providedToModel",
-                      false));
-              return null;
-            });
-        results.add(data);
-      }
-    return results;
+    return service.repository().runSkills(run).stream()
+        .filter(s -> s.source().equals("EXPLICIT"))
+        .map(
+            s ->
+                Map.<String, Object>of(
+                    "skillId",
+                    s.skillId(),
+                    "name",
+                    s.metadata().path("name").asText(),
+                    "versionId",
+                    s.versionId()))
+        .toList();
   }
 
   private RunSkill authorized(String run, String id, boolean loaded) {

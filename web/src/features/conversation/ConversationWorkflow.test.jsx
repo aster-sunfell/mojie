@@ -11,14 +11,14 @@ class FakeEventSource extends EventTarget {
   constructor(url) { super(); FakeEventSource.instances.set(url.split('/runs/')[1].split('/')[0], this) }
   close() {}
 }
-function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', afterPost, savePost, capabilities, detail, provideProposal = false, proposalTarget, patchPost, listGet } = {}) {
+function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', afterPost, savePost, capabilities, detail, provideProposal = false, proposalTarget, patchPost, listGet, skillItems = [] } = {}) {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
   vi.stubGlobal('EventSource', FakeEventSource)
   const chapters = [
     { id: 'c', title: '第一章', chapterOrder: 1, version: 1, content: '原文' },
     { id: 'c2', title: '第二章', chapterOrder: 2, version: 1, content: '第二章正文' },
   ]
-  const conversations = Object.fromEntries(initial.map((c, index) => [c.id, { title: `讨论 ${index}`, lastSeq: 0, version: 1, discoveryEnabled: true, ...c }]))
+  const conversations = Object.fromEntries(initial.map((c, index) => [c.id, { title: `讨论 ${index}`, lastSeq: 0, version: 1, ...c }]))
   const records = Object.fromEntries(initial.map(c => [c.id, initialMessages[c.id] || []]))
   const runs = {}, receipts = new Map(), writes = [], saves = [], cancelled = [], creates = []
   if (initial.length) localStorage.setItem('mojie:conversation:p', initial[0].id)
@@ -28,7 +28,8 @@ function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', after
     if (path === '/projects/p/chapters') return reply({ items: chapters, nextCursor: null })
     if (path === '/projects/p/settings') return reply({ items: [], nextCursor: null })
     if (path === '/system/capabilities') return reply({ agentConfigured: true, ...capabilities?.() })
-    if (path === '/skills') return reply({ items: [], nextCursor: null })
+    if (path === '/skills') return reply({ items: skillItems, nextCursor: null })
+    if (path === '/skills/capabilities') return reply({ maxRawUploadBytes: 10485760, maxFiles: 500, executor: { configured: false } })
     const chapter = chapters.find(c => path === `/chapters/${c.id}` || path === `/chapters/${c.id}/content`)
     if (chapter) {
       if (options.method === 'PUT') {
@@ -41,7 +42,7 @@ function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', after
     if (path === '/projects/p/conversations') {
       if (options.method === 'POST') {
         const id = `d${Object.keys(conversations).length + 1}`
-        const c = { id, title: '新对话', lastSeq: 0, version: 1, discoveryEnabled: true }
+        const c = { id, title: '新对话', lastSeq: 0, version: 1 }
         conversations[id] = c; records[id] = []; creates.push(id)
         return reply({ ...c })
       }
@@ -58,7 +59,6 @@ function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', after
         }
         return reply({ ...c })
       }
-      if (path.endsWith('/skills')) return reply([])
       if (path.endsWith('/messages')) {
         if (options.method !== 'POST') return reply({ items: records[id].map(m => ({ ...m })), nextCursor: null })
         const body = JSON.parse(options.body); writes.push(body)
@@ -327,7 +327,7 @@ test('empty composer has only icon actions and does not offer shortcuts or empty
     expect(screen.queryByRole('button', { name })).toBeNull()
   }
   expect(screen.getAllByRole('button', { name: '新对话', exact: true })).toHaveLength(1)
-  expect(screen.getByRole('button', { name: '选择 Skill' }).querySelector('svg')).toBeTruthy()
+  expect(screen.getByRole('button', { name: '引用 Skill' }).querySelector('svg')).toBeTruthy()
   expect(screen.queryByRole('combobox', { name: '本轮任务' })).toBeNull()
   expect(input().value).toBe('')
   expect(state.creates).toHaveLength(0); expect(state.writes).toHaveLength(0)
@@ -414,21 +414,56 @@ test('running history rows block management and history closes with Escape', asy
   expect(screen.queryByRole('dialog', { name: '历史对话' })).toBeNull()
 })
 
-test('failed initial discovery preference is retried before sending the first turn', async () => {
-  let attempts = 0
-  const state = setup({ patchPost: (body, c) => {
-    if (++attempts === 1) return failure('CONVERSATION_VERSION_CONFLICT')
-    Object.assign(c, body); c.version++
-    return reply({ ...c })
-  } })
-  await ready()
-  fireEvent.click(screen.getByRole('button', { name: '选择 Skill', exact: true }))
-  fireEvent.click(screen.getByRole('checkbox', { name: '允许自动发现其他 Skill' }))
-  fireEvent.click(screen.getByRole('button', { name: '完成' }))
-  fireEvent.click(send()); await screen.findByRole('alert')
-  expect(state.creates).toHaveLength(1); expect(state.writes).toHaveLength(0)
-  await waitFor(() => expect(send().disabled).toBe(false)); fireEvent.click(send())
+const characterSkill = { skill: { id: 's1', name: '人物检查', enabled: true, currentVersionId: 'v1' }, currentVersion: { status: 'READY', metadata: { description: '检查人物行为与设定的一致性' } } }
+
+test('the picker inserts a message reference without pins, version selection, or a discovery switch', async () => {
+  const state = setup({ skillItems: [characterSkill] })
+  await ready('检查人物')
+  fireEvent.click(screen.getByRole('button', { name: '引用 Skill', exact: true }))
+  const dialog = within(screen.getByRole('dialog', { name: '引用 Skill' }))
+  expect(dialog.queryByRole('checkbox')).toBeNull()
+  expect(dialog.queryByRole('combobox')).toBeNull()
+  expect(dialog.queryByRole('button', { name: 'Skill 库' })).toBeNull()
+  fireEvent.click(await dialog.findByRole('button', { name: '引用 人物检查' }))
+  expect(input().value).toContain('$人物检查')
+  expect(screen.getByRole('button', { name: '移除 Skill 引用：人物检查' })).toBeTruthy()
+  fireEvent.click(send())
   await screen.findByText('已核对正文')
-  expect(attempts).toBe(2); expect(state.creates).toHaveLength(1); expect(state.writes).toHaveLength(1)
-  expect(state.conversations.d1.discoveryEnabled).toBe(false)
+  expect(state.writes[0].skillMentions).toEqual([{ skillId: 's1', name: '人物检查' }])
+  expect(state.writes[0].selectedSkills).toBeUndefined()
+  expect(screen.queryByRole('button', { name: '移除 Skill 引用：人物检查' })).toBeNull()
+  expect(fetch.mock.calls.some(([url]) => /\/conversations\/[^/]+\/skills/.test(url))).toBe(false)
+  expect(fetch.mock.calls.some(([, options]) => options?.method === 'PATCH')).toBe(false)
+})
+
+test('dollar autocomplete uses Enter to insert a reference before sending and removal clears the request reference', async () => {
+  const state = setup({ skillItems: [characterSkill] })
+  await ready('使用 $人物')
+  await screen.findByRole('option', { name: /人物检查/ })
+  fireEvent.keyDown(input(), { key: 'Enter' })
+  expect(state.writes).toHaveLength(0)
+  expect(input().value).toBe('使用 $人物检查 ')
+  fireEvent.click(screen.getByRole('button', { name: '移除 Skill 引用：人物检查' }))
+  expect(input().value).not.toContain('$人物检查')
+  fireEvent.change(input(), { target: { value: '继续分析' } })
+  fireEvent.click(send())
+  await screen.findByText('已核对正文')
+  expect(state.writes[0].skillMentions).toEqual([])
+})
+
+test('global settings preserves unsaved chapter and conversation drafts and focuses its opener on close', async () => {
+  setup({ skillItems: [characterSkill] })
+  await ready('保留对话草稿')
+  const editor = screen.getByRole('textbox', { name: '章节正文', exact: true })
+  fireEvent.change(editor, { target: { value: '保留正文草稿' } })
+  const opener = screen.getByRole('button', { name: '设置', exact: true })
+  opener.focus(); fireEvent.click(opener)
+  const settings = within(screen.getByRole('dialog', { name: '设置', exact: true }))
+  await settings.findByText('人物检查')
+  expect(settings.getByRole('button', { name: '添加 Skill' })).toBeTruthy()
+  expect(screen.queryByRole('checkbox', { name: '允许自动发现其他 Skill' })).toBeNull()
+  fireEvent.click(settings.getByRole('button', { name: '关闭设置' }))
+  expect(editor.value).toBe('保留正文草稿')
+  expect(input().value).toBe('保留对话草稿')
+  expect(document.activeElement).toBe(opener)
 })

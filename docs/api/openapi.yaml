@@ -431,49 +431,6 @@ paths:
                 clientRequestId:
                   type: string
                   format: uuid
-  /conversations/{id}/skills:
-    parameters:
-    - name: id
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-    get:
-      operationId: getConversationSkills
-      responses:
-        '200':
-          $ref: '#/components/responses/Data'
-        '400':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-        '503':
-          $ref: '#/components/responses/Error'
-    put:
-      operationId: setConversationSkills
-      responses:
-        '200':
-          $ref: '#/components/responses/Data'
-        '400':
-          $ref: '#/components/responses/Error'
-        '404':
-          $ref: '#/components/responses/Error'
-        '409':
-          $ref: '#/components/responses/Error'
-        '503':
-          $ref: '#/components/responses/Error'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              maxItems: 8
-              items:
-                $ref: '#/components/schemas/SkillSelection'
   /skills/capabilities:
     get:
       operationId: getSkillCapabilities
@@ -898,18 +855,19 @@ components:
               content: { type: string, minLength: 1, maxLength: 2000 }
               expectedVersion: { type: integer, minimum: 1 }
   schemas:
-    SkillSelection:
+    SkillMention:
       type: object
       required:
       - skillId
-      - versionId
       properties:
         skillId:
           type: string
           format: uuid
-        versionId:
+        name:
           type: string
-          format: uuid
+          minLength: 1
+          maxLength: 64
+          description: Name shown in the authored reference; identity remains skillId after a rename. Version is resolved by the server.
     ConversationPatch:
       type: object
       required:
@@ -922,8 +880,6 @@ components:
           type: string
           minLength: 1
           maxLength: 100
-        discoveryEnabled:
-          type: boolean
     ConversationSend:
       type: object
       required:
@@ -965,11 +921,12 @@ components:
           minimum: 1
           maximum: 2147483647
           description: Saved reference version fixed at acceptance; body is read only when needed.
-        selectedSkills:
+        skillMentions:
+          description: Explicit references in this message. Dollar references in content are also resolved. Other enabled Skills remain discoverable.
           type: array
           maxItems: 8
           items:
-            $ref: '#/components/schemas/SkillSelection'
+            $ref: '#/components/schemas/SkillMention'
         analysisOnly:
           type: boolean
           default: false

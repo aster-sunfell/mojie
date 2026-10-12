@@ -3,7 +3,7 @@ import { api, readableError } from '../../shared/api/client.js'
 import { useRun } from '../agent/useRun.js'
 import { active } from '../agent/status.js'
 
-const emptyDraft = () => ({ input: '', useChapter: true, analysisOnly: false, selected: [], discoveryEnabled: true, pending: null })
+const emptyDraft = () => ({ input: '', useChapter: true, analysisOnly: false, mentions: [], pending: null })
 const latestRun = (current, incoming) => current && ((current.lastEventSeq || 0) > (incoming.lastEventSeq || 0)
   || !active(current.status) && active(incoming.status)) ? current : incoming
 
@@ -12,7 +12,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
   const [id, setId] = useState(() => localStorage.getItem(storageKey) || '')
   const scope = useRef(id), drafts = useRef({}), mounted = useRef(true)
   const [draft, setDraft] = useState(() => {
-    try { drafts.current = JSON.parse(sessionStorage.getItem(`${storageKey}:drafts`) || '{}') } catch { /* Start with a fresh draft. */ }
+    try { drafts.current = Object.fromEntries(Object.entries(JSON.parse(sessionStorage.getItem(`${storageKey}:drafts`) || '{}')).map(([key, value]) => { const { selected, discoveryEnabled, discoveryPending, ...draft } = value; return [key, draft] })) } catch { /* Start with a fresh draft. */ }
     return { ...emptyDraft(), ...drafts.current[id] }
   })
   drafts.current[id] = draft
@@ -20,7 +20,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
   const [runs, setRuns] = useState({}), [runId, setRunId] = useState(null)
   const [items, setItems] = useState([]), [cursor, setCursor] = useState(null)
   const [listLoading, setListLoading] = useState(true), [listError, setListError] = useState('')
-  const [pins, setPins] = useState([]), [busy, setBusy] = useState(false), [loading, setLoading] = useState(Boolean(id))
+  const [busy, setBusy] = useState(false), [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState(''), [cancelRequested, setCancelRequested] = useState(false)
   const [capabilities, setCapabilities] = useState(null)
   const counter = useRef(0), listCounter = useRef(0), submitting = useRef(false)
@@ -53,7 +53,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
     }
     setId(nextId)
     setDraft({ ...emptyDraft(), ...drafts.current[nextId] })
-    setConversation(null); setMessages([]); setPins([]); setRunId(null); setError(''); setLoading(Boolean(nextId)); setCancelRequested(false)
+    setConversation(null); setMessages([]); setRunId(null); setError(''); setLoading(Boolean(nextId)); setCancelRequested(false)
     if (nextId) localStorage.setItem(storageKey, nextId)
     else localStorage.removeItem(storageKey)
     persistDrafts()
@@ -78,7 +78,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
     const currentId = scope.current
     if (!currentId) return
     const token = ++counter.current
-    const [c, preferences] = await Promise.all([api(`/conversations/${currentId}`), api(`/conversations/${currentId}/skills`)])
+    const c = await api(`/conversations/${currentId}`)
     let page, after, all = []
     do {
       page = await api(`/conversations/${currentId}/messages?limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
@@ -93,7 +93,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       runCache.current[result.value.id] = latestRun(runCache.current[result.value.id], result.value)
     }
     const activeId = c.activeRunId && (!runCache.current[c.activeRunId] || active(runCache.current[c.activeRunId].status)) ? c.activeRunId : null
-    setRuns({ ...runCache.current }); setConversation({ ...c, activeRunId: activeId, lastSeq: Math.max(c.lastSeq, all.at(-1)?.seq || 0) }); setMessages(all); setPins(preferences)
+    setRuns({ ...runCache.current }); setConversation({ ...c, activeRunId: activeId, lastSeq: Math.max(c.lastSeq, all.at(-1)?.seq || 0) }); setMessages(all)
     setRunId(activeId); setCancelRequested(Boolean(activeId && runCache.current[activeId]?.cancelRequested)); setLoading(false)
   }, [])
   loadRef.current = load
@@ -159,7 +159,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       return false
     } finally { mutating.current = false; if (mounted.current) setBusy(false) }
   }
-  async function send() {
+  async function send(skillMentions = draft.mentions) {
     const originalDraft = drafts.current[scope.current] || draft
     if (submitting.current || mutating.current || busy || loading || id && !conversation || taskActive || unavailableReason || options.current.projectBusy
       || !originalDraft.input.trim() || [...originalDraft.input].length > 8000) return
@@ -173,23 +173,18 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       if (!currentId) {
         c = await api(`/projects/${projectId}/conversations`, 'POST')
         currentId = c.id
-        select(currentId, { ...originalDraft, discoveryPending: originalDraft.discoveryEnabled !== c.discoveryEnabled })
+        select(currentId, originalDraft)
         setConversation(c)
         setLoading(false)
-      }
-      if (drafts.current[currentId]?.discoveryPending) {
-        c = await api(`/conversations/${currentId}`, 'PATCH', { expectedVersion: c.version, discoveryEnabled: originalDraft.discoveryEnabled })
-        updateDraft({ discoveryPending: false }, false)
-        setConversation(c)
       }
       const request = originalDraft.pending || { content: originalDraft.input.trim(), clientRequestId: crypto.randomUUID(),
         expectedConversationSeq: c.lastSeq,
         ...(originalDraft.analysisOnly ? { analysisOnly: true } : {}),
         ...(target ? { contextChapterId: target.id, contextVersion: target.version } : {}),
-        selectedSkills: originalDraft.selected }
+        skillMentions }
       updateDraft({ pending: request }, false)
       const receipt = await api(`/conversations/${currentId}/messages`, 'POST', request)
-      updateDraft({ input: '', selected: [], pending: null }, false)
+      updateDraft({ input: '', mentions: [], pending: null }, false)
       setRunId(receipt.runId)
       setConversation(current => ({ ...(current || c), activeRunId: receipt.runId, lastSeq: receipt.conversationSeq }))
       options.current.onActivityChange?.()
@@ -223,7 +218,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       options.current.onActivityChange?.()
     })
   }
-  return { id, conversation, messages, runs, items, cursor, listLoading, listError, pins, draft, unavailableReason,
+  return { id, conversation, messages, runs, items, cursor, listLoading, listError, draft, unavailableReason,
     loading, busy, error: error || live.error, taskActive, cancelRequested,
     connection: live.connection, updateDraft, select, send, stop, retry, action, loadList,
     patchConversation: (item, value) => action(async () => {
@@ -236,6 +231,5 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
     }),
     patch: value => action(async () => {
       await api(`/conversations/${scope.current}`, 'PATCH', { expectedVersion: conversation.version, ...value })
-      if (value.discoveryEnabled !== undefined) updateDraft({ discoveryEnabled: value.discoveryEnabled, discoveryPending: false }, false)
     }) }
 }

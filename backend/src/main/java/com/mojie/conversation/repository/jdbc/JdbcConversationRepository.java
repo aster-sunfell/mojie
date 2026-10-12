@@ -42,13 +42,12 @@ public final class JdbcConversationRepository implements ConversationRepository 
         size);
   }
 
-  public int patch(String id, long version, String title, boolean discovery) {
+  public int patch(String id, long version, String title) {
     return db.update(
         "UPDATE tb_conversation SET"
-            + " title=?,discovery_enabled=?,version=version+1,updated_at=now() WHERE"
+            + " title=?,version=version+1,updated_at=now() WHERE"
             + " id=?::uuid AND version=?",
         title,
-        discovery,
         id,
         version);
   }
@@ -81,13 +80,15 @@ public final class JdbcConversationRepository implements ConversationRepository 
         client);
   }
 
-  public String insertMessage(String conversation, long seq, String content) {
+  public String insertMessage(String conversation, long seq, String content, String skillMentions) {
     return db.first(
-            "INSERT INTO tb_conversation_message(conversation_id,seq,role,content,status)"
-                + " VALUES(?::uuid,?,'USER',?,'QUEUED') RETURNING id",
+            "INSERT INTO"
+                + " tb_conversation_message(conversation_id,seq,role,content,status,skill_mentions)"
+                + " VALUES(?::uuid,?,'USER',?,'QUEUED',?::jsonb) RETURNING id",
             conversation,
             seq,
-            content)
+            content,
+            skillMentions)
         .get("id")
         .toString();
   }
@@ -161,24 +162,6 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::
         title,
         conversation,
         expected);
-  }
-
-  public void pins(String conversation, List<Selection> selections) {
-    db.update("DELETE FROM tb_conversation_skill WHERE conversation_id=?::uuid", conversation);
-    for (var s : selections)
-      db.update(
-          "INSERT INTO tb_conversation_skill VALUES(?::uuid,?::uuid,?::uuid)",
-          conversation,
-          s.skillId(),
-          s.versionId());
-  }
-
-  public List<Selection> pins(String conversation) {
-    return db.records(
-        Selection.class,
-        "SELECT skill_id,version_id FROM tb_conversation_skill WHERE conversation_id=?::uuid ORDER"
-            + " BY skill_id",
-        conversation);
   }
 
   public RunContext runContext(String run) {

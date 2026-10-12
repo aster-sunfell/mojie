@@ -38,6 +38,7 @@ export function ConversationTurn({ message, run, chapterNames, review, proposalS
   return <article className={`conversationMessage ${user ? 'user' : 'assistant'}`}>
     <div className="messageMeta"><span>{user ? '你' : '写作助手'}</span>
       {user && run && turnContext && <span>{turnContext}</span>}{user && run?.analysisOnly && <span>仅分析</span>}</div>
+    {user && message.skillMentions?.length > 0 && <div className="messageMeta">{message.skillMentions.map(s => <span key={s.skillId}>引用：{s.name}</span>)}</div>}
     {user ? <p className="userContent">{message.content}</p> : <Markdown content={message.content} />}
     {failed && <div className="turnFailure"><span>本轮{message.status === 'FAILED' ? '失败' : '已停止'}，未完成回答。</span>
       {canRetry && <button className="link" onClick={() => onRetry(message)}>重试本轮</button>}
@@ -60,7 +61,7 @@ export function ConversationTurn({ message, run, chapterNames, review, proposalS
       <a key={a.id} href={`/api/v1/artifacts/${a.id}/download`} download>{a.name}{failed ? ' · 未完成任务产物' : ''} · 到期 {new Date(a.expiresAt).toLocaleDateString()}</a>)}</div>}
     {run && (!user || failed || active(run.status)) && <details className="conversationExecution"><summary>执行详情</summary>
       <RunResult compact task={{ run, connection }} onSource={source => onSource(source, run)} />
-      {resources?.skills?.map(s => <p key={s.skillId} className="muted">{s.metadata.name} · {s.versionId} · {s.providedToModel ? '已供模型使用' : s.loaded ? '已加载，未确认送达' : '可发现'}</p>)}
+      {resources?.skills?.filter(s => s.loaded).map(s => <p key={s.skillId} className="muted">{s.metadata.name} · {s.source === 'EXPLICIT' ? '用户指定' : s.source === 'PINNED' ? '历史固定项' : '助手发现'} · {s.providedToModel ? '已供模型使用' : '已加载，未确认送达'}</p>)}
       {resourceError && <p className="error">附件与 Skill 信息暂不可用：{resourceError}<button className="link" onClick={() => setRetryResources(v => v + 1)}>重试加载</button></p>}
     </details>}
   </article>

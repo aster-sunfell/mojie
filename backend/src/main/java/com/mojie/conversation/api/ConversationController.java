@@ -33,12 +33,12 @@ public final class ConversationController {
     return service.get(id);
   }
 
-  public record Patch(Long expectedVersion, String title, Boolean discoveryEnabled) {}
+  public record Patch(Long expectedVersion, String title) {}
 
   @PatchMapping("/conversations/{id}")
   public Conversation patch(@PathVariable String id, @RequestBody Patch p) {
     if (p.expectedVersion() == null) throw new IllegalArgumentException("expectedVersion required");
-    return service.patch(id, p.expectedVersion(), p.title(), p.discoveryEnabled());
+    return service.patch(id, p.expectedVersion(), p.title());
   }
 
   @GetMapping("/conversations/{id}/messages")
@@ -59,17 +59,6 @@ public final class ConversationController {
   @PostMapping("/conversations/{id}/messages/{message}/retry")
   public ResponseEntity<Receipt> retry(
       @PathVariable String id, @PathVariable String message, @RequestBody Retry p) {
-    return ResponseEntity.accepted()
-        .body(service.retry(id, message, p.clientRequestId()));
-  }
-
-  @GetMapping("/conversations/{id}/skills")
-  public Object pins(@PathVariable String id) {
-    return service.pins(id);
-  }
-
-  @PutMapping("/conversations/{id}/skills")
-  public Object pins(@PathVariable String id, @RequestBody List<Selection> p) {
-    return service.pins(id, p);
+    return ResponseEntity.accepted().body(service.retry(id, message, p.clientRequestId()));
   }
 }

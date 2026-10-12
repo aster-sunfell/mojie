@@ -11,12 +11,11 @@ const reply = data => ({ ok: true, status: 200, json: async () => ({ data }) })
 
 function renderApp(runIds = []) {
   const previous = fetch
-  const conversation = { id: 'dialog', title: '章节讨论', lastSeq: runIds.length * 2, version: 1, discoveryEnabled: true }
+  const conversation = { id: 'dialog', title: '章节讨论', lastSeq: runIds.length * 2, version: 1 }
   if (runIds.length) localStorage.setItem('mojie:conversation:p', conversation.id)
   globalThis.fetch = vi.fn((url, options) => {
     if (url.startsWith('/api/v1/projects/p/conversations?')) return Promise.resolve(reply({ items: runIds.length ? [conversation] : [], nextCursor: null }))
     if (url === '/api/v1/conversations/dialog') return Promise.resolve(reply(conversation))
-    if (url === '/api/v1/conversations/dialog/skills') return Promise.resolve(reply([]))
     if (url.startsWith('/api/v1/conversations/dialog/messages?')) return Promise.resolve(reply({ items: runIds.map((runId, index) => ({ id: `m${index}`, runId, role: 'ASSISTANT', content: `建议 ${runId}`, seq: index * 2 + 2 })), nextCursor: null }))
     if (url === '/api/v1/skills?limit=50') return Promise.resolve(reply({ items: [], nextCursor: null }))
     if (url === '/api/v1/agent/runs?projectId=p&limit=20') return Promise.resolve(reply({ items: [], nextCursor: null }))

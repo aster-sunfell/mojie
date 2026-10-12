@@ -4,17 +4,18 @@ import { ScrollArea } from '../../shared/ui/ScrollArea.jsx'
 import { Icon } from '../../shared/ui/Icon.jsx'
 import { Tooltip } from '../../shared/ui/Tooltip.jsx'
 import { SourceView } from '../history/SourceView.jsx'
-import { SkillLibrary } from '../skills/SkillLibrary.jsx'
+import { loadSkillList } from '../skills/skills.api.js'
+import { activeSkillQuery, mentionsFromText, removeSkillMention, skillToken } from '../skills/mentions.js'
 import { useConversation } from './useConversation.js'
 import { ConversationTurn } from './ConversationTurn.jsx'
 import { ConversationSkills } from './ConversationSkills.jsx'
 import { ConversationHistory } from './ConversationHistory.jsx'
 import './conversation.css'
 
-export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, proposalStatuses, onOpenProposal, onActivityChange }) {
+export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, proposalStatuses, onOpenProposal, onActivityChange, skillRevision }) {
   const chat = useConversation({ projectId, getContext, projectBusy, onActivityChange })
   const [expanded, setExpanded] = useState(Boolean(chat.id)), [enlarged, setEnlarged] = useState(false)
-  const [picker, setPicker] = useState(false), [skillPicker, setSkillPicker] = useState(false), [library, setLibrary] = useState(false)
+  const [picker, setPicker] = useState(false), [skillPicker, setSkillPicker] = useState(false)
   const [skills, setSkills] = useState([]), [source, setSource] = useState(null), [skillError, setSkillError] = useState('')
   const [newReply, setNewReply] = useState(false), [unseen, setUnseen] = useState(false)
   const [inputFocused, setInputFocused] = useState(false)
@@ -22,15 +23,36 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
   const root = useRef(null), messagesArea = useRef(null), textarea = useRef(null), composing = useRef(false)
   const atBottom = useRef(true), lastMessage = useRef(null), readingPositions = useRef({}), restoreReading = useRef(true)
   const [chapterNames, setChapterNames] = useState({})
+  const skillRequest = useRef(0)
   const loadSkills = useCallback(async () => {
-    let all = [], cursor
-    do {
-      const page = await api(`/skills?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
-      all.push(...page.items); cursor = page.nextCursor
-    } while (cursor)
-    setSkills(all); setSkillError('')
+    const request = ++skillRequest.current
+    try {
+      const all = await loadSkillList()
+      if (request === skillRequest.current) { setSkills(all); setSkillError('') }
+    } catch (e) { if (request === skillRequest.current) setSkillError(readableError(e)) }
   }, [])
-  useEffect(() => { loadSkills().catch(e => setSkillError(readableError(e))) }, [loadSkills])
+  useEffect(() => { loadSkills(); return () => { skillRequest.current++ } }, [loadSkills, skillRevision])
+  const [skillQuery, setSkillQuery] = useState(null), [suggestionIndex, setSuggestionIndex] = useState(0)
+  useEffect(() => { setSkillQuery(null); setSkillPicker(false) }, [chat.id])
+  const mentions = mentionsFromText(chat.draft.input, skills, chat.draft.mentions)
+  const suggestions = skills.filter(item => item.skill.enabled && item.currentVersion?.status !== 'UNAVAILABLE'
+    && `${item.skill.name} ${item.currentVersion?.metadata.description || ''}`.toLocaleLowerCase().includes((skillQuery?.query || '').toLocaleLowerCase()))
+  function updateInput(value, cursor) {
+    chat.updateDraft({ input: value, mentions: mentionsFromText(value, skills, chat.draft.mentions) })
+    setSkillQuery(activeSkillQuery(value, cursor)); setSuggestionIndex(0)
+  }
+  function referenceSkill(item) {
+    const input = textarea.current, value = chat.draft.input
+    const query = skillQuery || activeSkillQuery(value, input.selectionStart)
+    const start = query?.start ?? input.selectionStart, end = query?.end ?? input.selectionEnd
+    const token = skillToken(item.skill.name)
+    const prefix = start > 0 && !/\s$/.test(value.slice(0, start)) ? ' ' : ''
+    const inserted = `${prefix}${token} `
+    const next = value.slice(0, start) + inserted + value.slice(end)
+    chat.updateDraft({ input: next, mentions: mentionsFromText(next, skills, [...mentions, { skillId: item.skill.id, name: item.skill.name }]) })
+    setSkillPicker(false); setSkillQuery(null)
+    requestAnimationFrame(() => { input.focus(); input.setSelectionRange(start + inserted.length, start + inserted.length) })
+  }
   useEffect(() => { if (chapter) setChapterNames(current => ({ ...current, [chapter.id]: chapter.title })) }, [chapter?.id, chapter?.title])
   useEffect(() => {
     let disposed = false
@@ -95,7 +117,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
     event.preventDefault()
     if (!canSend) return
     setExpanded(true); atBottom.current = true
-    chat.send()
+    setSkillQuery(null); chat.send(mentions)
   }
   function saveReading() { if (expanded && messagesArea.current) readingPositions.current[chat.id] = { top: messagesArea.current.scrollTop, bottom: atBottom.current } }
   function toggleMessages() { saveReading(); restoreReading.current = true; setExpanded(value => !value); setNewReply(false); setEnlarged(false) }
@@ -123,7 +145,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
   const status = chat.taskActive ? chat.cancelRequested ? '正在停止…' : chat.connection === 'reconnecting' ? '连接中断，正在重连并查询状态…' : '正在处理…'
     : newReply ? '有新回复' : ''
   const inputLength = [...chat.draft.input].length
-  const skillLabel = chat.draft.selected.length ? `已选择 ${chat.draft.selected.length} 个 Skill` : '选择 Skill'
+  const skillLabel = '引用 Skill'
   const sendLabel = chat.busy ? '正在提交' : chat.taskActive ? chat.cancelRequested ? '正在停止' : '停止' : '发送'
   return <section ref={root} className={`conversationPanel ${expanded ? 'expanded' : 'collapsed'} ${enlarged ? 'enlarged' : ''}`}
     aria-label="写作助手" style={expanded ? { height: panelHeight } : undefined}>
@@ -168,17 +190,43 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
         <textarea ref={textarea} aria-label="对话消息" rows={2} placeholder="告诉助手你想做什么…"
           value={chat.draft.input} disabled={chat.busy}
           onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
-          onChange={event => chat.updateDraft({ input: event.target.value })}
-          onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
+          onChange={event => updateInput(event.target.value, event.target.selectionStart)}
+          onSelect={event => { if (!composing.current) setSkillQuery(activeSkillQuery(event.target.value, event.target.selectionStart)) }}
+          onCompositionStart={() => { composing.current = true }} onCompositionEnd={event => { composing.current = false; setSkillQuery(activeSkillQuery(event.target.value, event.target.selectionStart)) }}
+          aria-expanded={Boolean(skillQuery)} aria-controls={skillQuery ? 'skill-suggestions' : undefined}
+          aria-activedescendant={skillQuery && suggestions.length ? `skill-suggestion-${Math.min(suggestionIndex, suggestions.length - 1)}` : undefined}
           onKeyDown={event => {
+            if (skillQuery && !composing.current && !event.nativeEvent.isComposing) {
+              if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSkillQuery(null); return }
+              if (suggestions.length && ['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key) && !event.shiftKey) {
+                event.preventDefault()
+                const index = Math.min(suggestionIndex, suggestions.length - 1)
+                if (event.key === 'Enter') referenceSkill(suggestions[index])
+                else setSuggestionIndex((index + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length)
+                return
+              }
+            }
             if (event.key === 'Enter' && !event.shiftKey && !composing.current && !event.nativeEvent.isComposing && event.keyCode !== 229) send(event)
           }} />
+        {skillQuery && !composing.current && <div id="skill-suggestions" className="skillSuggestions" role="listbox" aria-label="Skill 引用建议">
+          {suggestions.map((item, index) => <button type="button" role="option" aria-selected={index === Math.min(suggestionIndex, suggestions.length - 1)}
+            id={`skill-suggestion-${index}`} key={item.skill.id} disabled={chat.busy} onMouseDown={event => event.preventDefault()} onClick={() => referenceSkill(item)}>
+            <strong>{item.skill.name}</strong><span>{item.currentVersion?.metadata.description}</span>
+          </button>)}
+          {suggestions.length === 0 && <p>{skillError || '暂无匹配的 Skill，请在设置中添加并启用。'}</p>}
+        </div>}
+        {mentions.length > 0 && <div className="assistantSkillReferences" aria-label="消息中的 Skill 引用">{mentions.map(mention => <span key={mention.skillId}>{mention.name}
+          <button type="button" aria-label={`移除 Skill 引用：${mention.name}`} disabled={chat.busy} onClick={() => {
+            const value = removeSkillMention(chat.draft.input, mention.name)
+            updateInput(value, value.length); setSkillQuery(null)
+          }}><Icon name="close" size={12} /></button>
+        </span>)}</div>}
         <div className="assistantInputTools"><div className="assistantContext">
           <button type="button" className="link assistantAnalysisOnly" aria-pressed={Boolean(chat.draft.analysisOnly)} disabled={chat.busy}
             title="本轮只查阅和分析，不生成修改建议" onClick={() => chat.updateDraft({ analysisOnly: !chat.draft.analysisOnly })}>仅分析{chat.draft.analysisOnly ? ' · 开' : ''}</button>
-          <Tooltip label={skillLabel}><button type="button" className="assistantIconButton assistantSkillButton" aria-label="选择 Skill"
-            disabled={chat.busy} onClick={() => setSkillPicker(true)}>
-            <Icon name="skill" />{chat.draft.selected.length > 0 && <span className="assistantSkillCount">{chat.draft.selected.length}</span>}
+          <Tooltip label={skillLabel}><button type="button" className="assistantIconButton assistantSkillButton" aria-label="引用 Skill"
+            disabled={chat.busy} onClick={() => { setSkillQuery(null); setSkillPicker(true); loadSkills() }}>
+            <Icon name="skill" />
           </button></Tooltip>
           {chapter && chat.draft.useChapter !== false ? <div className="assistantChapterReference">
             <Tooltip label={`优先参考：${chapter.title} · 已保存 v${chapter.version}`}>
@@ -201,8 +249,7 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
       {chat.error && !picker && <p className="error assistantError" role="alert">{chat.error}</p>}
     </form>
     {picker && <ConversationHistory chat={chat} onSelect={selectConversation} onClose={() => setPicker(false)} />}
-    {skillPicker && <ConversationSkills chat={chat} skills={skills} loadError={skillError} onClose={() => setSkillPicker(false)} onLibrary={() => { setSkillPicker(false); setLibrary(true) }} />}
+    {skillPicker && <ConversationSkills skills={skills} loadError={skillError} onReload={loadSkills} onClose={() => setSkillPicker(false)} onChoose={referenceSkill} />}
     {source && <SourceView key={source.value.id} source={source.value} step={source.run.steps?.find(s => s.toolExecutionId === source.value.toolExecutionId)} close={() => setSource(null)} />}
-    {library && <SkillLibrary onClose={() => setLibrary(false)} onChange={loadSkills} />}
   </section>
 }

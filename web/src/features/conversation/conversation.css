@@ -47,7 +47,6 @@
 .assistantInputTools{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .assistantContext{display:flex;align-items:center;gap:8px;flex:1;min-width:0;font-size:12px;color:#7b8981}
 .assistantContext>span:first-child{flex-shrink:0}
-.assistantSkillCount{position:absolute;right:-3px;top:-3px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--color-primary);color:var(--color-surface);font-size:10px;line-height:15px;border:1px solid var(--color-surface)}
 .assistantChapterReference{display:flex;align-items:center;min-width:0;max-width:280px;padding:2px 4px 2px 7px;border-radius:6px;background:#f1f4ef}
 .assistantChapterReference>span:first-child{display:flex;flex:1;min-width:0}
 .assistantChapterLabel{display:flex;align-items:center;gap:5px;min-width:0}
@@ -65,9 +64,6 @@
 .newReplyButton{display:block;width:max-content;margin:8px auto 0;font-size:12px;padding:3px 10px;position:sticky;bottom:8px;box-shadow:var(--shadow-card);z-index:1}
 .turnFailure{font-size:12px;color:#7b8981;margin-top:8px}
 .conversationSkills{display:flex;flex-direction:column;gap:14px;min-width:0}
-.conversationSkills label{font-size:13px}
-.conversationSkills select{width:100%;max-width:100%;margin-top:6px}
-.skillCheck{display:flex;align-items:center;gap:8px}
 .conversationHistoryDialog{max-width:560px;padding:24px}
 .conversationHistory{display:flex;flex-direction:column;gap:14px;min-width:0}
 .conversationHistoryList{min-height:120px;max-height:48dvh;overflow-y:auto;overscroll-behavior:contain;padding:4px}
@@ -91,9 +87,6 @@
 .conversationHistoryError{display:flex;align-items:center;gap:8px;font-size:12px}
 .conversationHistory .conversationHistoryError .error{color:var(--color-danger,#b44b45);font-size:12px;overflow-wrap:anywhere}
 .conversationHistoryLoadMore{align-self:center;font-size:12px;padding:4px}
-.pinnedSkill{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;overflow-wrap:anywhere}
-.skillChoice{padding:8px 0;border-top:1px solid var(--color-border)}
-.skillChoice button{font-size:12px;margin-top:6px}
 .writingColumn{position:relative}
 @keyframes assistant-spin{to{transform:rotate(360deg)}}
 @media(max-width:640px){
@@ -121,3 +114,7 @@
 }
 @media(pointer:coarse){.assistantIconButton,.assistantSend{width:36px;height:36px}.assistantReferenceRemove{width:30px;height:30px}}
 @media(prefers-reduced-motion:reduce){.assistantProgress svg,.assistantSend svg{animation:none!important}.assistantInputBox{transition:none}}
+.skillReferenceList{display:flex;flex-direction:column;gap:6px;max-height:40dvh;overflow:auto}
+.skillReferenceOption{display:flex;flex-direction:column;gap:6px;text-align:left;background:#f1f4ef;color:var(--color-text);font-weight:400;padding:12px;overflow-wrap:anywhere}.skillReferenceOption strong{font-size:13px}.skillReferenceOption span{font-size:12px;color:#718379}
+.skillSuggestions{border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);max-height:180px;overflow:auto;margin-bottom:8px}.skillSuggestions button{display:flex;flex-direction:column;gap:4px;width:100%;padding:8px 10px;text-align:left;background:transparent;color:var(--color-text);font-size:12px}.skillSuggestions button[aria-selected=true]{background:#edf2ee}.skillSuggestions button span{font-weight:400;color:#718379}.skillSuggestions p{padding:8px 10px;font-size:12px;margin:0;color:#718379}
+.assistantSkillReferences{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;font-size:12px;color:#526f63}.assistantSkillReferences>span{display:inline-flex;align-items:center;gap:4px;max-width:100%;overflow-wrap:anywhere;padding:3px 5px 3px 8px;border-radius:6px;background:#edf2ee}.assistantSkillReferences button{display:flex;align-items:center;padding:3px;background:transparent;color:#526f63}

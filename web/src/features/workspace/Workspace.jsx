@@ -10,7 +10,7 @@ import { Icon } from '../../shared/ui/Icon.jsx'
 import { Settings } from '../settings/Settings.jsx'
 import { useProposalReview } from '../proposals/useProposalReview.js'
 
-export function Workspace({ projectId, selectedChapterId, navigate }) {
+export function Workspace({ projectId, selectedChapterId, navigate, onSettings, applicationSettingsOpen, skillRevision }) {
   const [project, setProject] = useState(null)
   const [chapters, setChapters] = useState([])
   const [chapterCursor, setChapterCursor] = useState(null)
@@ -121,7 +121,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     pending.finally(() => { if (saveInFlight.current === pending) saveInFlight.current = null })
     return pending
   }, [chapter, accepting, review.snapshot, review.commit])
-  useEffect(() => { const key = event => { if (!showSettings && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save, showSettings])
+  useEffect(() => { const key = event => { if (!showSettings && !applicationSettingsOpen && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save, showSettings, applicationSettingsOpen])
   async function prepareLeave() {
     if (accepting) return
     if (dirty || review.hasPendingEdits) {
@@ -201,6 +201,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
         <button className="secondary workspaceSettingsButton" aria-haspopup="dialog" onClick={() => { setSettingProposalId(null); setShowSettings(true) }}>
           <Icon name="book" size={16} />作品设定
         </button>
+        <button className="secondary appSettingsButton" aria-haspopup="dialog" onClick={onSettings}><Icon name="settings" size={17} />设置</button>
       </header>
       <ChapterEditor chapter={chapter} draft={draft}
     saveStatus={saveStatus} dirty={dirty} accepting={accepting} error={error}
@@ -208,7 +209,7 @@ export function Workspace({ projectId, selectedChapterId, navigate }) {
     onHistoryChange={setShowHistory} onSave={save}
     review={review}
     onDraftChange={changeDraft} />
-      <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty}
+      <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty} skillRevision={skillRevision}
         projectBusy={runBusy} review={review} getContext={getContext} proposalStatuses={proposalStatuses}
         onOpenProposal={openProposal} onActivityChange={refreshBusy} />
     </div>

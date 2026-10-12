@@ -18,9 +18,9 @@ def save(): a.output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'
 def api(path,method='GET',body=None):
     req=urllib.request.Request(a.base_url+path,method=method,data=None if body is None else json.dumps(body,ensure_ascii=False).encode(),headers={'Content-Type':'application/json'})
     with urllib.request.urlopen(req,timeout=30) as response:return json.load(response)['data']
-def turn(conversation,content,task='ASSISTANT',chapter=None,selected=None):
+def turn(conversation,content,task='ASSISTANT',chapter=None,mentions=None):
     c=api('/conversations/'+conversation)
-    body={'content':content,'clientRequestId':str(uuid.uuid4()),'expectedConversationSeq':c['lastSeq'],'taskType':task,'selectedSkills':selected or []}
+    body={'content':content,'clientRequestId':str(uuid.uuid4()),'expectedConversationSeq':c['lastSeq'],'taskType':task,'skillMentions':mentions or []}
     if chapter:body.update(targetChapterId=chapter['id'],expectedVersion=chapter['version'])
     receipt=api('/conversations/'+conversation+'/messages','POST',body)
     entry={'input':body,'receipt':receipt};report['cases'].append(entry);save();print('START',receipt['runId'],flush=True)

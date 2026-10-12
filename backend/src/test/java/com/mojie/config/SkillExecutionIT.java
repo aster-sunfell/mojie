@@ -42,15 +42,24 @@ class SkillExecutionIT {
       var saved =
           content
               .saves()
-              .saveChapter(
-                  chapterId,
-                  "本轮固定章节：林舟走桥。",
-                  ((Number) chapter.get("version")).intValue());
+              .saveChapter(chapterId, "本轮固定章节：林舟走桥。", ((Number) chapter.get("version")).intValue());
       var skillId = new String[1];
       var step = new AtomicInteger();
       var waiting = new AtomicBoolean();
       ModelGateway gateway =
           request -> {
+            if (waiting.get() && request.messages().getLast().replies().isEmpty())
+              return new Response(
+                  "",
+                  List.of(
+                      new ToolCall(
+                          "load-waiting",
+                          "read_skill",
+                          tree(encode(Map.of("skillId", skillId[0]))))),
+                  FinishReason.TOOL_CALLS,
+                  "test",
+                  "tool_use",
+                  Map.of());
             if (waiting.get())
               return new Response(
                   "",
@@ -77,9 +86,12 @@ class SkillExecutionIT {
             ToolCall call;
             if (n == 0)
               call =
+                  new ToolCall("load", "read_skill", tree(encode(Map.of("skillId", skillId[0]))));
+            else if (n == 1)
+              call =
                   new ToolCall(
                       "chapter", "read_chapter", tree(encode(Map.of("chapterId", chapterId))));
-            else if (n == 1)
+            else if (n == 2)
               call =
                   new ToolCall(
                       "python",
@@ -100,7 +112,7 @@ class SkillExecutionIT {
                                           "content.txt",
                                           "source",
                                           Map.of("type", "CHAPTER", "chapterId", chapterId)))))));
-            else if (n == 2) {
+            else if (n == 3) {
               var result = request.messages().getLast().replies().getFirst().result();
               assertEquals(true, result.get("success"), result.toString());
               var data = (Map<?, ?>) result.get("data");
@@ -171,7 +183,9 @@ class SkillExecutionIT {
                     skills,
                     new ModelApiConfig(
                         ModelApiConfig.MESSAGES, "http://127.0.0.1", "test", "test-model"),
-                    gateway, process, () -> Map.of("contextWindowTokens", 1000000));
+                    gateway,
+                    process,
+                    () -> Map.of("contextWindowTokens", 1000000));
         var upload =
             skills.importPackage(
                 null,
@@ -210,12 +224,11 @@ class SkillExecutionIT {
                     "ASSISTANT",
                     null,
                     null,
-                    List.of(new Selection(skill.id(), upload.versionId()))));
+                    List.of(new SkillMention(skill.id()))));
         long end = System.nanoTime() + 60000000000L;
         while (System.nanoTime() < end
             && Set.of("QUEUED", "RUNNING")
-                .contains(agent.query().detail(run.runId()).get("status")))
-          Thread.sleep(25);
+                .contains(agent.query().detail(run.runId()).get("status"))) Thread.sleep(25);
         assertEquals(
             "SUCCEEDED",
             agent.query().detail(run.runId()).get("status"),
@@ -247,8 +260,7 @@ class SkillExecutionIT {
                 .code());
         long before =
             ((Number)
-                    db.first("SELECT used_bytes AS n FROM tb_skill_quota WHERE singleton")
-                        .get("n"))
+                    db.first("SELECT used_bytes AS n FROM tb_skill_quota WHERE singleton").get("n"))
                 .longValue();
         db.update(
             "UPDATE tb_artifact SET expires_at=now()-interval '1 day' WHERE run_id=?::uuid",
@@ -272,8 +284,7 @@ class SkillExecutionIT {
         assertEquals(
             before - artifacts.getLast().sizeBytes(),
             ((Number)
-                    db.first("SELECT used_bytes AS n FROM tb_skill_quota WHERE singleton")
-                        .get("n"))
+                    db.first("SELECT used_bytes AS n FROM tb_skill_quota WHERE singleton").get("n"))
                 .longValue());
         waiting.set(true);
         var cancelled =
@@ -286,7 +297,7 @@ class SkillExecutionIT {
                     "ASSISTANT",
                     null,
                     null,
-                    List.of(new Selection(skill.id(), upload.versionId()))));
+                    List.of(new SkillMention(skill.id()))));
         String executionId = null;
         boolean containerStarted = false;
         long startedDeadline = System.nanoTime() + 10000000000L;
@@ -321,8 +332,7 @@ class SkillExecutionIT {
         long cancelledDeadline = System.nanoTime() + 10000000000L;
         while (System.nanoTime() < cancelledDeadline
             && Set.of("QUEUED", "RUNNING")
-                .contains(agent.query().detail(cancelled.runId()).get("status")))
-          Thread.sleep(25);
+                .contains(agent.query().detail(cancelled.runId()).get("status"))) Thread.sleep(25);
         assertEquals("CANCELLED", agent.query().detail(cancelled.runId()).get("status"));
         assertEquals("CANCELLED", skills.repository().execution(executionId).status());
         assertTrue(skills.runArtifacts(cancelled.runId()).isEmpty());

@@ -15,7 +15,6 @@ public final class ConversationModels {
       String activeRunId,
       String modelId,
       JsonNode modelConfig,
-      boolean discoveryEnabled,
       String createdAt,
       String updatedAt) {}
 
@@ -25,6 +24,7 @@ public final class ConversationModels {
       long seq,
       String role,
       String content,
+      JsonNode skillMentions,
       String runId,
       String status,
       String createdAt) {}
@@ -55,7 +55,11 @@ public final class ConversationModels {
 
   public record Summary(String id, long coveredSeq, String summary) {}
 
-  public record Selection(String skillId, String versionId) {}
+  public record SkillMention(String skillId, String name) {
+    public SkillMention(String skillId) {
+      this(skillId, null);
+    }
+  }
 
   public record Send(
       String content,
@@ -64,7 +68,7 @@ public final class ConversationModels {
       String taskType,
       String targetChapterId,
       Long expectedVersion,
-      List<Selection> selectedSkills,
+      List<SkillMention> skillMentions,
       String contextChapterId,
       Long contextVersion,
       boolean analysisOnly) {
@@ -75,7 +79,7 @@ public final class ConversationModels {
         String taskType,
         String targetChapterId,
         Long expectedVersion,
-        List<Selection> selectedSkills,
+        List<SkillMention> skillMentions,
         String contextChapterId,
         Long contextVersion) {
       this(
@@ -85,7 +89,7 @@ public final class ConversationModels {
           taskType,
           targetChapterId,
           expectedVersion,
-          selectedSkills,
+          skillMentions,
           contextChapterId,
           contextVersion,
           false);
@@ -98,7 +102,7 @@ public final class ConversationModels {
         String taskType,
         String targetChapterId,
         Long expectedVersion,
-        List<Selection> selectedSkills) {
+        List<SkillMention> skillMentions) {
       this(
           content,
           clientRequestId,
@@ -106,7 +110,7 @@ public final class ConversationModels {
           taskType,
           targetChapterId,
           expectedVersion,
-          selectedSkills,
+          skillMentions,
           null,
           null);
     }

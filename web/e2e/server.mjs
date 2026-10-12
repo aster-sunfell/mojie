@@ -27,6 +27,21 @@ const model = http.createServer(async (request, reply) => {
     const searchEdit = instruction.includes('E2E_SEARCH_EDIT')
     const settingEdit = instruction.includes('E2E_SETTING_EDIT')
     const settingId = instruction.match(/SETTING=([a-f0-9-]+)/)?.[1]
+    // Explicit references are metadata at first, and must be read through the tool.
+    const system = typeof body.system === 'string' ? body.system : (body.system || []).map(block => block.text || '').join('\n')
+    const explicitMarker = 'Explicit Skill mentions (read with read_skill before doing this task):\n'
+    const explicit = system.includes(explicitMarker) ? JSON.parse(system.split(explicitMarker)[1]) : []
+    const latestInput = body.messages.findLastIndex(message => message.role === 'user'
+      && message.content?.some(block => block.type === 'text'))
+    const currentBlocks = body.messages.slice(latestInput + 1).flatMap(message => message.content || [])
+    const currentLoads = currentBlocks.filter(block => block.type === 'tool_use' && block.name === 'read_skill')
+    const missing = explicit.filter(skill => !currentLoads.some(block => block.input.skillId === skill.skillId))
+    if (missing.length) {
+      reply.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: `skill-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test',
+        content: missing.map(skill => ({ type: 'tool_use', id: `browser-skill-${++serial}`, name: 'read_skill', input: { skillId: skill.skillId } })),
+        stop_reason: 'tool_use', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }))
+      return
+    }
     if ((!targetId && !searchEdit && !settingEdit) || !instruction.includes('E2E_')) {
       const remembered = blocks.some(block => block.type === 'text' && block.text?.includes('怕火'))
       reply.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ id: `chat-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test', content: [{ type: 'text', text: remembered ? '林舟怕火，因此避开火光。' : '可以一起讨论大纲。' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }))

@@ -1,6 +1,7 @@
 import React from 'react'
 
 const paths = {
+  settings: <><path d="m9 3-1 3-3 1-2 3 2 2v3l2 2 3-1 2 2 3-1 1-3 3-1 2-3-2-2V7l-2-2-3 1-2-3Z" /><circle cx="12" cy="12" r="3" /></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   close: <path d="m6 6 12 12M6 18 18 6" />,

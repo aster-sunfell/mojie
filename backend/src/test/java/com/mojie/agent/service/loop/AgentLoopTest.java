@@ -610,6 +610,55 @@ class AgentLoopTest {
         assertNull(result.candidate());
     }
 
+    @Test
+    void explicitlyMentionedSkillCannotBeSilentlySkipped() {
+        Script model = new Script(List.of(response("结论", List.of(), FinishReason.FINAL)));
+        LoopInput request = unifiedInput();
+        request.context().requiredSkills(Set.of("skill"));
+        LoopOutcome.Failed failure =
+                (LoopOutcome.Failed) loop(model, LoopLimits.defaults()).run(request);
+        assertEquals("SKILL_GUIDANCE_REQUIRED", failure.code());
+    }
+
+    @Test
+    void mentionedGuidanceMustReachALaterRequestBeforeDependentWork() {
+        Script model =
+                new Script(
+                        List.of(
+                                response(
+                                        "",
+                                        List.of(
+                                                call("load", "read_skill", "{\"skillId\":\"skill\"}"),
+                                                call("early", "read_chapter", "{\"chapterId\":\"prior\"}")),
+                                        FinishReason.TOOL_CALLS),
+                                response(
+                                        "",
+                                        List.of(call("later", "read_chapter", "{\"chapterId\":\"prior\"}")),
+                                        FinishReason.TOOL_CALLS),
+                                response("已按指定技能处理", List.of(), FinishReason.FINAL)));
+        AgentTool skill =
+                new AgentTool() {
+                    public ToolSpec spec() {
+                        return new ToolSpec("read_skill", "Skill", Map.of("type", "object"));
+                    }
+
+                    public ToolResult execute(JsonNode args, ToolContext context) {
+                        return ToolResult.ok(Map.of("skillId", "skill", "body", "指定的指导正文"), List.of());
+                    }
+                };
+        var tools = new ArrayList<>(ContentTools.all(content, KEY));
+        tools.add(skill);
+        LoopInput request = unifiedInput();
+        request.context().requiredSkills(Set.of("skill"));
+        var result =
+                new AgentLoop(model, tools, trace, LoopLimits.defaults(), Clock.systemUTC(), cancelled::get)
+                        .run(request);
+        assertInstanceOf(LoopOutcome.Completed.class, result);
+        assertTrue(trace.wireResults.get(1).contains("SKILL_GUIDANCE_REQUIRED"));
+        assertTrue(trace.wireResults.get(2).contains("林舟不会游泳"));
+        assertTrue(model.requests.get(1).messages().toString().contains("指定的指导正文"));
+    }
+
     private LoopInput unifiedInput() {
         ToolContext context = new ToolContext(UUID.randomUUID().toString(), "p", null, 0, null);
         context.unified(true);

@@ -75,8 +75,8 @@ class ConversationHistoryMigrationIT {
             + "'test-model',repeat('a',64),repeat('b',64),'{}','CHAT')", oldRun, project, archived, UUID.randomUUID().toString());
         db.update("INSERT INTO tb_setting(id,project_id,type,title,content) VALUES(?::uuid,?::uuid,'CHARACTER','林舟','迁移前的设定')",
             oldSetting, project);
-        var conversationsBefore = db.query("SELECT to_jsonb(c)-'status' AS record FROM tb_conversation c ORDER BY id");
-        var messagesBefore = db.query("SELECT * FROM tb_conversation_message ORDER BY id");
+        var conversationsBefore = db.query("SELECT to_jsonb(c)-'status'-'discovery_enabled' AS record FROM tb_conversation c ORDER BY id");
+        var messagesBefore = db.query("SELECT to_jsonb(m)-'skill_mentions' AS record FROM tb_conversation_message m ORDER BY id");
         agent.startup().start();
         assertEquals("ASSISTANT", db.first("SELECT task_type FROM tb_agent_run WHERE id=?::uuid", oldRun).get("taskType"));
         assertEquals("迁移前的设定", content.settings().revisions(oldSetting).getFirst().content());
@@ -88,7 +88,7 @@ class ConversationHistoryMigrationIT {
             new ModelApiConfig(ModelApiConfig.MESSAGES, "http://127.0.0.1", "test", "test-model"),
             gateway, process, () -> Map.of("contextWindowTokens", 1000000));
         assertEquals(conversationsBefore, db.query("SELECT to_jsonb(c) AS record FROM tb_conversation c ORDER BY id"));
-        assertEquals(messagesBefore, db.query("SELECT * FROM tb_conversation_message ORDER BY id"));
+        assertEquals(messagesBefore, db.query("SELECT to_jsonb(m)-'skill_mentions' AS record FROM tb_conversation_message m ORDER BY id"));
         assertEquals(0, ((Number) db.first("SELECT count(*) AS n FROM information_schema.columns"
             + " WHERE table_schema=current_schema() AND table_name='tb_conversation' AND column_name='status'").get("n")).intValue());
         assertFalse(tree(encode(service.get(archived))).has("status"));
@@ -115,7 +115,7 @@ class ConversationHistoryMigrationIT {
         }
         assertEquals("SUCCEEDED", agent.query().detail(receipt.runId()).get("status"));
         assertEquals(4, service.get(archived).lastSeq());
-        assertEquals(messagesBefore, db.query("SELECT * FROM tb_conversation_message WHERE seq<=2 ORDER BY id"));
+        assertEquals(messagesBefore, db.query("SELECT to_jsonb(m)-'skill_mentions' AS record FROM tb_conversation_message m WHERE seq<=2 ORDER BY id"));
         assertTrue(requests.getFirst().messages().getLast().content().stream()
             .filter(TextPart.class::isInstance).map(TextPart.class::cast).map(TextPart::text).findFirst().orElseThrow().endsWith("用户要求:\n继续旧讨论"));
       } finally {

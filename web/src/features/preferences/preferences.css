@@ -1,0 +1,8 @@
+.appSettingsDialog{padding:24px;width:min(960px,100%)}
+.appSettingsLayout{display:grid;grid-template-columns:140px minmax(0,1fr);gap:24px;margin-top:12px;min-height:360px}
+.appSettingsNavigation{border-right:1px solid var(--color-border);padding-right:16px}
+.appSettingsNavigation button{display:flex;align-items:center;gap:10px;width:100%;background:#edf2ee;color:var(--color-text);text-align:left}
+.appSettingsContent{min-width:0}
+.appSettingsButton{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;white-space:nowrap}
+.homeHeaderActions{display:flex;align-items:center;gap:16px;min-width:0}
+@media(max-width:640px){.appSettingsDialog{padding:20px;max-height:calc(100dvh - 24px)}.appSettingsLayout{grid-template-columns:minmax(0,1fr);gap:16px}.appSettingsNavigation{border-right:0;border-bottom:1px solid var(--color-border);padding:0 0 12px}.appSettingsNavigation button{width:auto}.homeHeaderActions{gap:8px;flex:1;justify-content:flex-end}.homeHeaderActions>label{width:min(220px,100%)}}

@@ -1,29 +1,27 @@
 import { expect, test } from '@playwright/test'
 import { mockWorkspace } from './fixtures/workspace.mjs'
 
-test('compact empty composer uses shared Skill tooltips and shows a selection badge', async ({ page }) => {
+test('compact composer references a Skill in its message', async ({ page }) => {
   await mockWorkspace(page, { history: false })
   await page.route('**/api/v1/skills**', route => route.fulfill({ json: { data: new URL(route.request().url()).pathname.endsWith('/versions')
     ? { items: [{ id: 'v1' }], nextCursor: null }
     : { items: [{ skill: { id: 's1', name: '人物检查', enabled: true, currentVersionId: 'v1' } }], nextCursor: null } } }))
   await page.goto('/projects/p/chapters/c')
-  const skill = page.getByRole('button', { name: '选择 Skill', exact: true })
+  const skill = page.getByRole('button', { name: '引用 Skill', exact: true })
   await expect(skill).toBeVisible()
   await expect(page.locator('.assistantExamples')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '展开消息' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '新对话', exact: true })).toHaveCount(1)
   expect((await page.locator('.conversationPanel').boundingBox()).height).toBeLessThan(200)
   await skill.hover()
-  await expect(page.getByRole('tooltip')).toHaveText('选择 Skill')
+  await expect(page.getByRole('tooltip')).toHaveText('引用 Skill')
   await page.screenshot({ path: 'test-results/conversation-compact.png' })
   await skill.click()
-  const choice = page.getByRole('checkbox', { name: '人物检查', exact: true })
-  await choice.click()
-  await expect(choice).toBeChecked()
-  await page.getByRole('button', { name: '完成', exact: true }).click()
-  await expect(page.locator('.assistantSkillCount')).toHaveText('1')
+  await page.getByRole('button', { name: '引用 人物检查', exact: true }).click()
+  await expect(page.getByRole('textbox', { name: '对话消息' })).toHaveValue('$人物检查 ')
+  await expect(page.getByRole('button', { name: '移除 Skill 引用：人物检查' })).toBeVisible()
   await skill.hover()
-  await expect(page.getByRole('tooltip')).toHaveText('已选择 1 个 Skill')
+  await expect(page.getByRole('tooltip')).toHaveText('引用 Skill')
   await page.mouse.move(1, 1)
   const input = page.getByRole('textbox', { name: '对话消息' })
   await input.fill('继续分析人物')
