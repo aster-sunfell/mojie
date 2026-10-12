@@ -538,8 +538,6 @@ public final class ContentTools {
 
   private static Action propose() {
     return (args, ctx) -> {
-      if (ctx.analysisOnly())
-        return ToolResult.error("EDIT_DISABLED", "This turn is analysis only", false);
       requireKeys(args, "chapterId", "expectedVersion", "proposedContent", "reason");
       String chapterId = ctx.targetChapterId();
       int version = Math.toIntExact(ctx.baseVersion());
@@ -582,7 +580,7 @@ public final class ContentTools {
 
   private static Action proposeSetting() {
     return (args, ctx) -> {
-      if (!ctx.unified() || ctx.analysisOnly())
+      if (!ctx.unified())
         return ToolResult.error(
             "EDIT_DISABLED", "Setting edits are unavailable for this turn", false);
       requireKeys(

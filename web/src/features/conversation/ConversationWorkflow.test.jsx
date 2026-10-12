@@ -137,22 +137,20 @@ test('Chinese composition and Shift+Enter do not send', async () => {
   await waitFor(() => expect(state.writes).toHaveLength(1))
 })
 
-test('analysis-only is a per-turn preference and survives folding without selecting the legacy CHAT task', async () => {
+test('natural-language analysis and editing use the same conversation without a mode flag', async () => {
   const state = setup(); await ready('只分析人物动机')
-  const toggle = screen.getByRole('button', { name: '仅分析', exact: true })
-  expect(toggle.getAttribute('aria-pressed')).toBe('false')
-  fireEvent.click(toggle)
+  expect(screen.queryByRole('button', { name: /仅分析/ })).toBeNull()
   fireEvent.click(send())
   await screen.findByText('已核对正文')
-  expect(state.writes[0].analysisOnly).toBe(true)
+  expect(state.writes[0].content).toBe('只分析人物动机')
+  expect(state.writes[0]).not.toHaveProperty('analysisOnly')
   expect(state.writes[0].taskType).toBeUndefined()
   fireEvent.click(screen.getByRole('button', { name: '收起消息' }))
-  expect(screen.getByRole('button', { name: '仅分析 · 开' }).getAttribute('aria-pressed')).toBe('true')
-  fireEvent.click(screen.getByRole('button', { name: '仅分析 · 开' }))
   fireEvent.change(input(), { target: { value: '现在修改人物设定' } })
   fireEvent.click(send())
   await waitFor(() => expect(state.writes).toHaveLength(2))
-  expect(state.writes[1].analysisOnly).toBeUndefined()
+  expect(state.writes[1].content).toBe('现在修改人物设定')
+  expect(state.writes[1]).not.toHaveProperty('analysisOnly')
 })
 
 test('lost submission response retains the created conversation, text and idempotency key', async () => {

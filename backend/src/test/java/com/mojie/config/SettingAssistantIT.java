@@ -47,15 +47,17 @@ class SettingAssistantIT {
                     .map(TextPart::text)
                     .reduce((a, b) -> b)
                     .orElseThrow();
-            if (instruction.endsWith("ONLY")) {
-              assertTrue(request.tools().stream().noneMatch(t -> t.name().startsWith("propose_")));
-              return answer("只分析，不生成建议");
-            }
             assertTrue(
                 request.tools().stream().anyMatch(t -> t.name().equals("propose_chapter_edit")));
             assertTrue(
                 request.tools().stream().anyMatch(t -> t.name().equals("propose_setting_edit")));
             assertTrue(request.tools().stream().noneMatch(t -> t.name().equals("propose_edit")));
+            if (instruction.endsWith("只分析人物，不要生成修改建议")) {
+              assertTrue(
+                  request.systemPrompt().contains(
+                      "Do not propose edits when the author requests analysis only"));
+              return answer("只分析，不生成建议");
+            }
             int step =
                 steps
                     .computeIfAbsent(instruction, ignored -> new AtomicInteger())
@@ -144,7 +146,7 @@ class SettingAssistantIT {
                     new Send(
                         "旧讨论", UUID.randomUUID().toString(), 0L, "CHAT", null, null, List.of())));
 
-        Send first = send("EDIT", 0, false);
+        Send first = send("EDIT", 0);
         var receipt = service.send(conversation.id(), first);
         var snapshot = await(agent, receipt.runId());
         assertEquals("SETTING", snapshot.get("targetType"));
@@ -195,7 +197,7 @@ class SettingAssistantIT {
         freshVersion.set(2);
         receipt =
             service.send(
-                conversation.id(), send("STALE", service.get(conversation.id()).lastSeq(), false));
+                conversation.id(), send("STALE", service.get(conversation.id()).lastSeq()));
         snapshot = await(agent, receipt.runId());
         proposalId = (String) snapshot.get("proposalId");
         content.settings().updateSetting(settingId.get(), "CHARACTER", "林舟", "用户的新设定", 2);
@@ -204,10 +206,10 @@ class SettingAssistantIT {
         assertEquals(3, content.settings().setting(settingId.get()).get("version"));
         assertEquals("REJECTED", content.proposals().reject(proposalId).status());
 
-        var onlyInput = send("ONLY", service.get(conversation.id()).lastSeq(), true);
+        var onlyInput = send("只分析人物，不要生成修改建议", service.get(conversation.id()).lastSeq());
         receipt = service.send(conversation.id(), onlyInput);
         snapshot = await(agent, receipt.runId());
-        assertEquals(true, snapshot.get("analysisOnly"));
+        assertFalse(snapshot.containsKey("analysisOnly"));
         assertNull(snapshot.get("proposalId"));
         assertEquals(receipt.runId(), service.send(conversation.id(), onlyInput).runId());
         assertEquals(
@@ -218,7 +220,7 @@ class SettingAssistantIT {
                         service.send(
                             conversation.id(),
                             new Send(
-                                onlyInput.content(),
+                                "改为修改人物设定",
                                 onlyInput.clientRequestId(),
                                 onlyInput.expectedConversationSeq(),
                                 null,
@@ -226,14 +228,13 @@ class SettingAssistantIT {
                                 null,
                                 List.of(),
                                 null,
-                                null,
-                                false)))
+                                null)))
                 .code());
 
         freshVersion.set(3);
         receipt =
             service.send(
-                conversation.id(), send("ACCEPT", service.get(conversation.id()).lastSeq(), false));
+                conversation.id(), send("ACCEPT", service.get(conversation.id()).lastSeq()));
         snapshot = await(agent, receipt.runId());
         assertEquals(
             "APPLIED", content.proposals().accept((String) snapshot.get("proposalId")).status());
@@ -248,7 +249,7 @@ class SettingAssistantIT {
     }
   }
 
-  private static Send send(String content, long seq, boolean analysisOnly) {
+  private static Send send(String content, long seq) {
     return new Send(
         content,
         UUID.randomUUID().toString(),
@@ -258,8 +259,7 @@ class SettingAssistantIT {
         null,
         List.of(),
         null,
-        null,
-        analysisOnly);
+        null);
   }
 
   private static ToolCall call(String name, Map<String, Object> args) {

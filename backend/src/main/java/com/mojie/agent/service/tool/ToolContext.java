@@ -41,7 +41,6 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   private long preferredVersion;
   private final Map<String, Long> providedChapters = new HashMap<>();
   private final Map<String, Integer> providedSettings = new HashMap<>();
-  private boolean analysisOnly;
   private Set<String> requiredSkills = Set.of();
   private final Set<String> readSkills = new HashSet<>(), providedSkills = new HashSet<>();
 
@@ -55,14 +54,6 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
 
   public boolean requiredSkillsProvided() {
     return providedSkills.containsAll(requiredSkills);
-  }
-
-  public boolean analysisOnly() {
-    return analysisOnly;
-  }
-
-  public void analysisOnly(boolean value) {
-    analysisOnly = value;
   }
 
   public boolean unified() {

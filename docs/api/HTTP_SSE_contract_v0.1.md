@@ -45,7 +45,7 @@ Skill 目录固定于 Run，版本包在文件卷不可变保存，PG 保存状�
 
 新 Conversation 消息默认 `ASSISTANT`，客户端不再提交任务模式，可通过 `contextChapterId/contextVersion` 指定优先参考。接收事务固定已保存参考快照，模型按需 list/search/read；参考不要求完整读取，也不自动成为修改目标。`propose_chapter_edit` 在统一轮次显式传入实际章节 ID 和已读取版本，正文需在本轮完整读取并进入后续模型请求；完成事务按候选稿绑定的目标发布建议，仍由作者独立采纳。详情区分 `contextChapterId/contextVersion` 与实际建议的 `targetChapterId/baseVersion`。旧 CHAT 请求不再接受，历史 CHAT 记录迁移为 ASSISTANT；独立章节 Run 接口保留。V10 通过新增上下文列及调整约束保留历史，见 [实现设计](../design/unified-assistant-context.md)。
 
-V12 增加设定 version/修订历史，建议通过 targetType 区分 CHAPTER/SETTING。read_settings 返回 version，propose_setting_edit 必须使用本轮已读取并供模型查阅的版本。手动 PATCH /settings/{id} 必须传 expectedVersion；审阅草稿通过 PUT /edit-proposals/{id}/setting 保存，冲突返回 409 且不写入正式设定。详情新增 targetSettingId/targetTitle/analysisOnly；analysisOnly 在后端禁用两个修改建议工具。见 [设定建议设计](../design/setting-edit-proposals.md)。
+V12 增加设定 version/修订历史，建议通过 targetType 区分 CHAPTER/SETTING。read_settings 返回 version，propose_setting_edit 必须使用本轮已读取并供模型查阅的版本。手动 PATCH /settings/{id} 必须传 expectedVersion；审阅草稿通过 PUT /edit-proposals/{id}/setting 保存，冲突返回 409 且不写入正式设定。详情新增 targetSettingId/targetTitle。输入区不提供分析模式，发送请求及运行详情不再包含 analysisOnly；作者通过自然语言表达只分析或生成修改建议的意图。见 [设定建议设计](../design/setting-edit-proposals.md)。
 
 ## Skill 消息引用（2026-10-12）
 

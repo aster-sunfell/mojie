@@ -29,8 +29,7 @@ public record RunSnapshot(
     Long contextVersion,
     String targetType,
     String targetSettingId,
-    String targetTitle,
-    boolean analysisOnly)
+    String targetTitle)
     implements QueryResult {
   public Map<String, Object> fields() {
     Map<String, Object> fields = new LinkedHashMap<>();
@@ -54,7 +53,6 @@ public record RunSnapshot(
     fields.put("targetType", targetType);
     fields.put("targetSettingId", targetSettingId);
     fields.put("targetTitle", targetTitle);
-    fields.put("analysisOnly", analysisOnly);
     fields.put("baseVersion", baseVersion);
     fields.put("instruction", instruction);
     fields.put("status", status);

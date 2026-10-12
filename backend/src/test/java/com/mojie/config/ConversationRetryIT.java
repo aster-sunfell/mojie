@@ -94,6 +94,9 @@ class ConversationRetryIT {
         terminal(agent, first.runId());
         assertEquals("FAILED", agent.query().detail(first.runId()).get("status"));
         assertEquals(1, service.get(conversation.id()).lastSeq());
+        var db = new JdbcAccess(source);
+        // Old runs may retain the retired mode flag; retry uses the current unified behavior.
+        db.update("UPDATE tb_agent_run SET analysis_only=true WHERE id=?::uuid", first.runId());
         String key = UUID.randomUUID().toString();
         var retry = service.retry(conversation.id(), first.messageId(), key);
         terminal(agent, retry.runId());
@@ -102,7 +105,11 @@ class ConversationRetryIT {
         assertEquals(
             retry.runId(),
             service.retry(conversation.id(), first.messageId(), key).runId());
-        var db = new JdbcAccess(source);
+        assertTrue(
+            requests.getLast().tools().stream().anyMatch(t -> t.name().equals("propose_chapter_edit")));
+        assertTrue(
+            requests.getLast().tools().stream().anyMatch(t -> t.name().equals("propose_setting_edit")));
+        assertFalse(agent.query().detail(retry.runId()).containsKey("analysisOnly"));
         assertEquals(
             1,
             ((Number)

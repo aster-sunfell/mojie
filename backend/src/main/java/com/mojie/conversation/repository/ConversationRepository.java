@@ -40,8 +40,7 @@ public interface ConversationRepository {
       String model,
       String config,
       String process,
-      String retry,
-      boolean analysisOnly);
+      String retry);
 
   int occupy(String conversation, long expected, String run, boolean retry, String title);
 

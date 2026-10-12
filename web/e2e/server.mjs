@@ -26,6 +26,7 @@ const model = http.createServer(async (request, reply) => {
       || instruction.match(/(?:目标章节 ID|本轮优先参考章节 ID): ([a-f0-9-]+)/)?.[1]
     const searchEdit = instruction.includes('E2E_SEARCH_EDIT')
     const settingEdit = instruction.includes('E2E_SETTING_EDIT')
+    const settingAnalysis = settingEdit && instruction.includes('只分析人物，不要生成修改建议')
     const settingId = instruction.match(/SETTING=([a-f0-9-]+)/)?.[1]
     // Explicit references are metadata at first, and must be read through the tool.
     const system = typeof body.system === 'string' ? body.system : (body.system || []).map(block => block.text || '').join('\n')
@@ -61,7 +62,7 @@ const model = http.createServer(async (request, reply) => {
     if (settingEdit && !replies.length) {
       content = [{ type: 'tool_use', id: `browser-setting-read-${++serial}`, name: 'read_settings', input: { settingIds: [settingId] } }]
       stopReason = 'tool_use'
-    } else if (settingEdit && !replies.some(block => block.tool_use_id.startsWith('browser-setting-edit-'))
+    } else if (settingEdit && !settingAnalysis && !replies.some(block => block.tool_use_id.startsWith('browser-setting-edit-'))
       && body.tools.some(tool => tool.name === 'propose_setting_edit')) {
       const setting = JSON.parse(replies.findLast(block => block.tool_use_id.startsWith('browser-setting-read-')).content).data.settings[0]
       content = [{ type: 'tool_use', id: `browser-setting-edit-${++serial}`, name: 'propose_setting_edit', input: {
@@ -69,7 +70,7 @@ const model = http.createServer(async (request, reply) => {
         proposedTitle: '林舟的行动规则', proposedContent: '林舟谨慎行事，过河时选择石桥。', reason: '调整人物动机，保持行动一致。' } }]
       stopReason = 'tool_use'
     } else if (settingEdit) {
-      content = [{ type: 'text', text: body.tools.some(tool => tool.name === 'propose_setting_edit') ? '已生成设定修改建议。' : '仅分析设定，未生成修改建议。' }]
+      content = [{ type: 'text', text: settingAnalysis ? '仅分析设定，未生成修改建议。' : '已生成设定修改建议。' }]
       stopReason = 'end_turn'
     } else if (searchEdit && !replies.length) {
       content = [{ type: 'tool_use', id: `browser-search-${++serial}`, name: 'search_chapters', input: { keyword: '游泳' } }]

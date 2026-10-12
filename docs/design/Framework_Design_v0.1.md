@@ -453,4 +453,4 @@ Skill 目录固定于 Run，版本包在文件卷不可变保存，PG 保存状�
 
 新 Conversation 消息默认 `ASSISTANT`，客户端不再提交任务模式，可通过 `contextChapterId/contextVersion` 指定优先参考。接收事务固定已保存参考快照，模型按需 list/search/read；参考不要求完整读取，也不自动成为修改目标。`propose_edit` 在统一轮次显式传入实际章节 ID 和已读取版本，正文需在本轮完整读取并进入后续模型请求；完成事务按候选稿绑定的目标发布建议，仍由作者独立采纳。详情区分 `contextChapterId/contextVersion` 与实际建议的 `targetChapterId/baseVersion`。旧任务模式与独立 Run 接口继续兼容。V10 通过新增上下文列及调整约束保留历史，见 [实现设计](unified-assistant-context.md)。
 
-2026-10-12 更新：章节工具改名为 propose_chapter_edit，新增设定修改建议、设定版本与修订历史，以及后端禁用修改工具的“仅分析”选项；CHAT 不再接受，历史记录迁移为 ASSISTANT。当前协议以 [章节与设定修改建议](setting-edit-proposals.md) 为准。
+2026-10-12 更新：章节工具改名为 propose_chapter_edit，新增设定修改建议、设定版本与修订历史；输入区不再提供“仅分析”选项，助手依据作者指令决定是否生成建议；CHAT 不再接受，历史记录迁移为 ASSISTANT。当前协议以 [章节与设定修改建议](setting-edit-proposals.md) 为准。

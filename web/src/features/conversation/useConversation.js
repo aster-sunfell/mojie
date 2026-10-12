@@ -3,7 +3,7 @@ import { api, readableError } from '../../shared/api/client.js'
 import { useRun } from '../agent/useRun.js'
 import { active } from '../agent/status.js'
 
-const emptyDraft = () => ({ input: '', useChapter: true, analysisOnly: false, mentions: [], pending: null })
+const emptyDraft = () => ({ input: '', useChapter: true, mentions: [], pending: null })
 const latestRun = (current, incoming) => current && ((current.lastEventSeq || 0) > (incoming.lastEventSeq || 0)
   || !active(current.status) && active(incoming.status)) ? current : incoming
 
@@ -179,7 +179,6 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       }
       const request = originalDraft.pending || { content: originalDraft.input.trim(), clientRequestId: crypto.randomUUID(),
         expectedConversationSeq: c.lastSeq,
-        ...(originalDraft.analysisOnly ? { analysisOnly: true } : {}),
         ...(target ? { contextChapterId: target.id, contextVersion: target.version } : {}),
         skillMentions }
       updateDraft({ pending: request }, false)

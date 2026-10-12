@@ -24,7 +24,7 @@ SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS 
        r.analysis, r.error_code, r.error_detail, r.model_call_count,
        r.tool_call_count, r.tool_text_codepoints, r.last_event_seq,
        p.id AS proposal_id,r.conversation_id,r.task_type,r.config_snapshot,
-       r.context_chapter_id,r.context_version,r.analysis_only,
+       r.context_chapter_id,r.context_version,
        p.target_type,p.target_setting_id,COALESCE(p.base_title,c.title) AS target_title
   FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
   LEFT JOIN tb_chapter c ON c.id = COALESCE(p.target_chapter_id,r.target_chapter_id)

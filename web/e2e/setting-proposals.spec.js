@@ -81,17 +81,16 @@ test('a stale setting proposal cannot overwrite a newer manual save', async ({ p
   expect((await (await request.get(`${api}/settings/${setting.id}`)).json()).data.version).toBe(2)
 })
 
-test('mobile analysis-only reads settings without proposals and editing works with no chapter reference', async ({ page, request }) => {
+test('mobile natural-language analysis reads settings without proposals and editing works with no chapter reference', async ({ page, request }) => {
   await page.setViewportSize({ width: 390, height: 640 })
   await page.goto(`/projects/${project.id}`)
-  await page.getByRole('button', { name: '仅分析', exact: true }).click()
-  await page.getByRole('textbox', { name: '对话消息' }).fill(`E2E_SETTING_EDIT SETTING=${setting.id} 只分析人物。`)
+  await expect(page.getByRole('button', { name: /仅分析/ })).toHaveCount(0)
+  await page.getByRole('textbox', { name: '对话消息' }).fill(`E2E_SETTING_EDIT SETTING=${setting.id} 只分析人物，不要生成修改建议。`)
   await page.getByRole('button', { name: '发送', exact: true }).click()
   await expect(page.locator('.conversationMessage.assistant')).toContainText('仅分析设定，未生成修改建议。')
   let runs = (await (await request.get(`${api}/agent/runs?projectId=${project.id}`)).json()).data.items
   expect(runs[0].proposalId).toBeNull()
   expect(runs[0].targetChapterId).toBeNull()
-  await page.getByRole('button', { name: '仅分析 · 开' }).click()
   await propose(page)
   await page.getByRole('button', { name: '在设定中查看' }).click()
   const dialog = page.getByRole('dialog', { name: '作品设定' })

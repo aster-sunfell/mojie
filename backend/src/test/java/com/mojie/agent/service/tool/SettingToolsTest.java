@@ -53,12 +53,9 @@ class SettingToolsTest {
   }
 
   @Test
-  void analysisOnlyAndLegacyTurnsCannotProposeSettingEdits() {
+  void legacyTurnsCannotProposeSettingEdits() {
     var ctx = context();
     ctx.markReadsProvided();
-    ctx.analysisOnly(true);
-    assertEquals("EDIT_DISABLED", tool.execute(args(2, "过桥"), ctx).error().code());
-    ctx.analysisOnly(false);
     ctx.unified(false);
     assertEquals("EDIT_DISABLED", tool.execute(args(2, "过桥"), ctx).error().code());
     assertNull(ctx.candidate());

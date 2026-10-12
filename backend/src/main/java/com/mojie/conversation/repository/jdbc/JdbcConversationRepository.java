@@ -113,13 +113,12 @@ public final class JdbcConversationRepository implements ConversationRepository 
       String model,
       String config,
       String process,
-      String retry,
-      boolean analysisOnly) {
+      String retry) {
     String id =
         db.first(
 """
-INSERT INTO tb_agent_run(project_id,conversation_id,trigger_message_id,input_boundary,task_type,target_chapter_id,base_version,base_content,context_chapter_id,context_version,context_content,instruction,client_request_id,request_digest,prompt_hash,tool_schema_hash,model_id,config_snapshot,status,deadline_at,process_instance_id,retry_of,analysis_only)
-VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUED',now()+interval '60 seconds',?::uuid,?::uuid,?) RETURNING id
+INSERT INTO tb_agent_run(project_id,conversation_id,trigger_message_id,input_boundary,task_type,target_chapter_id,base_version,base_content,context_chapter_id,context_version,context_content,instruction,client_request_id,request_digest,prompt_hash,tool_schema_hash,model_id,config_snapshot,status,deadline_at,process_instance_id,retry_of)
+VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::jsonb,'QUEUED',now()+interval '60 seconds',?::uuid,?::uuid) RETURNING id
 """,
                 project,
                 conversation,
@@ -140,8 +139,7 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::
                 model,
                 config,
                 process,
-                retry,
-                analysisOnly)
+                retry)
             .get("id")
             .toString();
     db.update(
@@ -168,7 +166,7 @@ VALUES(?::uuid,?::uuid,?::uuid,?,?,?::uuid,?,?,?::uuid,?,?,?,?::uuid,?,?,?,?,?::
     return db.firstRecord(
         RunContext.class,
         "SELECT"
-            + " conversation_id,project_id,task_type,input_boundary,trigger_message_id,config_snapshot,context_chapter_id,context_version,context_content,analysis_only"
+            + " conversation_id,project_id,task_type,input_boundary,trigger_message_id,config_snapshot,context_chapter_id,context_version,context_content"
             + " FROM tb_agent_run WHERE id=?::uuid",
         run);
   }

@@ -222,8 +222,6 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
           }}><Icon name="close" size={12} /></button>
         </span>)}</div>}
         <div className="assistantInputTools"><div className="assistantContext">
-          <button type="button" className="link assistantAnalysisOnly" aria-pressed={Boolean(chat.draft.analysisOnly)} disabled={chat.busy}
-            title="本轮只查阅和分析，不生成修改建议" onClick={() => chat.updateDraft({ analysisOnly: !chat.draft.analysisOnly })}>仅分析{chat.draft.analysisOnly ? ' · 开' : ''}</button>
           <Tooltip label={skillLabel}><button type="button" className="assistantIconButton assistantSkillButton" aria-label="引用 Skill"
             disabled={chat.busy} onClick={() => { setSkillQuery(null); setSkillPicker(true); loadSkills() }}>
             <Icon name="skill" />

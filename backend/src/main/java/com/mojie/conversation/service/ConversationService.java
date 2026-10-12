@@ -45,7 +45,7 @@ public final class ConversationService {
           + " proposedContent and reason. Read results must reach a later model request before"
           + " proposing. Only one proposal is allowed per turn, for either a chapter or a setting."
           + " Do not modify chapters merely because a setting changed; require an explicit author"
-          + " request. Analysis-only turns cannot propose edits. All reads use saved content;"
+          + " request. All reads use saved content;"
           + " unsaved editor drafts are not included. Historical reads do not replace fresh"
           + " evidence for new edits. Return a substantive final answer and honestly identify"
           + " uncertainties. Budget: 16 model responses (including compaction and final), 32 tools;"
@@ -256,8 +256,7 @@ public final class ConversationService {
             r.taskType().equals("ASSISTANT") ? null : ((Number) old.get("baseVersion")).longValue(),
             retryMentions(m),
             r.contextChapterId(),
-            r.contextVersion(),
-            r.analysisOnly()),
+            r.contextVersion()),
         m);
   }
 
@@ -311,7 +310,6 @@ public final class ConversationService {
       identity.add(input.contextChapterId() == null ? "" : input.contextChapterId());
       identity.add(input.contextVersion() == null ? 0 : input.contextVersion());
     }
-    if (input.analysisOnly()) identity.add("ANALYSIS_ONLY");
     String digest = hash(encode(identity));
     Conversation before = get(id);
     Existing existing = repo.existing(input.clientRequestId());
@@ -411,8 +409,7 @@ public final class ConversationService {
                           model,
                           selectedConfig,
                           process,
-                          retry == null ? null : retry.runId(),
-                          input.analysisOnly());
+                          retry == null ? null : retry.runId());
                   String initial =
                       unified
                           ? com.mojie.agent.service.loop.LoopInput.assistantUserMessage(

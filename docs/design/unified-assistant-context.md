@@ -18,7 +18,7 @@
 
 ## 修改建议
 
-普通统一轮次具备 propose_chapter_edit 与 propose_setting_edit 能力，根据用户需求调用；明确只分析时不生成候选稿，analysisOnly=true 时后端移除两个修改建议工具。章节工具要求 chapterId、expectedVersion、proposedContent、reason。实际目标可以与参考不同，也可在没有参考的轮次通过检索确定。
+普通统一轮次具备 propose_chapter_edit 与 propose_setting_edit 能力，根据用户需求调用；作者明确要求只分析时不生成候选稿，输入区不设置模式开关。章节工具要求 chapterId、expectedVersion、proposedContent、reason。实际目标可以与参考不同，也可在没有参考的轮次通过检索确定。
 
 正文必须在本轮完整读取，结果成功进入后续模型请求才能生成建议。同一工具批次 read + propose 会拒绝尚未提供给模型的正文，允许下一次模型请求纠正。候选稿基准来自服务端已读缓存，工具不能自报基准内容；版本不符或目标未读会返回可恢复错误。
 

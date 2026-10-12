@@ -25,4 +25,4 @@ The write lock order is `project → run / proposals in stable ID order → chap
 
 Skill 目录固定于 Run，版本包在文件卷不可变保存，PG 保存状态及引用；Skill 指导不授予权限。新增 context.compacted、skill.loaded、script.started、script.finished、artifact.created 持久化事件，继续使用按 Run 序号恢复的 SSE。文件下载 attachment/nosniff。独立脚本沙箱及协调备份见 [运维说明](../design/conversation-skills-operations.md)。
 
-2026-10-12 更新：章节工具改名为 propose_chapter_edit，新增设定修改建议、设定版本与修订历史，以及后端禁用修改工具的“仅分析”选项；CHAT 不再接受，历史记录迁移为 ASSISTANT。当前协议以 [章节与设定修改建议](setting-edit-proposals.md) 为准。
+2026-10-12 更新：章节工具改名为 propose_chapter_edit，新增设定修改建议、设定版本与修订历史；输入区不再提供“仅分析”选项，助手依据作者指令决定是否生成建议；CHAT 不再接受，历史记录迁移为 ASSISTANT。当前协议以 [章节与设定修改建议](setting-edit-proposals.md) 为准。
