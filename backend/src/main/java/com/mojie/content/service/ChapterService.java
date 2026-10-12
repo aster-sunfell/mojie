@@ -82,6 +82,18 @@ public final class ChapterService {
         });
   }
 
+  public String createFromProposal(
+      String projectId, String title, String content, String proposalId) {
+    String name = text(title, "title", 1, 120), body = text(content, "content", 1, 6000);
+    access.lock(projectId, true);
+    var order = required(fields(projects.allocateChapterOrder(projectId)));
+    String id =
+        chapters.insertWithContent(
+            projectId, ((Number) order.get("chapterOrder")).intValue(), name, body);
+    requireOne(revisions.insert(id, 1, body, "AGENT", proposalId));
+    return id;
+  }
+
   public Map<String, Object> renameChapter(String id, String title) {
     String chapterId = uuid(id), name = text(title, "title", 1, 120);
     return transactions.required(

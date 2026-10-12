@@ -57,10 +57,17 @@ public final class ProposalService {
           String projectId = required(proposals.projectId(id));
           access.lock(projectId, false);
           EditProposal proposal = required(proposals.lockVisible(id));
-          if ("APPLIED".equals(proposal.status()))
-            return new ProposalDecision("APPLIED", proposal.appliedVersion());
+          if ("APPLIED".equals(proposal.status())) return applied(proposal);
           if (!"PENDING".equals(proposal.status()) || !"{}".equals(proposal.reviewDecisions()))
             throw stateConflict();
+          if ("CREATE".equals(proposal.operation())) {
+            access.lock(projectId, true);
+            return createLocked(
+                proposal,
+                proposal.proposedType(),
+                proposal.proposedTitle(),
+                proposal.proposedContent());
+          }
           if ("SETTING".equals(proposal.targetType())) {
             access.lock(projectId, true);
             return saveSettingLocked(
@@ -93,13 +100,50 @@ public final class ProposalService {
           EditProposal proposal = required(proposals.lockVisible(id));
           if (!"SETTING".equals(proposal.targetType()))
             throw new IllegalArgumentException("A setting proposal is required");
-          if ("APPLIED".equals(proposal.status()))
-            return new ProposalDecision("APPLIED", proposal.appliedVersion());
+          if ("APPLIED".equals(proposal.status())) return applied(proposal);
           if (!"PENDING".equals(proposal.status())) throw stateConflict();
+          if ("CREATE".equals(proposal.operation())) {
+            if (expectedVersion != null)
+              throw new IllegalArgumentException("CREATE must omit expectedVersion");
+            return createLocked(proposal, type, title, content);
+          }
           if (expectedVersion == null || expectedVersion < 1)
             throw new IllegalArgumentException("expectedVersion required");
           return saveSettingLocked(proposal, type, title, content, expectedVersion);
         });
+  }
+
+  public ProposalDecision saveChapterCreate(String id, String title, String content) {
+    return transactions.required(
+        () -> {
+          String projectId = required(proposals.projectId(id));
+          access.lock(projectId, true);
+          var proposal = required(proposals.lockVisible(id));
+          if (!"CREATE".equals(proposal.operation()) || !"CHAPTER".equals(proposal.targetType()))
+            throw new IllegalArgumentException("A new chapter proposal is required");
+          if ("APPLIED".equals(proposal.status())) return applied(proposal);
+          if (!"PENDING".equals(proposal.status())) throw stateConflict();
+          return createLocked(proposal, null, title, content);
+        });
+  }
+
+  private ProposalDecision createLocked(
+      EditProposal proposal, String type, String title, String content) {
+    boolean setting = "SETTING".equals(proposal.targetType());
+    String id =
+        setting
+            ? settings.createFromProposal(proposal.projectId(), type, title, content, proposal.id())
+            : chapters.createFromProposal(proposal.projectId(), title, content, proposal.id());
+    requireOne(proposals.markCreated(proposal.id(), proposal.targetType(), id));
+    return new ProposalDecision("APPLIED", 1, setting ? null : id, setting ? id : null);
+  }
+
+  private static ProposalDecision applied(EditProposal proposal) {
+    return new ProposalDecision(
+        "APPLIED",
+        proposal.appliedVersion(),
+        proposal.createdChapterId(),
+        proposal.createdSettingId());
   }
 
   private ProposalDecision saveSettingLocked(

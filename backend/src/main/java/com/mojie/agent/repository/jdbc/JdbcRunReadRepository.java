@@ -25,11 +25,25 @@ SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS 
        r.tool_call_count, r.tool_text_codepoints, r.last_event_seq,
        p.id AS proposal_id,r.conversation_id,r.task_type,r.config_snapshot,
        r.context_chapter_id,r.context_version,
-       p.target_type,p.target_setting_id,COALESCE(p.base_title,c.title) AS target_title
-  FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
+       p.target_type,p.target_setting_id,COALESCE(p.base_title,p.proposed_title,c.title) AS target_title
+  FROM tb_agent_run r LEFT JOIN LATERAL (SELECT * FROM tb_edit_proposal WHERE run_id=r.id ORDER BY proposal_index LIMIT 1) p ON true
   LEFT JOIN tb_chapter c ON c.id = COALESCE(p.target_chapter_id,r.target_chapter_id)
  WHERE r.id = ?::uuid
 """,
+        runId);
+  }
+
+  @Override
+  public List<RunProposal> listProposals(String runId) {
+    return db.records(
+        RunProposal.class,
+        """
+        SELECT p.id AS proposal_id,target_type,operation,target_chapter_id,target_setting_id,
+               base_version,COALESCE(base_title,proposed_title,c.title) AS target_title,
+               p.status AS proposal_status,created_chapter_id,created_setting_id
+          FROM tb_edit_proposal p LEFT JOIN tb_chapter c ON c.id=p.target_chapter_id
+         WHERE run_id=?::uuid ORDER BY p.proposal_index
+        """,
         runId);
   }
 
@@ -85,14 +99,18 @@ SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS 
 
   @Override
   public RunOutput latestOutput(String runId) {
-    return db.firstRecord(RunOutput.class, """
+    return db.firstRecord(
+        RunOutput.class,
+        """
         SELECT o.call_index AS model_call_index, o.text, o.last_event_seq, m.status, m.finish_reason
           FROM tb_agent_output o JOIN tb_agent_model_call m
             ON m.run_id=o.run_id AND m.call_index=o.call_index
          WHERE o.run_id=?::uuid AND m.phase='TASK'
            AND m.call_index=(SELECT max(call_index) FROM tb_agent_model_call
                             WHERE run_id=?::uuid AND phase='TASK')
-        """, runId, runId);
+        """,
+        runId,
+        runId);
   }
 
   @Override
@@ -157,16 +175,20 @@ SELECT r.id, r.project_id, COALESCE(p.target_chapter_id,r.target_chapter_id) AS 
        COALESCE(p.base_version,r.base_version) AS base_version, r.instruction,
        r.status, r.cancel_requested, r.queued_at, r.started_at, r.finished_at,
        r.analysis, r.error_code, r.error_detail, r.last_event_seq, p.id AS proposal_id,
-       r.created_at,p.target_type,p.target_setting_id,COALESCE(p.base_title,c.title) AS target_title
-  FROM tb_agent_run r LEFT JOIN tb_edit_proposal p ON p.run_id = r.id
+       r.created_at,p.target_type,p.target_setting_id,COALESCE(p.base_title,p.proposed_title,c.title) AS target_title
+  FROM tb_agent_run r LEFT JOIN LATERAL (SELECT * FROM tb_edit_proposal WHERE run_id=r.id ORDER BY proposal_index LIMIT 1) p ON true
   LEFT JOIN tb_chapter c ON c.id = COALESCE(p.target_chapter_id,r.target_chapter_id)
  WHERE r.project_id = ?::uuid
-   AND (?::uuid IS NULL OR COALESCE(p.target_chapter_id,r.target_chapter_id,r.context_chapter_id) = ?::uuid)
+   AND (?::uuid IS NULL OR EXISTS (SELECT 1 FROM tb_edit_proposal q WHERE q.run_id=r.id
+        AND COALESCE(q.target_chapter_id,q.created_chapter_id)=?::uuid)
+        OR (NOT EXISTS (SELECT 1 FROM tb_edit_proposal q WHERE q.run_id=r.id)
+            AND COALESCE(r.target_chapter_id,r.context_chapter_id)=?::uuid))
    AND (?::text IS NULL OR r.status = ?)
    AND (?::timestamptz IS NULL OR (r.created_at, r.id) < (?::timestamptz, ?::uuid))
  ORDER BY r.created_at DESC, r.id DESC LIMIT ?
 """,
         projectId,
+        chapterId,
         chapterId,
         chapterId,
         status,

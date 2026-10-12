@@ -111,7 +111,7 @@ public final class JdbcRunRepository implements RunRepository {
       java.time.Instant queuedAt,
       UUID processId) {
     return db.first(
-            """
+"""
 INSERT INTO tb_agent_run(project_id, target_chapter_id, instruction, client_request_id,
     request_digest, base_version, base_content, status, queued_at, deadline_at, process_instance_id,
     model_id, prompt_hash, tool_schema_hash, config_snapshot)
@@ -138,7 +138,7 @@ VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?, ?, ?, 'QUEUED', ?, ?, ?, ?, ?, ?, ?::js
   @Override
   public int claimQueued(String projectId, String runId, UUID processId) {
     return db.update(
-        """
+"""
 UPDATE tb_agent_run SET status = 'RUNNING', started_at = clock_timestamp(),
        deadline_at = clock_timestamp() + make_interval(secs => COALESCE((config_snapshot->>'runTimeoutSeconds')::int,180)), updated_at = now()
  WHERE id = ?::uuid AND project_id = ?::uuid AND status = 'QUEUED'
@@ -206,8 +206,9 @@ UPDATE tb_agent_run SET status = 'RUNNING', started_at = clock_timestamp(),
   public TerminalResult existingTerminal(String runId, String status) {
     Map<String, Object> r =
         db.first(
-            "SELECT r.error_code, p.id AS proposal_id FROM tb_agent_run r LEFT JOIN"
-                + " tb_edit_proposal p ON p.run_id = r.id WHERE r.id = ?::uuid",
+            "SELECT r.error_code, p.id AS proposal_id FROM tb_agent_run r LEFT JOIN LATERAL (SELECT"
+                + " id FROM tb_edit_proposal WHERE run_id=r.id ORDER BY proposal_index LIMIT 1) p"
+                + " ON true WHERE r.id = ?::uuid",
             runId);
     return new TerminalResult(
         status,

@@ -34,7 +34,7 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
 
   private Map<String, Long> chapterView;
   private String chapterViewId;
-  private Candidate candidate;
+  private final java.util.List<Candidate> candidates = new java.util.ArrayList<>();
   private String toolExecutionId;
 
   public String toolExecutionId() {
@@ -148,7 +148,7 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   }
 
   public Candidate candidate() {
-    return candidate;
+    return candidates.isEmpty() ? null : candidates.getFirst();
   }
 
   public Map<String, Chapter> readChapters() {
@@ -214,7 +214,28 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   }
 
   public void setCandidate(Candidate value) {
-    candidate = value;
+    candidates.add(value);
+  }
+
+  public java.util.List<Candidate> candidates() {
+    return java.util.List.copyOf(candidates);
+  }
+
+  public String candidateError(Candidate value) {
+    for (Candidate prior : candidates) {
+      if (value.operation().equals(prior.operation())
+          && value.targetType().equals(prior.targetType())) {
+        boolean same =
+            value.operation().equals("CREATE")
+                ? java.util.Objects.equals(value.proposedTitle(), prior.proposedTitle())
+                : value.settingEdit() != null
+                    ? java.util.Objects.equals(
+                        value.settingEdit().settingId(), prior.settingEdit().settingId())
+                    : java.util.Objects.equals(value.chapterId(), prior.chapterId());
+        if (same) return "PROPOSAL_ALREADY_EXISTS";
+      }
+    }
+    return candidates.size() >= 8 ? "PROPOSAL_LIMIT_REACHED" : null;
   }
 
   public record Chapter(String id, String title, int order, long version, String content) {}
@@ -225,7 +246,19 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
       String chapterId,
       int baseVersion,
       String baseContent,
-      SettingEdit settingEdit) {
+      SettingEdit settingEdit,
+      String operation,
+      String proposedTitle) {
+    public Candidate(
+        String content,
+        String reason,
+        String chapterId,
+        int version,
+        String base,
+        SettingEdit edit) {
+      this(content, reason, chapterId, version, base, edit, "UPDATE", null);
+    }
+
     public Candidate(
         String proposedContent,
         String reason,

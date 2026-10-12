@@ -20,7 +20,7 @@ async function sendMessage(reply, body, message, instruction = '') {
     reply.writeHead(200, { 'content-type': 'application/json', connection: 'close' }).end(JSON.stringify(message))
     return
   }
-  reply.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+  reply.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'close' })
   const event = value => {
     if (!reply.destroyed) reply.write(`event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`)
   }
@@ -57,6 +57,7 @@ const model = http.createServer(async (request, reply) => {
       || instruction.match(/(?:目标章节 ID|本轮优先参考章节 ID): ([a-f0-9-]+)/)?.[1]
     const searchEdit = instruction.includes('E2E_SEARCH_EDIT')
     const settingEdit = instruction.includes('E2E_SETTING_EDIT')
+    const createDrafts = instruction.includes('E2E_CREATE_DRAFTS')
     const settingAnalysis = settingEdit && instruction.includes('只分析人物，不要生成修改建议')
     const settingId = instruction.match(/SETTING=([a-f0-9-]+)/)?.[1]
     // Explicit references are metadata at first, and must be read through the tool.
@@ -74,7 +75,7 @@ const model = http.createServer(async (request, reply) => {
         stop_reason: 'tool_use', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }, instruction)
       return
     }
-    if ((!targetId && !searchEdit && !settingEdit) || !instruction.includes('E2E_')) {
+    if ((!targetId && !searchEdit && !settingEdit && !createDrafts) || !instruction.includes('E2E_')) {
       const remembered = blocks.some(block => block.type === 'text' && block.text?.includes('怕火'))
       await sendMessage(reply, body, { id: `chat-${++serial}`, type: 'message', role: 'assistant', model: 'browser-test', content: [{ type: 'text', text: remembered ? '林舟怕火，因此避开火光。' : '可以一起讨论大纲。' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 20, output_tokens: 20 } }, instruction)
       return
@@ -90,7 +91,16 @@ const model = http.createServer(async (request, reply) => {
       .filter(block => block.type === 'tool_result')
     let content
     let stopReason
-    if (settingEdit && !replies.length) {
+    if (createDrafts && !replies.length) {
+      content = ['任务', '世界观', '写作约束'].map(title => ({ type: 'tool_use', id: `browser-create-${++serial}`, name: 'propose_setting_edit', input: {
+        operation: 'CREATE', proposedType: title === '世界观' ? 'WORLD' : 'RULE', proposedTitle: title, proposedContent: `${title}完整草稿`, reason: '根据构思创建' } }))
+      content.push({ type: 'tool_use', id: `browser-create-${++serial}`, name: 'propose_chapter_edit', input: {
+        operation: 'CREATE', proposedTitle: '出关', proposedContent: '长老出关，宗门已经破产。', reason: '开篇' } })
+      stopReason = 'tool_use'
+    } else if (createDrafts) {
+      content = [{ type: 'text', text: '已生成三份设定与一份章节草稿，审阅保存后生效。' }]
+      stopReason = 'end_turn'
+    } else if (settingEdit && !replies.length) {
       content = [{ type: 'tool_use', id: `browser-setting-read-${++serial}`, name: 'read_settings', input: { settingIds: [settingId] } }]
       stopReason = 'tool_use'
     } else if (settingEdit && !settingAnalysis && !replies.some(block => block.tool_use_id.startsWith('browser-setting-edit-'))

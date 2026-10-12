@@ -6,6 +6,8 @@ import java.util.*;
 public interface RunReadRepository {
   RunSnapshot scoped(String runId);
 
+  List<RunProposal> listProposals(String runId);
+
   List<RunSource> listSources(String runId);
 
   List<RunStep> listSteps(String runId);

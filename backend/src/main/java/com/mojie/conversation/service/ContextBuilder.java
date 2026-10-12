@@ -272,13 +272,20 @@ public final class ContextBuilder implements ConversationRuntime {
                 ? compactor
                 : null),
         new LoopLimits(
-            16, 32, 120000, 200000, run.contextWindowTokens(), LoopLimits.DEFAULT_MAX_REQUEST_MILLIS),
+            16,
+            32,
+            120000,
+            200000,
+            run.contextWindowTokens(),
+            LoopLimits.DEFAULT_MAX_REQUEST_MILLIS),
         List.copyOf(tools));
   }
 
   private static AgentTool explicitEditTarget(AgentTool tool) {
     var schema = new LinkedHashMap<>(tool.spec().inputSchema());
-    schema.put("required", List.of("chapterId", "expectedVersion", "proposedContent", "reason"));
+    // Keep a flat schema: some Chat Completions providers misrender oneOf function parameters.
+    // Conditional CREATE/UPDATE requirements are enforced by ContentTools.
+    schema.put("required", List.of("operation", "proposedContent", "reason"));
     return new AgentTool() {
       public ToolSpec spec() {
         return new ToolSpec(tool.spec().name(), tool.spec().description(), schema);

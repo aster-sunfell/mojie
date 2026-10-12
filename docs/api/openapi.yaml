@@ -255,6 +255,7 @@ paths:
       - { $ref: '#/components/parameters/Id' }
     get:
       operationId: getProposal
+      description: Includes operation (CREATE/UPDATE), createdChapterId/createdSettingId, and existing UPDATE base metadata. CREATE has baseVersion 0 and empty baseContent.
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }
@@ -279,11 +280,30 @@ paths:
       - { $ref: '#/components/parameters/Id' }
     put:
       operationId: saveReviewedSettingProposal
-      description: Save the author's reviewed setting draft atomically with proposal status and revision history. A stale base returns CONFLICTED; repeated saves of an applied proposal do not create another revision.
-      requestBody: { $ref: '#/components/requestBodies/SettingSave' }
+      description: Save the reviewed setting draft atomically. CREATE omits expectedVersion and returns targetSettingId, creates complete v1 only on save; UPDATE requires expectedVersion and checks conflicts. Repeated saves return the existing result.
+      requestBody: { $ref: '#/components/requestBodies/SettingProposalSave' }
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '409': { $ref: '#/components/responses/Data' }
+  /edit-proposals/{id}/chapter:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    put:
+      operationId: saveReviewedNewChapterProposal
+      description: Save a CREATE chapter draft as complete v1 appended to the work. Returns targetChapterId. Applied proposal retries return the same ID without duplication.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, content]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 120 }
+                content: { type: string, minLength: 1, maxLength: 6000 }
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '409': { $ref: '#/components/responses/Error' }
   /projects/{id}/conversations:
     parameters:
     - name: id
@@ -868,6 +888,21 @@ components:
               title: { type: string, minLength: 1, maxLength: 80 }
               content: { type: string, minLength: 1, maxLength: 2000 }
               expectedVersion: { type: integer, minimum: 1 }
+    SettingProposalSave:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [type, title, content]
+            properties:
+              type: { type: string, enum: [CHARACTER, WORLD, RULE] }
+              title: { type: string, minLength: 1, maxLength: 80 }
+              content: { type: string, minLength: 1, maxLength: 2000 }
+              expectedVersion:
+                type: integer
+                minimum: 1
+                description: Required for UPDATE; must be omitted for CREATE.
   schemas:
     SkillMention:
       type: object

@@ -23,7 +23,10 @@ public record ProposalDetail(
     String baseType,
     String baseTitle,
     String proposedType,
-    String proposedTitle)
+    String proposedTitle,
+    String operation,
+    String createdChapterId,
+    String createdSettingId)
     implements QueryResult {
   public Map<String, Object> fields() {
     Map<String, Object> fields = new LinkedHashMap<>();
@@ -37,6 +40,9 @@ public record ProposalDetail(
     fields.put("baseTitle", baseTitle);
     fields.put("proposedType", proposedType);
     fields.put("proposedTitle", proposedTitle);
+    fields.put("operation", operation);
+    fields.put("createdChapterId", createdChapterId);
+    fields.put("createdSettingId", createdSettingId);
     fields.put("baseVersion", baseVersion);
     fields.put("baseContent", baseContent);
     fields.put("proposedContent", proposedContent);

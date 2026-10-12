@@ -101,12 +101,15 @@ class ChatCompletionsModelGatewayIT {
                 assertEquals(raw, sent.get().path("messages").get(2).path("tool_calls").get(0)
                         .path("function").path("arguments").asText());
                 assertEquals("call-1", sent.get().path("messages").get(3).path("tool_call_id").asText());
+                assertEquals("none", sent.get().path("tool_choice").asText());
+                assertFalse(sent.get().has("tools"));
             } finally { server.stop(0); }
         }
     }
 
     @Test void malformedResponsesAreProtocolErrors() throws Exception {
         for (String response : List.of("", "null", "[]", "not-json", "{}", "{} {}",
+                completion("stop", "\"content\":\"<｜DSML｜function_calls><｜DSML｜invoke name=\\\"propose_setting_edit\\\">CREATE\""),
                 "{\"choices\":[{\"message\":{\"role\":\"user\"}}]}",
                 completion("stop", "\"content\":[]"),
                 completion("tool_calls", "\"tool_calls\":[{\"id\":7,\"type\":\"function\","

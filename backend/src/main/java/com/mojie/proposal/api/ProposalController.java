@@ -36,6 +36,13 @@ public final class ProposalController {
     return data(proposals.reject(id));
   }
 
+  public record ChapterDraft(String title, String content) {}
+
+  @PutMapping("/edit-proposals/{id}/chapter")
+  public Map<String, Object> saveChapter(@PathVariable String id, @RequestBody ChapterDraft body) {
+    return data(proposals.saveChapterCreate(id, body.title(), body.content()));
+  }
+
   public record SettingDraft(String type, String title, String content, Integer expectedVersion) {}
 
   @PutMapping("/edit-proposals/{id}/setting")

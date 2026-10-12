@@ -266,6 +266,7 @@ public final class ChatCompletionsModelGateway implements ModelGateway, AutoClos
         body.put("max_tokens", request.maxOutputTokens());
         body.put("stream", false);
         if (!tools.isEmpty()) body.put("tools", tools);
+        else body.put("tool_choice", "none");
         return body;
     }
 
@@ -340,6 +341,9 @@ public final class ChatCompletionsModelGateway implements ModelGateway, AutoClos
                 parsed.put("outputTokens", rawUsage.path("completion_tokens").longValue());
             if (!parsed.isEmpty()) usage = parsed;
         }
+        if (reason == FinishReason.FINAL && rawText.isTextual()
+                && rawText.asText().stripLeading().startsWith("<｜DSML｜function_calls>"))
+            throw invalid("Provider returned native tool-call markup as final text instead of structured tool calls");
         String requestId = root.path("id").asText(null);
         return new Response(content, reason, requestId, rawReason, usage);
     }

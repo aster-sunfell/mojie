@@ -1,3 +1,4 @@
+import { NewChapterProposal } from '../proposals/NewChapterProposal.jsx'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { api, readableError } from '../../shared/api/client.js'
 import { ConversationPanel } from '../conversation/ConversationPanel.jsx'
@@ -21,6 +22,7 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   const [reviewRun, setReviewRun] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [settingProposalId, setSettingProposalId] = useState(null)
+  const [newChapterProposalId, setNewChapterProposalId] = useState(null)
   const [proposalStatuses, setProposalStatuses] = useState({})
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
@@ -131,7 +133,7 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
     pending.finally(() => { if (saveInFlight.current === pending) saveInFlight.current = null })
     return pending
   }, [chapter, accepting, review.snapshot, review.commit])
-  useEffect(() => { const key = event => { if (!showSettings && !applicationSettingsOpen && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save, showSettings, applicationSettingsOpen])
+  useEffect(() => { const key = event => { if (!showSettings && !newChapterProposalId && !applicationSettingsOpen && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save, showSettings, newChapterProposalId, applicationSettingsOpen])
   async function prepareLeave() {
     if (accepting) return
     if (dirty || review.hasPendingEdits) {
@@ -177,6 +179,7 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
       setSettingProposalId(run.proposalId); setShowSettings(true)
       return true
     }
+    if (run.operation === 'CREATE') { setNewChapterProposalId(run.proposalId); return true }
     if (!run.targetChapterId) return false
     if (run.targetChapterId !== selectedRef.current) {
       if (!(await prepareLeave())) return false
@@ -198,13 +201,13 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   }, [review.id, review.loading])
   if (error && !project) return <main className="home"><p className="error">{error}</p><button onClick={() => navigate('/')}>返回作品列表</button></main>
   const sidebar = <ChapterSidebar projectId={projectId} project={project} chapters={chapters} selectedChapterId={selectedChapterId}
-    busy={runBusy} cursor={chapterCursor} inert={showSettings}
+    busy={runBusy} cursor={chapterCursor} inert={showSettings || !!newChapterProposalId}
     onLeave={leave} onAddChapter={addChapter}
     onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))} />
 
   return <div ref={workspaceRef} className="workspace">
     {!mobile && sidebar}
-    <div className="writingColumn" inert={showSettings}>
+    <div className="writingColumn" inert={showSettings || !!newChapterProposalId}>
       <header className="workspaceToolbar" aria-label="作品工具栏">
         {mobile && <button className="secondary" onClick={() => setShowChapters(true)}>
           <Icon name="menu" size={16} />章节
@@ -238,6 +241,13 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
       </div>
     </div>
     {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}
+    {newChapterProposalId && <NewChapterProposal key={newChapterProposalId} proposalId={newChapterProposalId} disabled={runBusy}
+      onClose={() => setNewChapterProposalId(null)}
+      onStatusChange={(id, status) => setProposalStatuses(current => ({ ...current, [id]: status }))}
+      onSaved={async id => {
+        await loadChapters()
+        if (await prepareLeave()) { setNewChapterProposalId(null); navigate(`/projects/${projectId}/chapters/${id}`) }
+      }} />}
     {showSettings && <Settings key={projectId} projectId={projectId} disabled={runBusy} proposalId={settingProposalId}
       onProposalChange={(id, status) => setProposalStatuses(current => ({ ...current, [id]: status }))}
       onClose={() => { setShowSettings(false); setSettingProposalId(null) }} />}

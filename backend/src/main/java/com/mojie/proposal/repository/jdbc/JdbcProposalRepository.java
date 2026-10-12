@@ -20,7 +20,7 @@ public final class JdbcProposalRepository implements ProposalRepository {
             """
             SELECT p.id, p.project_id, p.target_chapter_id, p.base_version, p.proposed_content,
                    p.status, p.applied_version, p.base_content, p.review_decisions,
-                   p.target_type, p.target_setting_id, p.base_type, p.base_title, p.proposed_type, p.proposed_title
+                   p.target_type, p.target_setting_id, p.base_type, p.base_title, p.proposed_type, p.proposed_title, p.operation, p.created_chapter_id, p.created_setting_id
               FROM tb_edit_proposal p JOIN tb_agent_run r ON r.id = p.run_id
              WHERE p.id = ?::uuid AND r.status = 'SUCCEEDED' FOR UPDATE OF p
             """,
@@ -42,7 +42,10 @@ public final class JdbcProposalRepository implements ProposalRepository {
             (String) p.get("baseType"),
             (String) p.get("baseTitle"),
             (String) p.get("proposedType"),
-            (String) p.get("proposedTitle"));
+            (String) p.get("proposedTitle"),
+            (String) p.get("operation"),
+            (String) p.get("createdChapterId"),
+            (String) p.get("createdSettingId"));
   }
 
   @Override
@@ -110,10 +113,54 @@ public final class JdbcProposalRepository implements ProposalRepository {
         SELECT p.id, p.run_id, p.project_id, p.target_chapter_id, p.base_version,
                p.base_content, p.proposed_content, p.reason, p.status, p.applied_version,
                p.created_at, p.updated_at, p.review_decisions,
-               p.target_type, p.target_setting_id, p.base_type, p.base_title, p.proposed_type, p.proposed_title
+               p.target_type, p.target_setting_id, p.base_type, p.base_title, p.proposed_type, p.proposed_title, p.operation, p.created_chapter_id, p.created_setting_id
           FROM tb_edit_proposal p JOIN tb_agent_run r ON r.id = p.run_id
          WHERE p.id = ?::uuid
         """,
+        id);
+  }
+
+  @Override
+  public int insertCreate(
+      String id,
+      String runId,
+      String projectId,
+      String targetType,
+      String type,
+      String title,
+      String content,
+      String reason) {
+    return db.update(
+        """
+        INSERT INTO tb_edit_proposal(id,run_id,project_id,target_type,operation,base_version,
+            base_content,proposed_type,proposed_title,proposed_content,reason,status,proposal_index)
+        VALUES (?::uuid,?::uuid,?::uuid,?,'CREATE',0,'',?,?,?,?,'PENDING',(SELECT count(*)+1 FROM tb_edit_proposal WHERE run_id=?::uuid))
+        """,
+        id,
+        runId,
+        projectId,
+        targetType,
+        type,
+        title,
+        content,
+        reason,
+        runId);
+  }
+
+  @Override
+  public int markCreated(String id, String targetType, String targetId) {
+    String column =
+        switch (targetType) {
+          case "CHAPTER" -> "created_chapter_id";
+          case "SETTING" -> "created_setting_id";
+          default -> throw new IllegalArgumentException("Unknown target type");
+        };
+    return db.update(
+        "UPDATE tb_edit_proposal SET "
+            + column
+            + "=?::uuid,status='APPLIED',applied_version=1,updated_at=now()"
+            + " WHERE id=?::uuid AND status='PENDING' AND operation='CREATE'",
+        targetId,
         id);
   }
 
@@ -129,8 +176,9 @@ public final class JdbcProposalRepository implements ProposalRepository {
       String reason) {
     return db.update(
         "INSERT INTO tb_edit_proposal(id, run_id, project_id, target_chapter_id, base_version,"
-            + " base_content, proposed_content, reason, status) VALUES (?::uuid, ?::uuid, ?::uuid,"
-            + " ?::uuid, ?, ?, ?, ?, 'PENDING')",
+            + " base_content, proposed_content, reason, status, proposal_index) VALUES (?::uuid,"
+            + " ?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, 'PENDING', (SELECT count(*)+1 FROM"
+            + " tb_edit_proposal WHERE run_id=?::uuid))",
         id,
         runId,
         projectId,
@@ -138,7 +186,8 @@ public final class JdbcProposalRepository implements ProposalRepository {
         baseVersion,
         baseContent,
         proposedContent,
-        reason);
+        reason,
+        runId);
   }
 
   @Override
@@ -158,8 +207,9 @@ public final class JdbcProposalRepository implements ProposalRepository {
     return db.update(
         "INSERT INTO tb_edit_proposal(id, run_id, project_id, target_type, target_setting_id,"
             + " base_version, base_type, base_title, base_content, proposed_type, proposed_title,"
-            + " proposed_content, reason, status) VALUES (?::uuid, ?::uuid, ?::uuid, 'SETTING',"
-            + " ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')",
+            + " proposed_content, reason, status, proposal_index) VALUES (?::uuid, ?::uuid,"
+            + " ?::uuid, 'SETTING', ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', (SELECT count(*)+1"
+            + " FROM tb_edit_proposal WHERE run_id=?::uuid))",
         id,
         runId,
         projectId,
@@ -171,6 +221,7 @@ public final class JdbcProposalRepository implements ProposalRepository {
         proposedType,
         proposedTitle,
         proposedContent,
-        reason);
+        reason,
+        runId);
   }
 }

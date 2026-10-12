@@ -15,4 +15,7 @@ public record EditProposal(
     String baseType,
     String baseTitle,
     String proposedType,
-    String proposedTitle) {}
+    String proposedTitle,
+    String operation,
+    String createdChapterId,
+    String createdSettingId) {}

@@ -4,6 +4,18 @@ import com.mojie.proposal.model.*;
 import java.util.*;
 
 public interface ProposalRepository {
+  int insertCreate(
+      String id,
+      String runId,
+      String projectId,
+      String targetType,
+      String type,
+      String title,
+      String content,
+      String reason);
+
+  int markCreated(String id, String targetType, String targetId);
+
   EditProposal lockVisible(String id);
 
   String projectId(String id);

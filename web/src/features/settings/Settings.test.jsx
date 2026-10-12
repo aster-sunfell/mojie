@@ -210,3 +210,29 @@ test('a server conflict preserves the setting draft and blocks repeated overwrit
   expect(screen.getByLabelText('设定内容').value).toBe('林舟谨慎，选择石桥过河。')
   expect(writes).toHaveLength(1)
 })
+
+test('a CREATE proposal opens without fetching a missing target and saves reviewed new content', async () => {
+  const writes = [], onProposalChange = vi.fn()
+  let created = null
+  vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+    if (options.method === 'GET') {
+      if (url === '/api/v1/edit-proposals/new') return reply({ id: 'new', projectId: 'p', operation: 'CREATE', targetType: 'SETTING', status: 'PENDING', baseVersion: 0,
+        proposedType: 'WORLD', proposedTitle: '末法世界', proposedContent: '世界观草稿', targetSettingId: null })
+      if (url.startsWith('/api/v1/projects/p/settings')) return reply({ items: created ? [created] : [], nextCursor: null })
+      if (url === '/api/v1/settings/created') return reply(created)
+      throw new Error(`Unexpected read ${url}`)
+    }
+    const body = JSON.parse(options.body)
+    writes.push({ url, body })
+    created = { id: 'created', ...body, version: 1 }
+    return reply({ status: 'APPLIED', targetSettingId: 'created', appliedVersion: 1 })
+  }))
+  render(<Settings projectId="p" proposalId="new" onProposalChange={onProposalChange} onClose={vi.fn()} />)
+  await screen.findByRole('heading', { name: '新建设定草稿' })
+  expect(screen.getByLabelText('设定内容').value).toBe('世界观草稿')
+  fireEvent.change(screen.getByLabelText('设定内容'), { target: { value: '作者审阅后的世界观' } })
+  fireEvent.click(screen.getByRole('button', { name: '保存设定', exact: true }))
+  await screen.findByRole('heading', { name: '末法世界' })
+  expect(writes).toEqual([{ url: '/api/v1/edit-proposals/new/setting', body: { type: 'WORLD', title: '末法世界', content: '作者审阅后的世界观' } }])
+  expect(onProposalChange).toHaveBeenCalledWith('new', 'APPLIED')
+})

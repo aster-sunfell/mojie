@@ -137,8 +137,8 @@ class UnifiedAssistantIT {
                     .findFirst()
                     .orElseThrow();
             assertTrue(
-                ((List<?>) editTool.inputSchema().get("required"))
-                    .containsAll(List.of("chapterId", "expectedVersion")));
+                ((List<?>) editTool.inputSchema().get("required")).contains("operation")
+                    && editTool.inputSchema().get("properties").toString().contains("proposedTitle"));
             String instruction =
                 request.messages().stream()
                     .filter(m -> m.role().equals("user"))

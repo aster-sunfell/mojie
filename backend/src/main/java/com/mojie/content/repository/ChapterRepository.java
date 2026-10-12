@@ -12,6 +12,8 @@ public interface ChapterRepository {
 
   String insert(String projectId, int chapterOrder, String title);
 
+  String insertWithContent(String projectId, int chapterOrder, String title, String content);
+
   int rename(String chapterId, String title);
 
   ChapterProject findVisibleProject(String chapterId);

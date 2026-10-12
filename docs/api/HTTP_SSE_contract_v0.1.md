@@ -52,3 +52,5 @@ V12 增加设定 version/修订历史，建议通过 targetType 区分 CHAPTER/S
 消息请求使用可选 `skillMentions: [{skillId, name}]`，客户端不选版本；服务端还解析 `$名称` / `$[名称]`，校验技能可用性并在 Run 中锁定版本。展示消息返回已解析的 `skillMentions`；重试保留原引用及其版本。
 
 `PATCH /conversations/{id}` 只用于重命名，不再配置自动发现；移除 `GET/PUT /conversations/{id}/skills` 固定接口。所有已启用 Skill 始终可发现，完整正文经 `read_skill` 按需进入模型请求。用户显式指定却未完成指导读取时，任务以 `SKILL_GUIDANCE_REQUIRED` 失败；不能静默忽略后发布回答或建议。
+
+V15：章节和设定 edit 工具支持 CREATE/UPDATE，统一轮次最多 8 份建议。运行详情新增 proposals，终态事件新增 proposalIds，保留第一份 proposalId 兼容字段。CREATE 生成时无正式目标，保存后返回 targetChapterId/targetSettingId 并写入完整 v1；UPDATE 保留读取及版本检查。详见 [建议设计](../design/setting-edit-proposals.md)。

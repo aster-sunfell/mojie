@@ -39,13 +39,18 @@ public final class ContentTools {
             "search_settings", "Search setting text literally", searchSettings(repository, cursor)),
         tool(
             "propose_chapter_edit",
-            "Submit a candidate edit after reading the complete chapter; ASSISTANT requires"
-                + " chapterId and expectedVersion from that read",
+            "Propose CREATE (new chapter: proposedTitle/content, no chapterId/version) or UPDATE"
+                + " (existing chapter: read_chapter first, use its chapterId/version). Author saves"
+                + " separately. Up to 8 proposals per turn; never invent an existing ID. Chapter title"
+                + " at most 120 characters; content at most 6000; reason at most 2000.",
             propose()),
         tool(
             "propose_setting_edit",
-            "Submit a setting edit after reading the complete setting and consuming its result; use"
-                + " settingId and expectedVersion from that read",
+            "Propose CREATE (new setting: type/title/content, no settingId/version) or UPDATE"
+                + " (existing setting: read_settings first, use its settingId/version). Author"
+                + " saves separately. Up to 8 proposals per turn; never invent an existing ID. Type must be"
+                + " CHARACTER, WORLD or RULE. Title at most 80 characters; content at most 2000;"
+                + " reason at most 2000. Keep each draft concise.",
             proposeSetting()));
   }
 
@@ -105,34 +110,73 @@ public final class ContentTools {
         required.add("keyword");
       }
       case "propose_chapter_edit" -> {
-        props.put("chapterId", stringSchema());
-        props.put("expectedVersion", integerSchema(1, Integer.MAX_VALUE));
-        props.put("proposedContent", stringSchema());
-        props.put("reason", stringSchema());
+        props.put("operation", operationSchema());
+        props.put("proposedTitle", textSchema(120));
+        props.put(
+            "chapterId",
+            Map.of(
+                "type",
+                "string",
+                "description",
+                "UPDATE only: real ID from read_chapter; omit for CREATE"));
+        props.put("expectedVersion", versionSchema());
+        props.put("proposedContent", textSchema(name.equals("propose_setting_edit") ? 2000 : 6000));
+        props.put("reason", textSchema(2000));
         required.addAll(List.of("proposedContent", "reason"));
       }
       case "propose_setting_edit" -> {
-        props.put("settingId", stringSchema());
-        props.put("expectedVersion", integerSchema(1, Integer.MAX_VALUE));
+        props.put("operation", operationSchema());
+        props.put(
+            "settingId",
+            Map.of(
+                "type",
+                "string",
+                "description",
+                "UPDATE only: real ID from read_settings; omit for CREATE"));
+        props.put("expectedVersion", versionSchema());
         props.put(
             "proposedType",
             Map.of("type", "string", "enum", List.of("CHARACTER", "WORLD", "RULE")));
-        props.put("proposedTitle", stringSchema());
-        props.put("proposedContent", stringSchema());
-        props.put("reason", stringSchema());
-        required.addAll(
-            List.of(
-                "settingId",
-                "expectedVersion",
-                "proposedType",
-                "proposedTitle",
-                "proposedContent",
-                "reason"));
+        props.put("proposedTitle", textSchema(80));
+        props.put("proposedContent", textSchema(name.equals("propose_setting_edit") ? 2000 : 6000));
+        props.put("reason", textSchema(2000));
+        required.addAll(List.of("proposedType", "proposedTitle", "proposedContent", "reason"));
       }
       default -> throw new IllegalArgumentException("Unknown tool schema");
     }
+    var schema = new LinkedHashMap<String, Object>();
+    schema.put("type", "object");
+    schema.put("properties", props);
+    schema.put("required", required);
+    schema.put("additionalProperties", false);
+    return schema;
+  }
+
+  private static Map<String, Object> versionSchema() {
     return Map.of(
-        "type", "object", "properties", props, "required", required, "additionalProperties", false);
+        "type",
+        "integer",
+        "minimum",
+        1,
+        "maximum",
+        Integer.MAX_VALUE,
+        "description",
+        "UPDATE only: current version returned by complete read; omit for CREATE");
+  }
+
+  private static Map<String, Object> operationSchema() {
+    return Map.of(
+        "type",
+        "string",
+        "enum",
+        List.of("CREATE", "UPDATE"),
+        "description",
+        "CREATE for new objects; UPDATE (default for legacy calls) requires a real ID and version"
+            + " from a complete read. Never treat a missing ID as CREATE.");
+  }
+
+  private static Map<String, Object> textSchema(int max) {
+    return Map.of("type", "string", "minLength", 1, "maxLength", max);
   }
 
   private static Map<String, Object> stringSchema() {
@@ -162,8 +206,7 @@ public final class ContentTools {
         if (project == null) return missing();
         ctx.cacheProject(project);
       }
-      return ToolResult.ok(
-          Map.of("projectId", project.id(), "title", project.title()), List.of());
+      return ToolResult.ok(Map.of("projectId", project.id(), "title", project.title()), List.of());
     };
   }
 
@@ -568,7 +611,18 @@ public final class ContentTools {
 
   private static Action propose() {
     return (args, ctx) -> {
-      requireKeys(args, "chapterId", "expectedVersion", "proposedContent", "reason");
+      requireKeys(
+          args,
+          "operation",
+          "chapterId",
+          "expectedVersion",
+          "proposedTitle",
+          "proposedContent",
+          "reason");
+      String operation = operation(args);
+      if (operation.equals("CREATE")) return createProposal(args, ctx, false);
+      if (args.has("proposedTitle"))
+        throw new IllegalArgumentException("UPDATE chapter does not accept proposedTitle");
       String chapterId = ctx.targetChapterId();
       int version = Math.toIntExact(ctx.baseVersion());
       String base = ctx.baseContent();
@@ -581,7 +635,8 @@ public final class ContentTools {
         if (chapter == null || !ctx.chapterProvided(chapterId, chapter.version()))
           return ToolResult.error(
               "INSUFFICIENT_CONTEXT",
-              "Read the complete chapter and consume its result before proposing an edit",
+              "UPDATE requires an existing chapter read and consumed by a later request; for a new"
+                  + " chapter use CREATE with proposedTitle and omit chapterId/expectedVersion",
               true);
         if (chapter.version() != version)
           return ToolResult.error(
@@ -596,13 +651,14 @@ public final class ContentTools {
           return ToolResult.error(
               "VALIDATION_ERROR", "Legacy edits must use the fixed target and version", true);
       }
-      if (ctx.candidate() != null)
-        return ToolResult.error("PROPOSAL_ALREADY_EXISTS", "One candidate already exists", false);
+
       String content = required(args, "proposedContent", 1, 6000);
       String reason = required(args, "reason", 1, 2000);
       if (content.equals(base))
         return ToolResult.error("VALIDATION_ERROR", "Candidate matches base content", true);
-      ctx.setCandidate(new ToolContext.Candidate(content, reason, chapterId, version, base));
+      var candidate = new ToolContext.Candidate(content, reason, chapterId, version, base);
+      ToolResult error = addCandidate(ctx, candidate);
+      if (error != null) return error;
       return ToolResult.ok(
           Map.of("accepted", true, "chapterId", chapterId, "baseVersion", version), List.of());
     };
@@ -615,26 +671,27 @@ public final class ContentTools {
             "EDIT_DISABLED", "Setting edits are unavailable for this turn", false);
       requireKeys(
           args,
+          "operation",
           "settingId",
           "expectedVersion",
           "proposedType",
           "proposedTitle",
           "proposedContent",
           "reason");
+      if (operation(args).equals("CREATE")) return createProposal(args, ctx, true);
       String id = required(args, "settingId", 1, 128);
       int version = number(args, "expectedVersion", -1, 1, Integer.MAX_VALUE);
       ToolContext.SettingInput base = ctx.readSettings().get(id);
       if (base == null || !ctx.settingProvided(id, base.version()))
         return ToolResult.error(
             "INSUFFICIENT_CONTEXT",
-            "Read the complete setting in this turn and consume its result before proposing an"
-                + " edit",
+            "UPDATE requires an existing setting read in this turn and consumed by a later request."
+                + " For a new setting use operation CREATE, omit settingId and expectedVersion",
             true);
       if (version != base.version())
         return ToolResult.error(
             "VERSION_CONFLICT", "Use the version returned by read_settings", true);
-      if (ctx.candidate() != null)
-        return ToolResult.error("PROPOSAL_ALREADY_EXISTS", "One candidate already exists", false);
+
       String type = required(args, "proposedType", 1, 32);
       if (!List.of("CHARACTER", "WORLD", "RULE").contains(type))
         throw new IllegalArgumentException("Invalid setting type");
@@ -643,17 +700,79 @@ public final class ContentTools {
       String reason = required(args, "reason", 1, 2000);
       if (type.equals(base.type()) && title.equals(base.title()) && content.equals(base.content()))
         return ToolResult.error("VALIDATION_ERROR", "Candidate matches base setting", true);
-      ctx.setCandidate(
+      var candidate =
           new ToolContext.Candidate(
               content,
               reason,
               null,
               version,
               base.content(),
-              new ToolContext.SettingEdit(id, base.type(), base.title(), type, title)));
+              new ToolContext.SettingEdit(id, base.type(), base.title(), type, title));
+      ToolResult error = addCandidate(ctx, candidate);
+      if (error != null) return error;
       return ToolResult.ok(
           Map.of("accepted", true, "settingId", id, "baseVersion", version), List.of());
     };
+  }
+
+  private static String operation(JsonNode args) {
+    String value = args.has("operation") ? required(args, "operation", 1, 16) : "UPDATE";
+    if (!List.of("CREATE", "UPDATE").contains(value))
+      throw new IllegalArgumentException("operation must be CREATE or UPDATE");
+    return value;
+  }
+
+  private static ToolResult addCandidate(ToolContext ctx, ToolContext.Candidate candidate) {
+    String error = ctx.candidateError(candidate);
+    if (error != null)
+      return ToolResult.error(
+          error,
+          error.equals("PROPOSAL_ALREADY_EXISTS")
+              ? "This target already has a proposal in this turn"
+              : "At most 8 proposals per turn; finish your answer",
+          false);
+    ctx.setCandidate(candidate);
+    return null;
+  }
+
+  private static ToolResult createProposal(JsonNode args, ToolContext ctx, boolean setting) {
+    if (!ctx.unified())
+      return ToolResult.error("EDIT_DISABLED", "CREATE requires an ASSISTANT conversation", false);
+    if (args.has("chapterId") || args.has("settingId") || args.has("expectedVersion"))
+      throw new IllegalArgumentException(
+          "CREATE must omit target IDs and expectedVersion; the server assigns IDs after author"
+              + " save");
+    String title = required(args, "proposedTitle", 1, setting ? 80 : 120);
+    String content = required(args, "proposedContent", 1, setting ? 2000 : 6000);
+    String reason = required(args, "reason", 1, 2000);
+    String type = setting ? required(args, "proposedType", 1, 32) : null;
+    if (setting && !List.of("CHARACTER", "WORLD", "RULE").contains(type))
+      throw new IllegalArgumentException("Invalid setting type");
+    var candidate =
+        new ToolContext.Candidate(
+            content,
+            reason,
+            null,
+            0,
+            "",
+            setting ? new ToolContext.SettingEdit(null, null, null, type, title) : null,
+            "CREATE",
+            title);
+    ToolResult error = addCandidate(ctx, candidate);
+    if (error != null) return error;
+    return ToolResult.ok(
+        Map.of(
+            "accepted",
+            true,
+            "operation",
+            "CREATE",
+            "proposedTitle",
+            title,
+            "proposalCount",
+            ctx.candidates().size(),
+            "saved",
+            false),
+        List.of());
   }
 
   private static ToolResult page(

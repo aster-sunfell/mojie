@@ -52,6 +52,8 @@ public final class AgentLoop {
     List<Long> messageSeqs = new ArrayList<>(List.of(1L));
     List<String> historyIds = input.historyMessageIds();
     boolean compactedDuringLoop = false;
+    Map<String, Integer> unresolvedFailures = new HashMap<>();
+    String finishDirective = null;
     int modelCalls = input.initialModelCalls(), toolCalls = 0, toolText = 0;
     try {
       while (true) {
@@ -59,20 +61,36 @@ public final class AgentLoop {
         if (stop != null) return stop;
         if (modelCalls >= limits.maxModelCalls())
           return limit("MODEL_CALLS", modelCalls, limits.maxModelCalls());
+        long remaining = Duration.between(clock.instant(), input.deadline()).toMillis();
+        if (finishDirective == null
+            && (modelCalls + 1 == limits.maxModelCalls()
+                || toolCalls >= limits.maxToolCalls()
+                || remaining <= 90_000))
+          finishDirective =
+              "Finish now with a concise substantive answer in ordinary prose. Do not emit"
+                  + " tool-call markup or DSML. State which drafts were generated and what could"
+                  + " not be completed. Do not claim drafts are saved.";
+        boolean finalOnly = finishDirective != null;
         List<ToolSpec> specs =
             tools.values().stream()
                 .map(AgentTool::spec)
                 .sorted(Comparator.comparing(ToolSpec::name))
                 .toList();
-        long remaining = Duration.between(clock.instant(), input.deadline()).toMillis();
-        long timeout = Math.min(limits.maxRequestMillis(), remaining);
+        if (finalOnly) specs = List.of();
+        List<Message> requestMessages = messages;
+        if (finalOnly) {
+          requestMessages = new ArrayList<>(messages);
+          requestMessages.add(Message.user(finishDirective));
+        }
+        long timeout =
+            Math.min(limits.maxRequestMillis(), finalOnly ? remaining : remaining - 60_000);
         Request request =
             new Request(
-                input.systemPrompt(),
-                messages,
+                (finalOnly ? finishDirective + "\n" : "") + input.systemPrompt(),
+                requestMessages,
                 specs,
                 input.modelId(),
-                input.maxOutputTokens(),
+                finalOnly ? Math.min(input.maxOutputTokens(), 2048) : input.maxOutputTokens(),
                 timeout);
         String serializedRequest = json.writeValueAsString(request);
         long inputBytes = serializedRequest.getBytes(StandardCharsets.UTF_8).length;
@@ -117,10 +135,14 @@ public final class AgentLoop {
         trace.modelRequest(runId, callIndex, List.copyOf(messageSeqs), request, historyIds, "TASK");
         Response response;
         try {
-          response = model.call(request, delta -> {
-            if (cancelled.getAsBoolean()) throw new java.util.concurrent.CancellationException();
-            trace.modelText(runId, callIndex, delta.text());
-          });
+          response =
+              model.call(
+                  request,
+                  delta -> {
+                    if (cancelled.getAsBoolean())
+                      throw new java.util.concurrent.CancellationException();
+                    trace.modelText(runId, callIndex, delta.text());
+                  });
         } catch (ModelGateway.ModelException e) {
           trace.modelFailed(runId, callIndex, e.code(), e.getMessage());
           return new LoopOutcome.Failed(e.code(), e.getMessage());
@@ -170,7 +192,14 @@ public final class AgentLoop {
           stop = stop(input);
           if (stop != null) return stop;
           return new LoopOutcome.Completed(
-              analysis, context.candidate(), modelCalls, toolCalls, toolText);
+              analysis, modelCalls, toolCalls, toolText, context.candidates());
+        }
+        if (finalOnly && modelCalls < limits.maxModelCalls()) {
+          abort(runId, callIndex, batch, "TOOL_LOOP_STOPPED");
+          return new LoopOutcome.Failed(
+              "TOOL_LOOP_STOPPED",
+              "Repeated tool failures or the remaining deadline require a direct answer; the model"
+                  + " continued tool calls");
         }
         if (modelCalls >= limits.maxModelCalls()) {
           abort(runId, callIndex, batch, "MODEL_CALLS");
@@ -196,7 +225,27 @@ public final class AgentLoop {
           toolCalls++;
           String executionId = trace.toolStarted(runId, callIndex, call);
           context.toolExecutionId(executionId);
-          ToolResult result = execute(call, context);
+          ToolResult result =
+              finishDirective == null
+                  ? execute(call, context)
+                  : ToolResult.error(
+                      "TOOL_LOOP_STOPPED",
+                      "Stop tool work and explain the unresolved failures in your final answer",
+                      false);
+          if (!result.success()) {
+            String key = call.name() + ":" + result.error().code();
+            if (unresolvedFailures.merge(key, 1, Integer::sum) >= 2)
+              finishDirective =
+                  "Tool work stopped after unresolved failures: "
+                      + result.error().code()
+                      + ". Give a concise final answer in ordinary prose, without tool-call markup"
+                      + " or DSML, explaining the actual limitation and any generated drafts. Do"
+                      + " not invent IDs or claim content was saved.";
+          } else if (call.name().equals("read_chapter") || call.name().equals("read_settings")) {
+            unresolvedFailures.clear();
+          } else {
+            unresolvedFailures.keySet().removeIf(key -> key.startsWith(call.name() + ":"));
+          }
           Map<String, Object> payload = wireResult(result, modelCalls, toolCalls);
           String wire = json.writeValueAsString(payload);
           // A single complete read that cannot fit is returned as an explicit tool error.

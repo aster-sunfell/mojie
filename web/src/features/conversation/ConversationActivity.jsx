@@ -22,7 +22,9 @@ function activityLabel(step, chapterNames, skills) {
       const titles = data.settings?.map(item => item.title).filter(Boolean)
       return titles?.length ? `查阅设定：${titles.join('、')}` : actions.read_settings
     }
-    case 'propose_chapter_edit': return chapter ? `整理《${chapter}》的修改建议` : actions.propose_chapter_edit
+    case 'propose_setting_edit': return args.operation === 'CREATE' ? `整理新建设定建议：${args.proposedTitle || '设定'}` : actions.propose_setting_edit
+    case 'propose_chapter_edit': if (args.operation === 'CREATE') return `整理新建章节建议：${args.proposedTitle || '章节'}`
+      return chapter ? `整理《${chapter}》的修改建议` : actions.propose_chapter_edit
     case 'search_chapters': case 'search_settings':
       return `${actions[step.toolName]}${args.keyword ? `：“${args.keyword}”` : ''}`
     case 'read_skill': return skill ? `加载“${skill}”指导` : actions.read_skill

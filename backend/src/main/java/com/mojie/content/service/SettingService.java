@@ -75,6 +75,17 @@ public final class SettingService {
         });
   }
 
+  public String createFromProposal(
+      String projectId, String settingType, String title, String content, String proposalId) {
+    String kind = type(settingType),
+        name = text(title, "title", 1, 80),
+        body = text(content, "content", 1, 2000);
+    access.lock(projectId, true);
+    String id = settings.insert(projectId, kind, name, body);
+    requireOne(settings.insertRevision(id, 1, kind, name, body, "AGENT", proposalId));
+    return id;
+  }
+
   public Map<String, Object> updateSetting(
       String id, String settingType, String title, String content, Integer expectedVersion) {
     String settingId = uuid(id),

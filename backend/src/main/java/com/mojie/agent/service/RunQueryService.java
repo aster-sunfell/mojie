@@ -68,6 +68,7 @@ public final class RunQueryService {
     return transactions.readSnapshot(
         () -> {
           Map<String, Object> run = scoped(runId);
+          run.put("proposals", fields(reads.listProposals(runId)));
           run.put("steps", fields(reads.listSteps(runId)));
           run.put("activities", fields(reads.listActivities(runId)));
           run.put("output", fields(reads.latestOutput(runId)));

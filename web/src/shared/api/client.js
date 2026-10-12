@@ -38,6 +38,7 @@ export function readableError(error) {
     RUN_CAPACITY_EXCEEDED: '任务队列已满，请稍后重试。',
     MODEL_METADATA_UNAVAILABLE: '模型信息暂不可用，请稍后重试；章节和设定仍可编辑。',
     MODEL_ERROR: '模型尚未配置或本次模型请求失败。',
+    TOOL_LOOP_STOPPED: '助手多次调用工具仍未解决问题，本轮已停止，请查看工具返回的具体原因。',
     PROPOSAL_STATE_CONFLICT: '建议状态已经变化，请刷新后重试。',
     IDEMPOTENCY_CONFLICT: '本次提交标识已用于不同内容。'
   }

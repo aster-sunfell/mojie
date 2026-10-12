@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-12T10:51:20.887Z",
+  "projectId": "01a12fb9-93f1-78ce-8454-2d89e2229b6b",
+  "conversationId": "01a12fb9-946b-7ba7-b5b3-40c6f0eaae4e",
+  "instruction": "为我创建 任务，世界观和写作约束",
+  "modelId": "deepseek-ai/DeepSeek-V3.2",
+  "status": "FAILED",
+  "errorCode": "MODEL_TIMEOUT",
+  "modelCallCount": 3,
+  "toolCallCount": 2,
+  "settingsBeforeSave": 0,
+  "proposals": [],
+  "steps": [
+    {
+      "toolName": "read_project",
+      "status": "SUCCEEDED",
+      "errorCode": null,
+      "args": {}
+    },
+    {
+      "toolName": "list_chapters",
+      "status": "SUCCEEDED",
+      "errorCode": null,
+      "args": {}
+    }
+  ],
+  "modelCalls": [
+    {
+      "callIndex": 1,
+      "status": "SUCCEEDED",
+      "errorCode": null,
+      "startedAt": "2026-10-12T10:47:59.753238Z",
+      "finishedAt": "2026-10-12T10:48:09.934755Z"
+    },
+    {
+      "callIndex": 2,
+      "status": "SUCCEEDED",
+      "errorCode": null,
+      "startedAt": "2026-10-12T10:48:10.041414Z",
+      "finishedAt": "2026-10-12T10:48:19.414475Z"
+    },
+    {
+      "callIndex": 3,
+      "status": "FAILED",
+      "errorCode": "MODEL_TIMEOUT",
+      "startedAt": "2026-10-12T10:48:19.464816Z",
+      "finishedAt": "2026-10-12T10:51:19.512677Z"
+    }
+  ],
+  "analysis": null,
+  "saves": [],
+  "verified": false,
+  "diagnosis": "A single model response exceeded 180 seconds while generating tool parameters; initial CREATE drafts now default to concise content with readable type/length guidance."
+}

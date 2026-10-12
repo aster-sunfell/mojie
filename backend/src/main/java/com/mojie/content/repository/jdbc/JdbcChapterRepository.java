@@ -64,6 +64,19 @@ public final class JdbcChapterRepository implements ChapterRepository {
   }
 
   @Override
+  public String insertWithContent(String projectId, int order, String title, String content) {
+    return db.first(
+            "INSERT INTO tb_chapter(project_id,chapter_order,title,content) VALUES (?::uuid,?,?,?)"
+                + " RETURNING id",
+            projectId,
+            order,
+            title,
+            content)
+        .get("id")
+        .toString();
+  }
+
+  @Override
   public int rename(String chapterId, String title) {
     return db.update(
         "UPDATE tb_chapter SET title = ?, updated_at = now() WHERE id = ?::uuid AND deleted_at IS"

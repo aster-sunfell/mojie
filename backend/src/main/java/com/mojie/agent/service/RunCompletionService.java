@@ -42,7 +42,7 @@ public final class RunCompletionService {
           if (Set.of("SUCCEEDED", "FAILED", "CANCELLED").contains(row.status()))
             return runs.existingTerminal(runId, row.status());
           String status, code = null, detail = null, analysis = null;
-          Candidate candidate = null;
+          List<Candidate> candidates = List.of();
           if (row.cancelRequested() || outcome instanceof LoopOutcome.Cancelled)
             status = "CANCELLED";
           else if (!clock.instant().isBefore(row.deadline())) {
@@ -59,17 +59,33 @@ public final class RunCompletionService {
             validateSuccess(runId, row, completed);
             status = "SUCCEEDED";
             analysis = completed.analysis();
-            candidate = completed.candidate();
+            candidates = completed.candidates();
           } else throw new IllegalArgumentException("Unknown loop outcome");
           requireOne(runs.updateTerminal(runId, status, analysis, code, detail));
           String proposalId = null;
-          if (candidate != null) {
-            proposalId = UUID.randomUUID().toString();
-            if (candidate.settingEdit() != null) {
+          List<String> proposalIds = new ArrayList<>();
+          for (Candidate candidate : candidates) {
+            String id = UUID.randomUUID().toString();
+            if (proposalId == null) proposalId = id;
+            proposalIds.add(id);
+            if (candidate.operation().equals("CREATE")) {
+              requireOne(
+                  proposals.insertCreate(
+                      id,
+                      runId,
+                      projectId,
+                      candidate.targetType(),
+                      candidate.settingEdit() == null
+                          ? null
+                          : candidate.settingEdit().proposedType(),
+                      candidate.proposedTitle(),
+                      candidate.proposedContent(),
+                      candidate.reason()));
+            } else if (candidate.settingEdit() != null) {
               var edit = candidate.settingEdit();
               requireOne(
                   proposals.insertSetting(
-                      proposalId,
+                      id,
                       runId,
                       projectId,
                       edit.settingId(),
@@ -84,7 +100,7 @@ public final class RunCompletionService {
             } else
               requireOne(
                   proposals.insert(
-                      proposalId,
+                      id,
                       runId,
                       projectId,
                       candidate.chapterId() == null ? row.targetChapterId() : candidate.chapterId(),
@@ -108,6 +124,7 @@ public final class RunCompletionService {
           payload.put("status", status);
           if (code != null) payload.put("errorCode", code);
           if (proposalId != null) payload.put("proposalId", proposalId);
+          payload.put("proposalIds", proposalIds);
           long seq = events.nextSequence(runId);
           requireOne(events.insert(runId, seq, type, encode(payload)));
           runs.releaseSlot(projectId, runId);
@@ -128,24 +145,23 @@ public final class RunCompletionService {
         && !trace.hasTargetInput(
             runId, completed.modelCalls(), row.targetChapterId(), row.baseVersion()))
       throw new IllegalStateException("Target chapter was not sent to final model call");
-    if (completed.candidate() != null
-        && completed.candidate().chapterId() != null
-        && !trace.hasTargetInput(
-            runId,
-            completed.modelCalls(),
-            completed.candidate().chapterId(),
-            completed.candidate().baseVersion()))
-      throw new IllegalStateException("Candidate chapter was not sent to final model call");
-    if (completed.candidate() != null && !trace.hasCandidateStep(runId))
-      throw new IllegalStateException("Candidate has no successful tool step");
-    if (completed.candidate() != null
-        && completed.candidate().settingEdit() != null
-        && !trace.hasSettingInput(
-            runId,
-            completed.modelCalls(),
-            completed.candidate().settingEdit().settingId(),
-            completed.candidate().baseVersion()))
-      throw new IllegalStateException("Candidate setting was not sent to final model call");
+    if (completed.candidates().size() > 8) throw new IllegalStateException("Too many candidates");
+    for (Candidate candidate : completed.candidates()) {
+      if (!trace.hasCandidateStep(runId))
+        throw new IllegalStateException("Candidate has no successful tool step");
+      if (candidate.operation().equals("CREATE")) continue;
+      if (candidate.chapterId() != null
+          && !trace.hasTargetInput(
+              runId, completed.modelCalls(), candidate.chapterId(), candidate.baseVersion()))
+        throw new IllegalStateException("Candidate chapter was not sent to final model call");
+      if (candidate.settingEdit() != null
+          && !trace.hasSettingInput(
+              runId,
+              completed.modelCalls(),
+              candidate.settingEdit().settingId(),
+              candidate.baseVersion()))
+        throw new IllegalStateException("Candidate setting was not sent to final model call");
+    }
     if (trace.openCalls(runId) != 0) throw new IllegalStateException("Model call remains open");
     if (trace.openSteps(runId) != 0) throw new IllegalStateException("Tool step remains open");
   }

@@ -293,7 +293,8 @@ class AgentLoopTest {
         assertEquals("UNKNOWN_TOOL", error.path("error").path("code").asText());
         assertEquals(node("{\"modelCallsUsed\":2,\"modelCallsRemaining\":1,\"toolCallsUsed\":3,\"toolCallsRemaining\":0,\"finalResponseRequired\":true}"), candidate.path("budget"));
         assertEquals(error, JSON.readTree(JSON.writeValueAsString(model.requests.get(1).messages().getLast().replies().getLast().result())));
-        assertEquals(candidate, JSON.readTree(JSON.writeValueAsString(model.requests.get(2).messages().getLast().replies().getLast().result())));
+        assertEquals(candidate, JSON.valueToTree(model.requests.get(2).messages().stream()
+                .flatMap(message -> message.replies().stream()).toList().getLast().result()));
         assertEquals(trace.wireResults.stream().mapToInt(w -> w.codePointCount(0, w.length())).sum(), done.toolTextCodePoints());
     }
 
@@ -724,6 +725,68 @@ class AgentLoopTest {
         assertTrue(trace.wireResults.get(2).contains("林舟不会游泳"));
         assertTrue(model.requests.get(1).messages().toString().contains("指定的指导正文"));
     }
+
+  @Test
+  void changingInventedIdsDoesNotBypassRepeatedFailureGuard() {
+    Script model =
+        new Script(
+            List.of(
+                response(
+                    "",
+                    List.of(
+                        call(
+                            "a",
+                            "propose_setting_edit",
+                            "{\"settingId\":\"fake-a\",\"expectedVersion\":1,\"proposedType\":\"WORLD\",\"proposedTitle\":\"世界\",\"proposedContent\":\"正文\",\"reason\":\"创建\"}")),
+                    FinishReason.TOOL_CALLS),
+                response(
+                    "",
+                    List.of(
+                        call(
+                            "b",
+                            "propose_setting_edit",
+                            "{\"settingId\":\"fake-b\",\"expectedVersion\":1,\"proposedType\":\"WORLD\",\"proposedTitle\":\"世界\",\"proposedContent\":\"正文\",\"reason\":\"创建\"}")),
+                    FinishReason.TOOL_CALLS),
+                response("无法修改不存在的设定，尚未保存内容。", List.of(), FinishReason.FINAL)));
+    var result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
+    assertEquals(3, result.modelCalls());
+    assertTrue(result.candidates().isEmpty());
+    assertTrue(model.requests.getLast().tools().isEmpty());
+    assertTrue(model.requests.getLast().systemPrompt().contains("INSUFFICIENT_CONTEXT"));
+    assertEquals("user", model.requests.getLast().messages().getLast().role());
+    assertTrue(model.requests.getLast().messages().getLast().content().toString().contains("INSUFFICIENT_CONTEXT"));
+  }
+
+  @Test
+  void successfulRequiredReadAllowsCorrectionInsteadOfStoppingTheLoop() {
+    Script model =
+        new Script(
+            List.of(
+                response(
+                    "",
+                    List.of(
+                        call(
+                            "a",
+                            "propose_chapter_edit",
+                            "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"新版\",\"reason\":\"修改\"}")),
+                    FinishReason.TOOL_CALLS),
+                response(
+                    "",
+                    List.of(call("read", "read_chapter", "{\"chapterId\":\"prior\"}")),
+                    FinishReason.TOOL_CALLS),
+                response(
+                    "",
+                    List.of(
+                        call(
+                            "b",
+                            "propose_chapter_edit",
+                            "{\"chapterId\":\"prior\",\"expectedVersion\":1,\"proposedContent\":\"新版\",\"reason\":\"修改\"}")),
+                    FinishReason.TOOL_CALLS),
+                response("已生成修改建议。", List.of(), FinishReason.FINAL)));
+    var result = (LoopOutcome.Completed) loop(model, LoopLimits.defaults()).run(unifiedInput());
+    assertEquals(1, result.candidates().size());
+    assertFalse(model.requests.get(2).tools().isEmpty());
+  }
 
     private LoopInput unifiedInput() {
         ToolContext context = new ToolContext(UUID.randomUUID().toString(), "p", null, 0, null);
