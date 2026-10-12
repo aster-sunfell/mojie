@@ -3,6 +3,8 @@ package com.mojie.content.model;
 public final class ReadContent {
   private ReadContent() {}
 
+  public record ProjectMetadata(String id, String title) {}
+
   public record ChapterMetadata(String id, String title, int order, long version) {}
 
   public record ChapterVersion(String id, long version) {}

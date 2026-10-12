@@ -22,6 +22,53 @@ class AgentLoopTest {
     private final FakeContent content = new FakeContent();
     private final AtomicBoolean cancelled = new AtomicBoolean();
 
+    @Test void projectReadRejectsScopeOverridesAndPinsOnlySuccessfulReadsPerRun() {
+        AgentTool read = ContentTools.all(content, KEY).stream()
+                .filter(t -> t.spec().name().equals("read_project")).findFirst().orElseThrow();
+        assertEquals(Map.of(), read.spec().inputSchema().get("properties"));
+        assertEquals(List.of(), read.spec().inputSchema().get("required"));
+        assertEquals(false, read.spec().inputSchema().get("additionalProperties"));
+        ToolContext context = unifiedInput().context();
+        assertThrows(IllegalArgumentException.class,
+                () -> read.execute(node("{\"projectId\":\"foreign\"}"), context));
+        assertEquals(0, content.projectReads);
+        var first = read.execute(node("{}"), context);
+        assertEquals(Map.of("projectId", "p", "title", "作品标题"), first.data());
+        content.projectTitle = "新标题";
+        assertEquals(first.data(), read.execute(node("{}"), context).data());
+        assertEquals(1, content.projectReads);
+        assertEquals(Map.of("projectId", "p", "title", "新标题"),
+                read.execute(node("{}"), unifiedInput().context()).data());
+        assertEquals(2, content.projectReads);
+        ToolContext missing = new ToolContext("missing", "foreign", null, 0, null);
+        var result = read.execute(node("{}"), missing);
+        assertEquals("RESOURCE_NOT_FOUND", result.error().code());
+        assertNull(missing.readProject());
+    }
+
+    @Test void projectReadReachesNextModelRequestAndUsesNormalToolBudgetWithoutReadingChapter() {
+        Script model = new Script(List.of(
+                response("", List.of(call("project", "read_project", "{}")), FinishReason.TOOL_CALLS),
+                response("书名分析完成", List.of(), FinishReason.FINAL)));
+        LoopInput input = unifiedInput();
+        var outcome = loop(model, LoopLimits.defaults()).run(input);
+        var completed = assertInstanceOf(LoopOutcome.Completed.class, outcome);
+        assertNull(completed.candidate());
+        assertEquals(1, completed.toolCalls());
+        assertEquals(List.of("read_project"), trace.startedTools);
+        assertFalse(model.requests.getFirst().messages().toString().contains("作品标题"));
+        var reply = model.requests.getLast().messages().getLast().replies().getFirst();
+        assertEquals("project", reply.callId());
+        assertEquals(node(trace.wireResults.getFirst()), JSON.valueToTree(reply.result()));
+        assertEquals("作品标题", node(trace.wireResults.getFirst()).path("data").path("title").asText());
+        assertEquals(1, node(trace.wireResults.getFirst()).path("budget").path("toolCallsUsed").asInt());
+        assertEquals(trace.wireResults.getFirst().codePointCount(0, trace.wireResults.getFirst().length()),
+                completed.toolTextCodePoints());
+        assertFalse(input.context().targetRead());
+        assertTrue(input.context().readChapters().isEmpty());
+        assertEquals(List.of(1L, 2L, 3L), trace.modelInputs.getLast());
+    }
+
     @Test void mixedTextAndSequentialToolsDoNotPublishIntermediateText() {
         Script model = new Script(List.of(
                 response("premature answer", List.of(call("r", "read_chapter", "{\"chapterId\":\"target\"}"),
@@ -378,6 +425,7 @@ class AgentLoopTest {
 
     @Test void chapterSearchCursorContinuesAcrossChapterBoundary() {
         ToolContentReader repository = new ToolContentReader() {
+            public ProjectMetadata project(String projectId) { throw new AssertionError("Unexpected project read"); }
             public List<ChapterMetadata> chapters(String projectId) {
                 return List.of(new ChapterMetadata("a", "第一章", 1, 1),
                         new ChapterMetadata("b", "第二章", 2, 1),
@@ -410,6 +458,7 @@ class AgentLoopTest {
     @Test void chapterSearchReadsPinnedRevisionsInBoundedBatches() {
         List<Integer> batchSizes = new ArrayList<>();
         ToolContentReader repository = new ToolContentReader() {
+            public ProjectMetadata project(String projectId) { throw new AssertionError("Unexpected project read"); }
             public List<ChapterMetadata> chapters(String projectId) {
                 List<ChapterMetadata> result = new ArrayList<>();
                 for (int i = 1; i <= 40; i++) result.add(new ChapterMetadata("c" + i, "章节" + i, i, 1));
@@ -442,6 +491,7 @@ class AgentLoopTest {
 
     @Test void timedOutLaterSearchBatchDiscardsEarlierMatches() {
         ToolContentReader repository = new ToolContentReader() {
+            public ProjectMetadata project(String projectId) { throw new AssertionError("Unexpected project read"); }
             public List<ChapterMetadata> chapters(String projectId) {
                 List<ChapterMetadata> result = new ArrayList<>();
                 for (int i = 1; i <= 33; i++) result.add(new ChapterMetadata("c" + i, "章节" + i, i, 1));
@@ -478,6 +528,7 @@ class AgentLoopTest {
         AtomicBoolean stopped = new AtomicBoolean();
         FakeContent base = new FakeContent("林舟不会游泳。\n林舟再次说不会游泳。");
         ToolContentReader repository = new ToolContentReader() {
+            public ProjectMetadata project(String projectId) { throw new AssertionError("Unexpected project read"); }
             public List<ChapterMetadata> chapters(String projectId) { return base.chapters(projectId); }
             public ToolContext.Chapter chapterRevision(String projectId, String id, long version) {
                 ToolContext.Chapter chapter = base.chapterRevision(projectId, id, version);
@@ -709,11 +760,17 @@ class AgentLoopTest {
     static final class FakeContent implements ToolContentReader {
         private final String priorContent;
         private final List<Setting> settingRows;
+        private String projectTitle = "作品标题";
+        private int projectReads;
         FakeContent() { this("林舟不会游泳，也不想游泳"); }
         FakeContent(String priorContent) { this(priorContent, List.of(new Setting("s1", "CHARACTER", "林舟", "怕水", 1))); }
         FakeContent(String priorContent, List<Setting> settingRows) {
             this.priorContent = priorContent;
             this.settingRows = settingRows;
+        }
+        public ProjectMetadata project(String projectId) {
+            projectReads++;
+            return projectId.equals("p") ? new ProjectMetadata(projectId, projectTitle) : null;
         }
         public List<ChapterMetadata> chapters(String projectId) {
             return List.of(new ChapterMetadata("prior", "前文", 1, 1),

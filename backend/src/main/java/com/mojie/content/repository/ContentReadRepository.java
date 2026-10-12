@@ -6,6 +6,8 @@ import com.mojie.content.model.ReadContent.*;
 import java.util.List;
 
 public interface ContentReadRepository {
+  ProjectMetadata project(String projectId, long timeoutMillis, QueryCancellation context);
+
   List<ChapterMetadata> chapters(String projectId, long timeoutMillis, QueryCancellation context);
 
   ChapterText revision(String projectId, String chapterId, long version, long timeoutMillis);

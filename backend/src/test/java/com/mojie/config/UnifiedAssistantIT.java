@@ -25,6 +25,99 @@ class UnifiedAssistantIT {
   @TempDir Path data;
 
   @Test
+  void emptyWorkTitleReadsAreRecordedPinnedWithinRunAndRefreshedInNextTurn() throws Exception {
+    try (TestDatabase database = new TestDatabase()) {
+      var source = database.source();
+      var tx = TestServices.transactions(source);
+      var content = TestServices.content(source);
+      var project = new AtomicReference<String>();
+      var requests = Collections.synchronizedList(new ArrayList<Request>());
+      var calls = new AtomicInteger();
+      ModelGateway gateway =
+          request -> {
+            requests.add(request);
+            assertTrue(request.systemPrompt().contains("read_project"));
+            var read = request.tools().stream()
+                .filter(t -> t.name().equals("read_project")).findFirst().orElseThrow();
+            assertEquals(Map.of(), read.inputSchema().get("properties"));
+            int step = calls.incrementAndGet();
+            if (step == 1) {
+              assertFalse(request.messages().toString().contains("原书名😀"));
+              assertFalse(request.systemPrompt().contains("原书名😀"));
+              return tool("read_project", Map.of());
+            }
+            if (step == 4) return tool("read_project", Map.of());
+            var result = tree(encode(request.messages().getLast().replies().getFirst().result()));
+            assertTrue(result.path("success").asBoolean());
+            assertEquals(project.get(), result.path("data").path("projectId").asText());
+            assertEquals(step == 5 ? "新书名" : "原书名😀", result.path("data").path("title").asText());
+            assertEquals(step == 3 ? 2 : 1, result.path("budget").path("toolCallsUsed").asInt());
+            if (step == 2) {
+              // Renaming is allowed while a run is active; its subsequent read stays pinned.
+              content.projects().renameProject(project.get(), "新书名");
+              return tool("read_project", Map.of());
+            }
+            return answer(step == 3 ? "原书名分析完成" : "新书名分析完成");
+          };
+      UUID process = UUID.randomUUID();
+      var agent = AgentConfiguration.create(
+          source, content, tx, PageCursor.configured(), gateway, Clock.systemUTC(), process,
+          "legacy", "test-model", 16000, "test-cursor-key-123456".getBytes(),
+          ModelApiConfig.MESSAGES, 1000000, true, true);
+      agent.startup().start();
+      try {
+        var skills = new SkillService(
+            new JdbcSkillRepository(source), new FileSkillStorage(data), new HttpSkillExecutor(null),
+            tx, PageCursor.configured());
+        var service = new ConversationConfiguration().createConversationService(
+            source, tx, PageCursor.configured(), content, agent, skills,
+            new ModelApiConfig(ModelApiConfig.MESSAGES, "http://127.0.0.1", "test", "test-model"),
+            gateway, process, () -> Map.of("contextWindowTokens", 1000000));
+        project.set((String) content.projects().createProject("原书名😀").get("id"));
+        content.projects().createProject("其他作品标题不应返回");
+        var conversation = service.create(project.get());
+        var first = service.send(conversation.id(), send("评价当前书名", 0, null, null));
+        var snapshot = await(agent, first.runId(), "SUCCEEDED");
+        assertEquals("原书名分析完成", snapshot.get("analysis"));
+        assertEquals(2, snapshot.get("toolCallCount"));
+        assertNull(snapshot.get("proposalId"));
+        assertNull(snapshot.get("contextChapterId"));
+        var trace = tree(encode(agent.query().trace(first.runId())));
+        assertEquals(2, trace.path("steps").size());
+        for (var step : trace.path("steps")) {
+          assertEquals("read_project", step.path("toolName").asText());
+          assertEquals("SUCCEEDED", step.path("status").asText());
+          assertEquals("原书名😀", step.path("result").path("data").path("title").asText());
+        }
+        assertTrue(trace.path("messages").toString().contains("原书名😀"));
+        assertTrue((Integer) snapshot.get("toolTextCodepoints") > 0);
+        try (var connection = source.getConnection();
+            var statement = connection.prepareStatement(
+                "SELECT p.content FROM tb_agent_run r JOIN tb_agent_prompt_snapshot p"
+                    + " ON p.hash = r.tool_schema_hash WHERE r.id = ?::uuid")) {
+          statement.setString(1, first.runId());
+          try (var rows = statement.executeQuery()) {
+            assertTrue(rows.next());
+            assertTrue(tree(rows.getString(1)).toString().contains("read_project"));
+          }
+        }
+        var next = service.send(conversation.id(),
+            send("再评价当前书名", service.get(conversation.id()).lastSeq(), null, null));
+        snapshot = await(agent, next.runId(), "SUCCEEDED");
+        assertEquals("新书名分析完成", snapshot.get("analysis"));
+        assertEquals(1, snapshot.get("toolCallCount"));
+        assertEquals(5, calls.get());
+        assertTrue(requests.get(3).messages().toString().contains("原书名😀"));
+        assertEquals("新书名", content.projects().project(project.get()).get("title"));
+        assertTrue(content.chapters().chapters(project.get(), 20).isEmpty());
+      } finally {
+        agent.sweeper().close();
+        agent.executor().close();
+      }
+    }
+  }
+
+  @Test
   void optionalContextSelectiveReadsCrossChapterEditsAndRetryKeepIndependentTargets()
       throws Exception {
     try (TestDatabase database = new TestDatabase()) {

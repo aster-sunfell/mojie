@@ -18,6 +18,25 @@ public final class JdbcContentReadRepository implements ContentReadRepository {
     this.db = new JdbcAccess(source);
   }
 
+  public ProjectMetadata project(
+      String projectId, long timeoutMillis, QueryCancellation context) {
+    return db.execute(
+        c -> {
+          timeout(c, timeoutMillis, false);
+          try (PreparedStatement s =
+                  JdbcAccess.statement(
+                      c,
+                      "SELECT id, name FROM tb_project WHERE id = ?::uuid AND deleted_at IS NULL",
+                      projectId);
+              var registration = cancel(context, s)) {
+            check(context);
+            try (ResultSet rows = s.executeQuery()) {
+              return rows.next() ? new ProjectMetadata(rows.getString(1), rows.getString(2)) : null;
+            }
+          }
+        });
+  }
+
   public List<ChapterMetadata> chapters(
       String projectId, long timeoutMillis, QueryCancellation context) {
     return db.execute(

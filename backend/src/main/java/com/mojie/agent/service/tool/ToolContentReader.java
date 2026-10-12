@@ -9,6 +9,12 @@ import java.util.Map;
  * revisions.
  */
 public interface ToolContentReader {
+  ProjectMetadata project(String projectId);
+
+  default ProjectMetadata project(String projectId, long timeoutMillis, ToolContext context) {
+    return project(projectId);
+  }
+
   List<ChapterMetadata> chapters(String projectId);
 
   default List<ChapterMetadata> chapters(String projectId, long timeoutMillis) {
@@ -86,6 +92,8 @@ public interface ToolContentReader {
   }
 
   record Setting(String id, String type, String title, String content, int version) {}
+
+  record ProjectMetadata(String id, String title) {}
 
   record ChapterMetadata(String id, String title, int order, long version) {}
 

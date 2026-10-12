@@ -16,6 +16,15 @@ public final class ToolContext implements com.mojie.common.cancellation.QueryCan
   private final long baseVersion;
   private final Map<String, Chapter> readChapters = new HashMap<>();
   private final Map<String, SettingInput> readSettings = new HashMap<>();
+  private ToolContentReader.ProjectMetadata readProject;
+
+  public ToolContentReader.ProjectMetadata readProject() {
+    return readProject;
+  }
+
+  public void cacheProject(ToolContentReader.ProjectMetadata value) {
+    if (readProject == null) readProject = Objects.requireNonNull(value);
+  }
 
   public Map<String, SettingInput> readSettings() {
     return readSettings;

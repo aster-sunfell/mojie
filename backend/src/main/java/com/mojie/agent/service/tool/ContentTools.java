@@ -24,6 +24,11 @@ public final class ContentTools {
       throw new IllegalArgumentException("Cursor key must have at least 16 bytes");
     Cursor cursor = new Cursor(cursorKey.clone());
     return List.of(
+        tool(
+            "read_project",
+            "Read the current work's saved title and project ID when discussing its title, naming"
+                + " or identity. No arguments; the first successful read is fixed for this run.",
+            readProject(repository)),
         tool("list_chapters", "List chapter metadata", listChapters(repository, cursor)),
         tool("read_chapter", "Read a complete chapter", readChapter(repository)),
         tool(
@@ -64,6 +69,7 @@ public final class ContentTools {
     Map<String, Object> props = new LinkedHashMap<>();
     List<String> required = new ArrayList<>();
     switch (name) {
+      case "read_project" -> {}
       case "list_chapters" -> {
         props.put("cursor", stringSchema());
         props.put("limit", integerSchema(1, 50));
@@ -135,6 +141,30 @@ public final class ContentTools {
 
   private static Map<String, Object> integerSchema(int min, int max) {
     return Map.of("type", "integer", "minimum", min, "maximum", max);
+  }
+
+  private static Action readProject(ToolContentReader repository) {
+    return (args, ctx) -> {
+      requireKeys(args);
+      if (ctx.cancelled()) throw new java.util.concurrent.CancellationException("Read cancelled");
+      ToolContentReader.ProjectMetadata project = ctx.readProject();
+      if (project == null) {
+        long timeout = Math.min(5_000, ctx.remainingMillis());
+        if (timeout <= 0)
+          return ToolResult.error("READ_TIMEOUT", "Project read exceeded its deadline", false);
+        try {
+          project = repository.project(ctx.projectId(), timeout, ctx);
+        } catch (ToolContentReader.SearchTimeoutException e) {
+          if (ctx.cancelled())
+            throw new java.util.concurrent.CancellationException("Read cancelled");
+          return ToolResult.error("READ_TIMEOUT", "Project read exceeded its deadline", false);
+        }
+        if (project == null) return missing();
+        ctx.cacheProject(project);
+      }
+      return ToolResult.ok(
+          Map.of("projectId", project.id(), "title", project.title()), List.of());
+    };
   }
 
   private static Action listChapters(ToolContentReader repository, Cursor cursor) {

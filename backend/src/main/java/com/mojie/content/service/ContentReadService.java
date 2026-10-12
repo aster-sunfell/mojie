@@ -16,6 +16,10 @@ public final class ContentReadService {
     this.transactions = transactions;
   }
 
+  public ProjectMetadata project(String project, long timeout, QueryCancellation cancellation) {
+    return transactions.requiresNew(() -> content.project(project, timeout, cancellation));
+  }
+
   public List<ChapterMetadata> chapters(
       String project, long timeout, QueryCancellation cancellation) {
     return transactions.requiresNew(() -> content.chapters(project, timeout, cancellation));

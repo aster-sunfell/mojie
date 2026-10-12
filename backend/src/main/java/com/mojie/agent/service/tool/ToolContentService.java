@@ -32,6 +32,20 @@ public final class ToolContentService implements ToolContentReader {
   }
 
   @Override
+  public ProjectMetadata project(String id) {
+    return project(id, 5_000, null);
+  }
+
+  @Override
+  public ProjectMetadata project(String id, long timeout, ToolContext context) {
+    return read(
+        () -> {
+          ReadContent.ProjectMetadata value = content.project(id, timeout, context);
+          return value == null ? null : new ProjectMetadata(value.id(), value.title());
+        });
+  }
+
+  @Override
   public List<ChapterMetadata> chapters(String id) {
     return chapters(id, 5_000, null);
   }
