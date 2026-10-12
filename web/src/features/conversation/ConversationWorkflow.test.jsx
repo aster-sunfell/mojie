@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import App from '../../app/App.jsx'
 
@@ -11,7 +11,7 @@ class FakeEventSource extends EventTarget {
   constructor(url) { super(); FakeEventSource.instances.set(url.split('/runs/')[1].split('/')[0], this) }
   close() {}
 }
-function setup({ initial = [], result = 'SUCCEEDED', afterPost, savePost, capabilities, detail, provideProposal = false, proposalTarget, patchPost } = {}) {
+function setup({ initial = [], initialMessages = {}, result = 'SUCCEEDED', afterPost, savePost, capabilities, detail, provideProposal = false, proposalTarget, patchPost, listGet } = {}) {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
   vi.stubGlobal('EventSource', FakeEventSource)
   const chapters = [
@@ -19,7 +19,7 @@ function setup({ initial = [], result = 'SUCCEEDED', afterPost, savePost, capabi
     { id: 'c2', title: '第二章', chapterOrder: 2, version: 1, content: '第二章正文' },
   ]
   const conversations = Object.fromEntries(initial.map((c, index) => [c.id, { title: `讨论 ${index}`, status: 'ACTIVE', lastSeq: 0, version: 1, discoveryEnabled: true, ...c }]))
-  const records = Object.fromEntries(initial.map(c => [c.id, []]))
+  const records = Object.fromEntries(initial.map(c => [c.id, initialMessages[c.id] || []]))
   const runs = {}, receipts = new Map(), writes = [], saves = [], cancelled = [], creates = []
   if (initial.length) localStorage.setItem('mojie:conversation:p', initial[0].id)
   globalThis.fetch = vi.fn(async (url, options = {}) => {
@@ -46,6 +46,7 @@ function setup({ initial = [], result = 'SUCCEEDED', afterPost, savePost, capabi
         return reply({ ...c })
       }
       const archived = new URL(url, 'http://localhost').searchParams.get('status')
+      if (listGet) return listGet(url, conversations)
       return reply({ items: Object.values(conversations).filter(c => c.status === archived), nextCursor: null })
     }
     const id = path.match(/^\/conversations\/([^/]+)/)?.[1], c = conversations[id]
@@ -104,8 +105,9 @@ async function ready(text = '核对前文') {
   await waitFor(() => expect(send().disabled).toBe(false))
 }
 async function select(id) {
-  fireEvent.click(screen.getByRole('button', { name: /▾/ }))
-  fireEvent.change(screen.getByRole('combobox', { name: '当前对话' }), { target: { value: id } })
+  fireEvent.click(screen.getByRole('button', { name: '历史对话' }))
+  await waitFor(() => expect(document.querySelector(`[data-conversation-id="${id}"]`)).not.toBeNull())
+  fireEvent.click(document.querySelector(`[data-conversation-id="${id}"]`))
 }
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); FakeEventSource.instances.clear() })
 
@@ -170,7 +172,7 @@ test('switching chapters after acceptance preserves the original turn reference'
   await screen.findByRole('heading', { name: '第二章' })
   expect(state.writes[0]).toMatchObject({ contextChapterId: 'c', contextVersion: 1 })
   expect(screen.getByText('参考：第一章 · v1')).toBeTruthy()
-  expect(screen.getByText('优先参考：第二章 · 已保存 v1')).toBeTruthy()
+  expect(document.querySelector('.assistantChapterLabel').textContent).toBe('第二章')
 })
 
 test('a proposal can target a different chapter from the preferred reference', async () => {
@@ -195,12 +197,13 @@ test('unsaved text is clearly excluded and sending retains the saved chapter ref
 })
 
 test('changing chapters and folding messages preserve conversation input', async () => {
-  setup(); await ready('这段输入应继续保留')
+  setup({ initial: [{ id: 'a' }], initialMessages: { a: [{ id: 'm', role: 'USER', content: '之前的消息', seq: 1 }] } })
+  await ready('这段输入应继续保留')
   fireEvent.click(screen.getByRole('button', { name: /第二章.*v1/ }))
   await screen.findByRole('heading', { name: '第二章' })
   expect(input().value).toBe('这段输入应继续保留')
-  fireEvent.click(screen.getByRole('button', { name: '展开消息' }))
   fireEvent.click(screen.getByRole('button', { name: '收起消息' }))
+  fireEvent.click(screen.getByRole('button', { name: '展开消息' }))
   expect(input().value).toBe('这段输入应继续保留')
   fireEvent.click(screen.getByRole('button', { name: '作品设定' }))
   await screen.findByRole('dialog', { name: '作品设定' }); expect(input().value).toBe('这段输入应继续保留')
@@ -300,12 +303,109 @@ test('refresh restores an unsent message draft without creating an empty convers
   expect(state.creates).toHaveLength(0)
 })
 
-test('empty-conversation shortcuts fill instructions without selecting a task or sending', async () => {
+test('empty composer has only icon actions and does not offer shortcuts or empty message expansion', async () => {
   const state = setup()
-  fireEvent.click(await screen.findByRole('button', { name: '改进章节表达' }))
+  await screen.findByRole('textbox', { name: '章节正文', exact: true })
+  for (const name of ['梳理人物动机', '检查前后矛盾', '改进章节表达', '展开消息']) {
+    expect(screen.queryByRole('button', { name })).toBeNull()
+  }
+  expect(screen.getAllByRole('button', { name: '新对话', exact: true })).toHaveLength(1)
+  expect(screen.getByRole('button', { name: '选择 Skill' }).querySelector('svg')).toBeTruthy()
   expect(screen.queryByRole('combobox', { name: '本轮任务' })).toBeNull()
-  expect(input().value).toContain('保留章节的情节')
+  expect(input().value).toBe('')
   expect(state.creates).toHaveLength(0); expect(state.writes).toHaveLength(0)
+})
+
+test('history dialog renames and archives any conversation without switching drafts, and restores the current conversation', async () => {
+  const state = setup({ initial: [{ id: 'a' }, { id: 'b', updatedAt: '2026-10-12T03:00:00Z' }] })
+  await ready('保留当前草稿')
+  fireEvent.click(screen.getByRole('button', { name: '历史对话' }))
+  const dialog = within(screen.getByRole('dialog', { name: '历史对话' }))
+  expect(dialog.getByRole('button', { name: '打开对话：讨论 0' }).getAttribute('aria-current')).toBe('true')
+  expect(dialog.getByText(/更新于/)).toBeTruthy()
+  fireEvent.click(dialog.getByRole('button', { name: '更多操作：讨论 1' }))
+  fireEvent.click(dialog.getByRole('button', { name: '重命名' }))
+  fireEvent.change(dialog.getByRole('textbox', { name: '对话标题' }), { target: { value: '人物讨论' } })
+  fireEvent.click(dialog.getByRole('button', { name: '保存', exact: true }))
+  await dialog.findByRole('button', { name: '打开对话：人物讨论' })
+  expect(state.conversations.b.title).toBe('人物讨论')
+  expect(input().value).toBe('保留当前草稿')
+  expect(document.querySelector('.conversationName').textContent).toBe('讨论 0')
+  fireEvent.click(dialog.getByRole('button', { name: '更多操作：人物讨论' }))
+  fireEvent.click(dialog.getByRole('button', { name: '归档', exact: true }))
+  await waitFor(() => expect(dialog.queryByRole('button', { name: '打开对话：人物讨论' })).toBeNull())
+  fireEvent.click(dialog.getByRole('tab', { name: '已归档' }))
+  await dialog.findByRole('button', { name: '打开对话：人物讨论' })
+  fireEvent.click(dialog.getByRole('button', { name: '更多操作：人物讨论' }))
+  fireEvent.click(dialog.getByRole('button', { name: '恢复', exact: true }))
+  await waitFor(() => expect(dialog.queryByRole('button', { name: '打开对话：人物讨论' })).toBeNull())
+  fireEvent.click(dialog.getByRole('tab', { name: '最近' }))
+  await dialog.findByRole('button', { name: '打开对话：讨论 0' })
+  fireEvent.click(dialog.getByRole('button', { name: '更多操作：讨论 0' }))
+  fireEvent.click(dialog.getByRole('button', { name: '归档', exact: true }))
+  await waitFor(() => expect(dialog.queryByRole('button', { name: '打开对话：讨论 0' })).toBeNull())
+  fireEvent.click(dialog.getByRole('button', { name: '关闭' }))
+  expect(input().disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: '恢复对话' }))
+  await waitFor(() => expect(send().disabled).toBe(false))
+  expect(state.conversations.a.status).toBe('ACTIVE')
+  expect(input().value).toBe('保留当前草稿')
+})
+
+test('history loads further pages and recovers from a list error while retaining the composer draft', async () => {
+  let broken = false
+  setup({ initial: [{ id: 'a' }, { id: 'b' }], listGet: (url, conversations) => {
+    if (broken) throw new TypeError('历史加载失败')
+    return new URL(url, 'http://localhost').searchParams.get('cursor')
+      ? reply({ items: [conversations.b], nextCursor: null })
+      : reply({ items: [conversations.a], nextCursor: 'next' })
+  } })
+  await ready('正在写的草稿')
+  fireEvent.click(screen.getByRole('button', { name: '历史对话' }))
+  const dialog = within(screen.getByRole('dialog', { name: '历史对话' }))
+  fireEvent.click(await dialog.findByRole('button', { name: '加载更多对话' }))
+  await dialog.findByRole('button', { name: '打开对话：讨论 1' })
+  expect(dialog.getByRole('button', { name: '打开对话：讨论 0' })).toBeTruthy()
+  fireEvent.click(dialog.getByRole('button', { name: '关闭' }))
+  broken = true
+  fireEvent.click(screen.getByRole('button', { name: '历史对话' }))
+  await screen.findByRole('alert')
+  broken = false
+  fireEvent.click(screen.getByRole('button', { name: '重试加载' }))
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  expect(input().value).toBe('正在写的草稿')
+})
+
+test('history refreshes a conflicting row version and permits retrying rename', async () => {
+  let attempts = 0
+  setup({ initial: [{ id: 'a' }, { id: 'b' }], patchPost: (body, c) => {
+    if (++attempts === 1) { c.version++; return failure('CONVERSATION_VERSION_CONFLICT') }
+    expect(body.expectedVersion).toBe(c.version)
+    Object.assign(c, body); c.version++
+    return reply({ ...c })
+  } })
+  await ready()
+  fireEvent.click(screen.getByRole('button', { name: '历史对话' }))
+  const dialog = within(screen.getByRole('dialog', { name: '历史对话' }))
+  fireEvent.click(dialog.getByRole('button', { name: '更多操作：讨论 1' }))
+  fireEvent.click(dialog.getByRole('button', { name: '重命名' }))
+  fireEvent.change(dialog.getByRole('textbox', { name: '对话标题' }), { target: { value: '新的标题' } })
+  fireEvent.click(dialog.getByRole('button', { name: '保存', exact: true }))
+  await dialog.findByRole('alert')
+  await waitFor(() => expect(dialog.getByRole('button', { name: '保存', exact: true }).disabled).toBe(false))
+  fireEvent.click(dialog.getByRole('button', { name: '保存', exact: true }))
+  await dialog.findByRole('button', { name: '打开对话：新的标题' })
+  expect(attempts).toBe(2)
+})
+
+test('running history rows block management and history closes with Escape', async () => {
+  setup({ initial: [{ id: 'a' }, { id: 'b', activeRunId: 'running' }] })
+  await ready()
+  fireEvent.click(screen.getByRole('button', { name: '历史对话' }))
+  expect(screen.getByRole('button', { name: '更多操作：讨论 1' }).disabled).toBe(true)
+  expect(screen.getByRole('button', { name: '打开对话：讨论 1' }).disabled).toBe(false)
+  fireEvent.keyDown(document.activeElement, { key: 'Escape' })
+  expect(screen.queryByRole('dialog', { name: '历史对话' })).toBeNull()
 })
 
 test('failed initial discovery preference is retried before sending the first turn', async () => {
@@ -316,7 +416,7 @@ test('failed initial discovery preference is retried before sending the first tu
     return reply({ ...c })
   } })
   await ready()
-  fireEvent.click(screen.getByRole('button', { name: 'Skill', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: '选择 Skill', exact: true }))
   fireEvent.click(screen.getByRole('checkbox', { name: '允许自动发现其他 Skill' }))
   fireEvent.click(screen.getByRole('button', { name: '完成' }))
   fireEvent.click(send()); await screen.findByRole('alert')

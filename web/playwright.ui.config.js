@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['home.spec.js', 'workspace.spec.js', 'proposal-review.spec.js', 'settings.spec.js'],
+  testMatch: ['home.spec.js', 'workspace.spec.js', 'proposal-review.spec.js', 'settings.spec.js', 'conversation-ui.spec.js'],
   timeout: 20_000,
   expect: { timeout: 5_000 },
   workers: 1,

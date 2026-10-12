@@ -19,6 +19,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
   const [conversation, setConversation] = useState(null), [messages, setMessages] = useState([])
   const [runs, setRuns] = useState({}), [runId, setRunId] = useState(null)
   const [items, setItems] = useState([]), [cursor, setCursor] = useState(null), [archived, setArchived] = useState(false)
+  const [listLoading, setListLoading] = useState(true), [listError, setListError] = useState('')
   const [pins, setPins] = useState([]), [busy, setBusy] = useState(false), [loading, setLoading] = useState(Boolean(id))
   const [error, setError] = useState(''), [cancelRequested, setCancelRequested] = useState(false)
   const [capabilities, setCapabilities] = useState(null)
@@ -59,10 +60,18 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
   }
   const loadList = useCallback(async (after = null) => {
     const token = ++listCounter.current
-    const page = await api(`/projects/${projectId}/conversations?status=${archived ? 'ARCHIVED' : 'ACTIVE'}&limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
-    if (!mounted.current || token !== listCounter.current) return
-    setItems(current => after ? [...new Map([...current, ...page.items].map(c => [c.id, c])).values()] : page.items)
-    setCursor(page.nextCursor)
+    setListLoading(true); setListError('')
+    try {
+      const page = await api(`/projects/${projectId}/conversations?status=${archived ? 'ARCHIVED' : 'ACTIVE'}&limit=50${after ? `&cursor=${encodeURIComponent(after)}` : ''}`)
+      if (!mounted.current || token !== listCounter.current) return
+      setItems(current => after ? [...new Map([...current, ...page.items].map(c => [c.id, c])).values()] : page.items)
+      setCursor(page.nextCursor)
+    } catch (e) {
+      if (mounted.current && token === listCounter.current) setListError(readableError(e))
+      throw e
+    } finally {
+      if (mounted.current && token === listCounter.current) setListLoading(false)
+    }
   }, [projectId, archived])
   listRef.current = loadList
   const load = useCallback(async () => {
@@ -92,7 +101,7 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
     mounted.current = true
     return () => { mounted.current = false; counter.current++; listCounter.current++ }
   }, [])
-  useEffect(() => { loadList().catch(e => { if (mounted.current) setError(readableError(e)) }) }, [loadList])
+  useEffect(() => { setItems([]); setCursor(null); loadList().catch(() => {}) }, [loadList])
   useEffect(() => {
     api('/system/capabilities').then(value => { if (mounted.current) setCapabilities(value) })
       .catch(() => { if (mounted.current) setCapabilities({ unavailable: true }) })
@@ -134,18 +143,20 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       : capabilities.modelMetadataAvailable === false ? '模型信息暂不可用，请稍后重试；章节和设定仍可编辑。' : ''
 
   async function action(fn) {
-    if (submitting.current || mutating.current || busy) return
+    if (submitting.current || mutating.current || busy) return false
     mutating.current = true
     setBusy(true); setError('')
     const current = scope.current
     try {
       await fn()
       if (mounted.current && scope.current === current) { await load(); await loadList() }
+      return true
     } catch (e) {
       if (mounted.current && scope.current === current) {
         setError(readableError(e))
         if (e.code === 'CONVERSATION_VERSION_CONFLICT') await load().catch(() => {})
       }
+      return false
     } finally { mutating.current = false; if (mounted.current) setBusy(false) }
   }
   async function send() {
@@ -211,9 +222,17 @@ export function useConversation({ projectId, getContext, projectBusy, onActivity
       options.current.onActivityChange?.()
     })
   }
-  return { id, conversation, messages, runs, items, cursor, archived, setArchived, pins, draft, unavailableReason,
+  return { id, conversation, messages, runs, items, cursor, archived, setArchived, listLoading, listError, pins, draft, unavailableReason,
     loading, busy, error: error || live.error, taskActive, cancelRequested,
     connection: live.connection, updateDraft, select, send, stop, retry, action, loadList,
+    patchConversation: (item, value) => action(async () => {
+      try {
+        await api(`/conversations/${item.id}`, 'PATCH', { expectedVersion: item.version, ...value })
+      } catch (e) {
+        if (e.code === 'CONVERSATION_VERSION_CONFLICT') await loadList().catch(() => {})
+        throw e
+      }
+    }),
     patch: value => action(async () => {
       await api(`/conversations/${scope.current}`, 'PATCH', { expectedVersion: conversation.version, ...value })
       if (value.discoveryEnabled !== undefined) updateDraft({ discoveryEnabled: value.discoveryEnabled, discoveryPending: false }, false)
