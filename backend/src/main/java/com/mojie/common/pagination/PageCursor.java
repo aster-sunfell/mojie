@@ -16,7 +16,7 @@ public final class PageCursor {
         this.secret = secret.clone();
     }
     public static PageCursor configured() {
-        String value = System.getenv().getOrDefault("MOJIE_CURSOR_KEY", "mojie-local-dev-cursor-key-change-me");
+        String value = System.getenv().getOrDefault("MOJIE_CURSOR_SIGNING_KEY", "mojie-local-dev-cursor-key-change-me");
         return new PageCursor(value.getBytes(StandardCharsets.UTF_8));
     }
     public String encode(String scope, String marker) {

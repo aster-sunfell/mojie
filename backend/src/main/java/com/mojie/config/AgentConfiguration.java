@@ -235,7 +235,7 @@ public class AgentConfiguration {
       Clock clock,
       UUID processId) {
     String secret =
-        System.getenv().getOrDefault("MOJIE_CURSOR_KEY", "mojie-local-dev-cursor-key-change-me");
+        System.getenv().getOrDefault("MOJIE_CURSOR_SIGNING_KEY", "mojie-local-dev-cursor-key-change-me");
     return create(
         source,
         content,

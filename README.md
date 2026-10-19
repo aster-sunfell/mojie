@@ -47,7 +47,7 @@ MOJIE_TEST_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/mojie_browser_e2e \
 
 采用 GitHub Actions 构建镜像 → GHCR 发布 → 服务器拉取运行。推送 `main` 后，[镜像工作流](.github/workflows/images.yml) 执行后端单元 / PostgreSQL 集成 / 本地模拟模型测试、部署故障测试、前端测试与静态构建，通过后发布 backend、web 两个镜像。全部构建成功后生成包含两个 digest 的 `deployment-release`，并用 GitHub artifact attestation 证明来源。PR 只测试，不发布镜像；手动运行工作流时也只发布 `main`。当前镜像平台是 `linux/amd64`。
 
-首次手动部署需要 Docker 和 Compose，无需在服务器安装 Maven、Java、Node 或构建镜像。接入自动更新还需要 Python 3、GitHub CLI 和 systemd。首次部署选择 Actions 全部成功的提交，服务器检出同一提交后，复制 `deploy/.env.example` 为 `deploy/.env.prod`，填写数据库密码、稳定的 `MOJIE_CURSOR_KEY` 和 `MOJIE_IMAGE_TAG`（该提交的完整 SHA），按需填写 `MOJIE_MODEL_API_KEY`。GHCR 包默认可能为私有；私有包先执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有 `read:packages` 权限的 PAT。公开包无需登录。从仓库根目录启动：
+首次手动部署需要 Docker 和 Compose，无需在服务器安装 Maven、Java、Node 或构建镜像。接入自动更新还需要 Python 3、GitHub CLI 和 systemd。首次部署选择 Actions 全部成功的提交，服务器检出同一提交后，复制 `deploy/.env.example` 为 `deploy/.env.prod`，填写数据库密码、稳定的 `MOJIE_CURSOR_SIGNING_KEY` 和 `MOJIE_IMAGE_TAG`（该提交的完整 SHA），按需填写 `MOJIE_MODEL_API_KEY`。GHCR 包默认可能为私有；私有包先执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有 `read:packages` 权限的 PAT。公开包无需登录。从仓库根目录启动：
 
 ```bash
 cp deploy/.env.example deploy/.env.prod

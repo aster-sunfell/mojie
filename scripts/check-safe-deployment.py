@@ -43,7 +43,7 @@ def main():
     config = {'root': str(root), 'applicationPorts': ports, 'gatewayPort': gateway_port,
               'gatewayContainer': 'mojie-verify-gateway-' + token, 'drainTimeoutSeconds': 10}
     env = dict(os.environ, MOJIE_IMAGE_TAG='verify', MOJIE_DB_PASSWORD='isolated_test_only',
-               MOJIE_CURSOR_KEY='isolated-test-cursor-key', MOJIE_MODEL_API_KEY='',
+               MOJIE_CURSOR_SIGNING_KEY='isolated-test-cursor-key', MOJIE_MODEL_API_KEY='',
                ANTHROPIC_API_KEY='', MOJIE_CONTROL_DIR=str(root / 'control'),
                MOJIE_BACKEND_IMAGE=args.old_backend,
                MOJIE_WEB_IMAGE=args.web)

@@ -53,7 +53,7 @@
 
 远程 PostgreSQL 不发布主机端口，后端也只在 Compose 网络内供 Nginx 访问；默认只有 Nginx 绑定服务器的 `127.0.0.1:8088`。要从其他机器访问，应在其前面配置受保护的 HTTPS 入口；需要调整绑定地址与端口时，可在 `deploy/.env.prod` 中设置可选的 `MOJIE_HTTP_BIND` 和 `MOJIE_HTTP_PORT`，生产 Compose 未设置时使用默认值。Nginx 代理保留原始 `/api` 路径，并为 SSE 关闭缓冲、设置较长的读取超时。
 
-生产环境必须在 `deploy/.env.prod` 中显式提供数据库密码，以及稳定且私密的 `MOJIE_CURSOR_KEY`；启用模型任务时再提供 `MOJIE_MODEL_API_KEY`。还需设置 `MOJIE_IMAGE_TAG` 为 Actions 全部成功的完整提交 SHA；`MOJIE_IMAGE_PREFIX` 默认为 `ghcr.io/aster-sunfell/mojie`，迁移仓库时同步修改。前后端必须使用同一标签。可从 [共用示例](../../deploy/.env.example) 复制，取消注释并填入真实值后保留在服务器，不提交到 Git。CI 无需生产密钥，前后端构建产物不得包含模型密钥。`MOJIE_MODEL_ID` 等按部署需要配置。更改已有 PostgreSQL 数据卷对应的 `POSTGRES_PASSWORD` 环境变量不会自动修改数据库中已有用户的密码，轮换密码需要单独操作。
+生产环境必须在 `deploy/.env.prod` 中显式提供数据库密码，以及稳定且私密的 `MOJIE_CURSOR_SIGNING_KEY`；启用模型任务时再提供 `MOJIE_MODEL_API_KEY`。还需设置 `MOJIE_IMAGE_TAG` 为 Actions 全部成功的完整提交 SHA；`MOJIE_IMAGE_PREFIX` 默认为 `ghcr.io/aster-sunfell/mojie`，迁移仓库时同步修改。前后端必须使用同一标签。可从 [共用示例](../../deploy/.env.example) 复制，取消注释并填入真实值后保留在服务器，不提交到 Git。CI 无需生产密钥，前后端构建产物不得包含模型密钥。`MOJIE_MODEL_ID` 等按部署需要配置。更改已有 PostgreSQL 数据卷对应的 `POSTGRES_PASSWORD` 环境变量不会自动修改数据库中已有用户的密码，轮换密码需要单独操作。
 
 模型配置通过 `application.yaml` 绑定。上下文窗口优先读取供应商元数据，缺少该字段时查询 models.dev 中与供应商和完整模型 ID 对应的条目；结果存入 PostgreSQL 缓存，默认每 24 小时刷新，获取失败时可继续使用 7 天内的缓存。无可用元数据时仍提供内容编辑和健康检查，暂停受理新的模型任务。自定义服务可选用 `MOJIE_MODEL_CONTEXT_TOKENS` 覆盖窗口，目录请求不携带模型密钥。
 
@@ -163,6 +163,6 @@ curl --fail http://127.0.0.1:8088/api/v1/health
 2. 本地浏览器通过 `127.0.0.1:8088` 访问工作台；普通 API、SSE 与 Vite 热更新都经过容器中的 Nginx。
 3. Actions 全部成功后发布同一完整 SHA 的前后端镜像；远程主机仅用 Docker / Compose 拉取并启动服务，无需 Maven、Java 或 Node；浏览器同源访问前端、普通 API 和 SSE。
 4. 单个生产容器意外退出及宿主机重启后，三个常驻服务恢复；数据库未向主机发布端口。验证服务健康状态，而不只验证容器进程存在。
-5. 部署更新与重启后，数据库内容及 `MOJIE_CURSOR_KEY` 保持稳定；备份可恢复。
+5. 部署更新与重启后，数据库内容及 `MOJIE_CURSOR_SIGNING_KEY` 保持稳定；备份可恢复。
 
 当前调度器按单后端实例设计，启动时会清理旧进程任务；远程部署保持一个后端副本，不采用多副本滚动更新。当前 API 没有完整鉴权，若入口可从公网访问，须先增加受保护的访问入口，不能直接公开现有写接口。

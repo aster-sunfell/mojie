@@ -117,7 +117,7 @@ public class ConversationConfiguration {
         com.mojie.agent.service.tool.ContentTools.all(
             agent.toolContent(),
             System.getenv()
-                .getOrDefault("MOJIE_CURSOR_KEY", "mojie-local-dev-cursor-key-change-me")
+                .getOrDefault("MOJIE_CURSOR_SIGNING_KEY", "mojie-local-dev-cursor-key-change-me")
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8));
     var schemas = new ArrayList<ModelGateway.ToolSpec>();
     contentTools.forEach(t -> schemas.add(t.spec()));

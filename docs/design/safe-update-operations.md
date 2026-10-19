@@ -25,7 +25,7 @@
 - 仓库需要能够使用 GitHub artifact attestations。CI 的发布 job 必须成功生成并上传 `deployment-release`；若仓库套餐或权限不支持 attestations，先解决该能力，不能关闭验签来启用自动更新。
 - 生产入口继续放在受保护的 HTTPS 代理之后。当前应用没有完整用户鉴权，默认部署端口仅监听回环地址。
 
-以下安装命令由服务器管理员首次执行。既有生产环境切换前先按 [Skill 备份恢复说明](conversation-skills-operations.md) 备份，并确认稳定的数据库密码、`MOJIE_CURSOR_KEY` 和模型配置。不要用示例配置覆盖现有生产密钥。
+以下安装命令由服务器管理员首次执行。既有生产环境切换前先按 [Skill 备份恢复说明](conversation-skills-operations.md) 备份，并确认稳定的数据库密码、`MOJIE_CURSOR_SIGNING_KEY` 和模型配置。不要用示例配置覆盖现有生产密钥。
 
 ## 安装并登记初始环境
 
