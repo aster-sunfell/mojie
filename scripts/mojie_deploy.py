@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -20,7 +21,8 @@ import urllib.error
 import uuid
 
 BASE = Path(__file__).resolve().parent.parent
-SERVICES = {'backend': 'backend', 'executor': 'skill-executor', 'web': 'nginx'}
+SERVICES = {'backend': 'backend', 'web': 'nginx'}
+LEGACY_SERVICES = {**SERVICES, 'executor': 'skill-executor'}
 DIGEST = r'sha256:[0-9a-f]{64}'
 PRECOMMIT = {'PREPARED', 'DRAINING', 'FROZEN', 'CANDIDATE_READY', 'SWITCHED', 'ROLLING_BACK'}
 
@@ -60,11 +62,13 @@ def validate_release(value, repository):
     for name in ('runId', 'runNumber', 'runAttempt'):
         if type(value.get(name)) is not int or value[name] <= 0:
             raise ValueError('Invalid release sequence')
-    if value.get('sourceRef') != 'refs/heads/main' or value.get('deploymentContract') != 1:
+    contract = value.get('deploymentContract')
+    if value.get('sourceRef') != 'refs/heads/main' or contract not in (1, 2):
         raise ValueError('Unsupported deployment contract or source branch')
     images = value.get('images', {})
-    if set(images) != set(SERVICES):
-        raise ValueError('A release must contain all three images')
+    expected = LEGACY_SERVICES if contract == 1 else SERVICES
+    if set(images) != set(expected):
+        raise ValueError('A release must contain exactly the images required by its deployment contract')
     for name, ref in images.items():
         if not isinstance(ref, str) or not re.fullmatch(re.escape(prefix + '-' + name + '@') + DIGEST, ref):
             raise ValueError('Unapproved image repository or mutable image reference')
@@ -156,14 +160,11 @@ class DockerDriver:
                                       '-f', self.config['composeFile'], 'config', '--format', 'json'], env=env).stdout)
         for service in ('postgres', 'files-init'):
             execute(['docker', 'pull', resolved['services'][service]['image']])
-        executor_env = resolved['services']['skill-executor']['environment']
-        for name in ('MOJIE_PYTHON_IMAGE', 'MOJIE_NODE_IMAGE'):
-            execute(['docker', 'pull', executor_env[name]])
         execute(['docker', 'pull', 'alpine:3.22'])
         volumes = self.volumes(current)
         sizes = execute(['docker', 'run', '--rm', '--network', 'none', '-v', volumes['postgres'] + ':/pg:ro',
                          '-v', volumes['files'] + ':/files:ro', 'alpine:3.22', 'du', '-sk', '/pg', '/files']).stdout.decode()
-        required = sum(int(line.split()[0]) for line in sizes.splitlines()) * 1024 * 3
+        required = sum(int(line.split()[0]) for line in sizes.splitlines()) * 1024 * 4
         minimum = self.config.get('minFreeBytes', 1024 ** 3)
         if shutil.disk_usage(self.root).free < required + minimum:
             raise RuntimeError('Insufficient disk space for backup and restored candidate')
@@ -187,17 +188,30 @@ class DockerDriver:
             network.pop('name', None)
         for service in resolved['services'].values():
             service['restart'] = 'no'
-        for name, service in SERVICES.items():
-            resolved['services'][service]['image'] = images[name]
+        if 'executor' not in images:
+            resolved['services'].pop('skill-executor', None)
+            resolved.get('networks', {}).pop('execution', None)
+            backend = resolved['services']['backend']
+            backend.get('environment', {}).pop('MOJIE_SKILL_EXECUTOR_URL', None)
+            networks = backend.get('networks', {})
+            if isinstance(networks, dict): networks.pop('execution', None)
+            elif 'execution' in networks: networks.remove('execution')
+        for name, image in images.items():
+            service = LEGACY_SERVICES[name]
+            if service not in resolved['services']:
+                raise RuntimeError('Installed Compose does not support this release: ' + service)
+            resolved['services'][service]['image'] = image
         backend = resolved['services']['backend']
         backend['environment']['MOJIE_MAINTENANCE_FILE'] = '/run/mojie-control/maintenance'
         backend['volumes'] = [v for v in backend['volumes'] if v['target'] != '/run/mojie-control']
         backend['volumes'].append({'type': 'bind', 'source': str(self.control), 'target': '/run/mojie-control', 'read_only': True, 'bind': {'selinux': 'z', 'create_host_path': True}})
-        executor = resolved['services']['skill-executor']
-        work_dir = str(self.root / 'executor' / token)
-        executor['environment']['MOJIE_EXECUTOR_WORK_DIR'] = work_dir
-        executor['volumes'] = [v for v in executor['volumes'] if v['target'] == '/var/run/docker.sock']
-        executor['volumes'].append({'type': 'bind', 'source': work_dir, 'target': work_dir, 'bind': {'selinux': 'z', 'create_host_path': True}})
+        # Retained contract-1 environments can still be restored during rollback.
+        if 'skill-executor' in resolved['services']:
+            executor = resolved['services']['skill-executor']
+            work_dir = str(self.root / 'executor' / token)
+            executor['environment']['MOJIE_EXECUTOR_WORK_DIR'] = work_dir
+            executor['volumes'] = [v for v in executor['volumes'] if v['target'] == '/var/run/docker.sock']
+            executor['volumes'].append({'type': 'bind', 'source': work_dir, 'target': work_dir, 'bind': {'selinux': 'z', 'create_host_path': True}})
         resolved['services']['nginx']['ports'] = [{'target': 80, 'published': str(port), 'host_ip': '127.0.0.1', 'protocol': 'tcp'}]
         path = directory / 'compose.json'
         write_json(path, resolved)
@@ -223,9 +237,14 @@ class DockerDriver:
                 raise RuntimeError('Drain timed out; existing work is not interrupted')
             time.sleep(2)
 
+    def application_services(self, record):
+        installed = read_json(record['compose'])['services']
+        return [name for name in ('backend', 'skill-executor', 'nginx') if name in installed]
+
     def freeze(self, current):
-        self.command(current, 'stop', '-t', '60', 'backend', 'skill-executor', 'nginx')
-        for service in ('backend', 'skill-executor', 'nginx'):
+        services = self.application_services(current)
+        self.command(current, 'stop', '-t', '60', *services)
+        for service in services:
             info = json.loads(execute(['docker', 'inspect', self.container(current, service)]).stdout)[0]
             if info['State']['Running']:
                 raise RuntimeError('A writer did not stop')
@@ -283,21 +302,22 @@ class DockerDriver:
 
     def verify_files(self, candidate, backup, after_start=False):
         backup = Path(backup)
-        spec = read_json(candidate['compose'])
-        volume = self.volumes(candidate)['files']
-        python_image = spec['services']['skill-executor']['environment']['MOJIE_PYTHON_IMAGE']
         options = ['--skip-expired-artifacts'] if after_start else []
-        execute(['docker', 'run', '--rm', '--network', 'none', '--security-opt', 'label=disable', '--entrypoint', 'python3',
-                 '-v', volume + ':/data:ro', '-v', str(backup) + ':/backup:ro',
-                 '-v', str(BASE / 'scripts/verify-skill-files.py') + ':/verify.py:ro', python_image,
-                 '/verify.py', '--manifest', '/backup/manifest.json', '--data-dir', '/data', *options])
+        # The host already runs Python. Verify a temporary copy without requiring a
+        # Python runtime image, Docker socket in the application, or running uploaded code.
+        with tempfile.TemporaryDirectory(prefix='verify-files-', dir=self.root) as temporary:
+            data = Path(temporary) / 'data'
+            data.mkdir()
+            execute(['docker', 'cp', self.container(candidate, 'backend') + ':/data/.', str(data)])
+            execute([sys.executable, str(BASE / 'scripts/verify-skill-files.py'),
+                     '--manifest', str(backup / 'manifest.json'), '--data-dir', str(data), *options])
 
     def start(self, record):
         self.command(record, 'up', '-d', '--no-build', '--pull', 'never', '--wait', '--wait-timeout', '180')
 
     def resume(self, record):
         # Start existing old containers; do not recreate them on a drain timeout.
-        self.command(record, 'start', 'postgres', 'skill-executor', 'backend', 'nginx')
+        self.command(record, 'start', 'postgres', *self.application_services(record))
         deadline = time.monotonic() + 180
         while True:
             try:
@@ -323,8 +343,9 @@ class DockerDriver:
         with urllib.request.urlopen(f'http://127.0.0.1:{record["port"]}/', timeout=10) as response:
             if response.status != 200 or b'<html' not in response.read().lower():
                 raise RuntimeError('Web frontend is not available')
-        container = self.container(record, 'skill-executor')
-        execute(['docker', 'exec', container, 'python3', '-c', "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8091/health',timeout=3))['status']=='UP'"])
+        if 'skill-executor' in self.application_services(record):
+            container = self.container(record, 'skill-executor')
+            execute(['docker', 'exec', container, 'python3', '-c', "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8091/health',timeout=3))['status']=='UP'"])
         failed = self.sql(record, 'SELECT count(*) FROM flyway_schema_history WHERE NOT success')
         if failed != '0':
             raise RuntimeError('Flyway contains failed migrations')
@@ -498,7 +519,8 @@ def register(config, driver, project, port):
     images = {}
     prefix = 'ghcr.io/' + config['repository'].lower()
     containers = []
-    for name, service in SERVICES.items():
+    installed_services = LEGACY_SERVICES if 'skill-executor' in resolved['services'] else SERVICES
+    for name, service in installed_services.items():
         command = ['docker', 'compose', '--env-file', config['envFile'], '-f', config['composeFile'], '-p', project, 'ps', '-a', '-q', service]
         container = execute(command, env=env).stdout.decode().strip()
         info = json.loads(execute(['docker', 'inspect', container]).stdout)[0]
@@ -512,7 +534,6 @@ def register(config, driver, project, port):
             source = next(m['Source'] for m in info['Mounts'] if m['Destination'] == '/run/mojie-control')
             if Path(source).resolve() != driver.control.resolve():
                 raise RuntimeError('Backend must mount the managed control directory before registration')
-            executor_work = resolved['services']['skill-executor']['environment']['MOJIE_EXECUTOR_WORK_DIR']
     status = http_json(port, '/api/v1/system/maintenance')['data']
     if type(status.get('activeWrites')) is not int:
         raise RuntimeError('First deploy an application version with maintenance support')
@@ -522,13 +543,14 @@ def register(config, driver, project, port):
                m.get('Name') == project + '_mojie_pgdata' for m in mounts):
         raise RuntimeError('Running database does not use the expected independent data volume')
     containers.append(postgres)
-    # Registration preserves the live executor directory; later candidates get separate directories.
     record = driver.make_record(resolved, project, port, images, 'initial-' + uuid.uuid4().hex[:8])
-    spec = read_json(record['compose'])
-    executor = spec['services']['skill-executor']
-    executor['environment']['MOJIE_EXECUTOR_WORK_DIR'] = executor_work
-    executor['volumes'] = resolved['services']['skill-executor']['volumes']
-    write_json(record['compose'], spec)
+    if 'skill-executor' in resolved['services']:
+        # Registration preserves an existing executor's mounts until that release retires.
+        spec = read_json(record['compose'])
+        spec['services']['skill-executor'] = copy.deepcopy(resolved['services']['skill-executor'])
+        spec['services']['skill-executor']['image'] = images['executor']
+        spec['services']['skill-executor']['restart'] = 'no'
+        write_json(record['compose'], spec)
     for container in containers:
         execute(['docker', 'update', '--restart', 'no', container])
     driver.gate(True)

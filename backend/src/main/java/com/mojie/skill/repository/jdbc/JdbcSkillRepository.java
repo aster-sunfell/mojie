@@ -62,8 +62,7 @@ public final class JdbcSkillRepository implements SkillRepository {
   public List<Skill> enabled() {
     return db.records(
         Skill.class,
-        "SELECT * FROM tb_skill WHERE enabled AND deleted_at IS NULL ORDER BY"
-            + " name,id");
+        "SELECT * FROM tb_skill WHERE enabled AND deleted_at IS NULL ORDER BY" + " name,id");
   }
 
   public Version version(String skill, String version) {
@@ -94,22 +93,7 @@ public final class JdbcSkillRepository implements SkillRepository {
   }
 
   public Upload upload(String id) {
-    return db.firstRecord(
-        Upload.class, "SELECT * FROM tb_skill_upload WHERE id=?::uuid", id);
-  }
-
-  public boolean active(String run) {
-    return db.first(
-            "SELECT id FROM tb_agent_run WHERE id=?::uuid AND status='RUNNING' FOR UPDATE", run)
-        != null;
-  }
-
-  public void failRunExecutions(String run, String code) {
-    db.update(
-        "UPDATE tb_skill_execution SET status='FAILED',error_code=?,finished_at=now() WHERE"
-            + " run_id=?::uuid AND status='STARTED'",
-        code,
-        run);
+    return db.firstRecord(Upload.class, "SELECT * FROM tb_skill_upload WHERE id=?::uuid", id);
   }
 
   public boolean hasVersion(String id) {
@@ -185,8 +169,7 @@ public final class JdbcSkillRepository implements SkillRepository {
             id);
     if (a != null)
       db.update(
-          "UPDATE tb_skill_quota SET used_bytes=used_bytes-? WHERE singleton",
-          a.get("sizeBytes"));
+          "UPDATE tb_skill_quota SET used_bytes=used_bytes-? WHERE singleton", a.get("sizeBytes"));
   }
 
   public void validating(String upload) {
@@ -195,8 +178,7 @@ public final class JdbcSkillRepository implements SkillRepository {
         upload);
   }
 
-  public Skill publish(
-      String skill, String upload, Published pack, String compatibility) {
+  public Skill publish(String skill, String upload, Published pack, String compatibility) {
     lockQuota();
     if (skill == null) {
       if (db.first(
@@ -209,9 +191,7 @@ public final class JdbcSkillRepository implements SkillRepository {
                 + " Skill");
       skill = UUID.randomUUID().toString();
       db.update(
-          "INSERT INTO tb_skill(id,name) VALUES(?::uuid,?)",
-          skill,
-          pack.metadata().get("name"));
+          "INSERT INTO tb_skill(id,name) VALUES(?::uuid,?)", skill, pack.metadata().get("name"));
     } else if (skill(skill, true) == null)
       throw new BusinessException("RESOURCE_NOT_FOUND", "Skill unavailable");
     db.update(
@@ -302,64 +282,6 @@ public final class JdbcSkillRepository implements SkillRepository {
         source);
   }
 
-  public void loaded(String run, String skill, Long message, String guidance) {
-    db.update(
-        "UPDATE tb_run_skill SET loaded=true,loaded_message_seq=?,guidance=?::jsonb,guidance_hash=?"
-            + " WHERE run_id=?::uuid AND skill_id=?::uuid",
-        message,
-        guidance,
-        hash(guidance),
-        run,
-        skill);
-  }
-
-  public void delivered(String run, List<Long> inputs) {
-    db.update(
-        "UPDATE tb_run_skill SET provided_to_model=true WHERE run_id=?::uuid AND loaded AND"
-            + " (loaded_message_seq IS NULL OR loaded_message_seq=ANY(?))",
-        run,
-        inputs.toArray(Long[]::new));
-  }
-
-  public void startExecution(
-      String id,
-      String run,
-      String tool,
-      String version,
-      String script,
-      String args,
-      String inputs,
-      String environment) {
-    requireActive(run);
-    var artifactIds = new TreeSet<String>();
-    for (var input : tree(inputs))
-      if (input.path("source").path("type").asText().equals("ARTIFACT"))
-        artifactIds.add(input.path("source").path("artifactId").asText());
-    for (String artifact : artifactIds)
-      if (db.first(
-              "SELECT a.id FROM tb_artifact a JOIN tb_agent_run origin ON origin.id=a.run_id"
-                  + " JOIN tb_agent_run current_run ON current_run.id=?::uuid"
-                  + " WHERE a.id=?::uuid AND a.project_id=current_run.project_id"
-                  + " AND origin.conversation_id=current_run.conversation_id AND a.status='READY'"
-                  + " AND a.expires_at>now() FOR UPDATE OF a",
-              run,
-              artifact)
-          == null)
-        throw new BusinessException("ARTIFACT_EXPIRED", "Input artifact is no longer available");
-    db.update(
-        "INSERT INTO"
-            + " tb_skill_execution(id,run_id,tool_execution_id,version_id,script,arguments,inputs,environment,status)"
-            + " VALUES(?::uuid,?::uuid,?::uuid,?::uuid,?,?::jsonb,?::jsonb,?::jsonb,'STARTED')",
-        id,
-        run,
-        tool,
-        version,
-        script,
-        args,
-        inputs,
-        environment);
-  }
-
   public void finishExecution(
       String id, String status, Integer exit, String stdout, String stderr, String code) {
     db.update(
@@ -374,60 +296,12 @@ public final class JdbcSkillRepository implements SkillRepository {
         id);
   }
 
-  public void executionEnvironment(String id, String environment) {
-    db.update(
-        "UPDATE tb_skill_execution SET environment=?::jsonb WHERE id=?::uuid AND status='STARTED'",
-        environment,
-        id);
-  }
-
   public Execution execution(String id) {
     return db.firstRecord(Execution.class, "SELECT * FROM tb_skill_execution WHERE id=?::uuid", id);
   }
 
-  private void requireActive(String run) {
-    if (db.first(
-            "SELECT id FROM tb_agent_run WHERE id=?::uuid AND status='RUNNING' AND NOT"
-                + " cancel_requested FOR UPDATE",
-            run)
-        == null) throw new java.util.concurrent.CancellationException();
-  }
-
-  public void publishArtifact(
-      String project,
-      String run,
-      String execution,
-      String id,
-      String name,
-      String hash,
-      long bytes,
-      String mime) {
-    requireActive(run);
-    lockQuota();
-    if (db.update(
-            "UPDATE tb_skill_quota SET used_bytes=used_bytes+? WHERE singleton AND"
-                + " used_bytes+reserved_bytes+?<=1073741824",
-            bytes,
-            bytes)
-        != 1) throw new BusinessException("SKILL_QUOTA_EXCEEDED", "Storage quota exceeded");
-    db.update(
-        "INSERT INTO"
-            + " tb_artifact(id,project_id,run_id,execution_id,name,storage_key,hash,size_bytes,mime)"
-            + " VALUES(?::uuid,?::uuid,?::uuid,?::uuid,?,?,?,?,?)",
-        id,
-        project,
-        run,
-        execution,
-        name,
-        "artifacts/" + id + "/file",
-        hash,
-        bytes,
-        mime);
-  }
-
   public Artifact artifact(String id) {
-    return db.firstRecord(
-        Artifact.class, "SELECT * FROM tb_artifact WHERE id=?::uuid", id);
+    return db.firstRecord(Artifact.class, "SELECT * FROM tb_artifact WHERE id=?::uuid", id);
   }
 
   public List<Artifact> artifacts(String run) {

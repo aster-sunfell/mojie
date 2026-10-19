@@ -32,7 +32,6 @@ def main():
     parser.add_argument('--new-backend', default='mojie-rollback-verify-backend:new')
     parser.add_argument('--bad-backend', default='mojie-rollback-verify-backend:bad')
     parser.add_argument('--web', default='mojie-rollback-verify-web:local')
-    parser.add_argument('--executor', default='mojie-rollback-verify-executor:local')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
     root = Path(tempfile.mkdtemp(prefix='mojie-rollback-check-'))
@@ -46,7 +45,7 @@ def main():
     env = dict(os.environ, MOJIE_IMAGE_TAG='verify', MOJIE_DB_PASSWORD='isolated_test_only',
                MOJIE_CURSOR_KEY='isolated-test-cursor-key', MOJIE_MODEL_API_KEY='',
                ANTHROPIC_API_KEY='', MOJIE_CONTROL_DIR=str(root / 'control'),
-               MOJIE_BACKEND_IMAGE=args.old_backend, MOJIE_EXECUTOR_IMAGE=args.executor,
+               MOJIE_BACKEND_IMAGE=args.old_backend,
                MOJIE_WEB_IMAGE=args.web)
     resolved = json.loads(execute(['docker', 'compose', '-f', str(BASE / 'deploy/compose.prod.yaml'), 'config', '--format', 'json'], env=env).stdout)
     resolved['services']['backend']['environment']['MOJIE_MODEL_BASE_URL'] = ''
@@ -61,7 +60,7 @@ def main():
             port = next(p for p in ports if p != current['port'])
             identity = 'verify-' + token + '-' + uuid.uuid4().hex[:6]
             record = self.make_record(resolved, 'mojie-' + identity, port,
-                {'backend': self.fixture, 'executor': args.executor, 'web': args.web}, identity)
+                {'backend': self.fixture, 'web': args.web}, identity)
             records.append(record)
             return record
         def start(self, record):
@@ -83,7 +82,7 @@ def main():
 
     driver = LocalDriver(config)
     initial = driver.make_record(resolved, 'mojie-verify-old-' + token, ports[0],
-              {'backend': args.old_backend, 'executor': args.executor, 'web': args.web}, 'initial')
+              {'backend': args.old_backend, 'web': args.web}, 'initial')
     records.append(initial)
     report = {'root': str(root), 'scope': 'Disposable Docker environments; local fixture images, no GitHub attestation verification', 'checks': []}
     gateway_started = False

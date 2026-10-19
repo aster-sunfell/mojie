@@ -14,8 +14,6 @@ public interface SkillStorage {
 
   byte[] artifact(Artifact file);
 
-  void saveArtifact(String id, byte[] bytes);
-
   void discardVersion(String id);
 
   void deleteArtifact(String id);

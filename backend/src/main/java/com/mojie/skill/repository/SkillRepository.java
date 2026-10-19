@@ -12,10 +12,6 @@ public interface SkillRepository {
 
   void unavailable(String version);
 
-  boolean active(String run);
-
-  void failRunExecutions(String run, String code);
-
   boolean hasVersion(String id);
 
   void lockQuota();
@@ -61,36 +57,10 @@ public interface SkillRepository {
 
   void bind(String run, String skill, String version, String source);
 
-  void loaded(String run, String skill, Long message, String guidance);
-
-  void delivered(String run, List<Long> inputs);
-
-  void startExecution(
-      String id,
-      String run,
-      String tool,
-      String version,
-      String script,
-      String args,
-      String inputs,
-      String environment);
-
   void finishExecution(
       String id, String status, Integer exit, String stdout, String stderr, String code);
 
-  void executionEnvironment(String id, String environment);
-
   Execution execution(String id);
-
-  void publishArtifact(
-      String project,
-      String run,
-      String execution,
-      String id,
-      String name,
-      String hash,
-      long bytes,
-      String mime);
 
   Artifact artifact(String id);
 

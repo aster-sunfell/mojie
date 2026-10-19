@@ -86,7 +86,6 @@ class ConversationSkillsIT {
             new SkillService(
                 new JdbcSkillRepository(source),
                 new FileSkillStorage(data),
-                new HttpSkillExecutor(null),
                 tx,
                 PageCursor.configured());
         var metadata =
@@ -227,6 +226,13 @@ class ConversationSkillsIT {
                 .allMatch(
                     r ->
                         r.tools().stream().anyMatch(t -> t.name().equals("propose_chapter_edit"))));
+        assertTrue(
+            requests.stream()
+                .allMatch(
+                    r -> r.tools().stream().noneMatch(t -> t.name().equals("run_skill_script"))));
+        assertTrue(
+            requests.stream()
+                .allMatch(r -> r.tools().stream().anyMatch(t -> t.name().equals("read_chapter"))));
         var db = new JdbcAccess(source);
         assertEquals(
             5,
@@ -474,7 +480,6 @@ class ConversationSkillsIT {
             new SkillService(
                 new JdbcSkillRepository(source),
                 new FileSkillStorage(data),
-                new HttpSkillExecutor(null),
                 tx,
                 PageCursor.configured());
         var service =
@@ -576,7 +581,8 @@ class ConversationSkillsIT {
     assertEquals("SUCCEEDED", snapshot.get("status"), snapshot.toString());
   }
 
-  private static void awaitTerminal(AgentConfiguration.Services agent, String run) throws Exception {
+  private static void awaitTerminal(AgentConfiguration.Services agent, String run)
+      throws Exception {
     long end = System.nanoTime() + 10_000_000_000L;
     while (System.nanoTime() < end) {
       var snapshot = agent.query().detail(run);

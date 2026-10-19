@@ -468,6 +468,7 @@ paths:
   /skills/capabilities:
     get:
       operationId: getSkillCapabilities
+      description: Context-only Skills. Returns upload limits, mode CONTEXT_ONLY and scriptExecution false; no executor configuration.
       responses:
         '200':
           $ref: '#/components/responses/Data'
@@ -690,6 +691,7 @@ paths:
         format: uuid
     get:
       operationId: getSkillVersion
+      description: Immutable package with current context-only compatibility (warnings, scripts preserved for export, unsupported tool declarations). Historical runtime capabilities do not grant execution.
       responses:
         '200':
           $ref: '#/components/responses/Data'
@@ -781,6 +783,7 @@ paths:
         format: uuid
     get:
       operationId: getArtifact
+      description: Historical artifacts only; Skills no longer generate new artifacts.
       responses:
         '200':
           $ref: '#/components/responses/Data'

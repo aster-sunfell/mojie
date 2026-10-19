@@ -14,10 +14,10 @@ from mojie_deploy import Deployment, DockerDriver, deployment_lock, read_json, v
 
 
 RELEASE = {
-    'schemaVersion': 1, 'deploymentContract': 1, 'repository': 'owner/mojie',
+    'schemaVersion': 1, 'deploymentContract': 2, 'repository': 'owner/mojie',
     'sourceRef': 'refs/heads/main', 'commit': 'a' * 40,
     'runId': 42, 'runNumber': 2, 'runAttempt': 1,
-    'images': {name: f'ghcr.io/owner/mojie-{name}@sha256:' + 'b' * 64 for name in ('backend', 'executor', 'web')},
+    'images': {name: f'ghcr.io/owner/mojie-{name}@sha256:' + 'b' * 64 for name in ('backend', 'web')},
 }
 
 
@@ -161,7 +161,7 @@ class DeploymentTest(unittest.TestCase):
 
     def test_manifest_rejects_mutable_images_other_repositories_and_partial_builds(self):
         self.assertEqual(RELEASE, validate_release(copy.deepcopy(RELEASE), 'owner/mojie'))
-        for field, value in (('repository', 'attacker/mojie'), ('sourceRef', 'refs/pull/1/merge'), ('deploymentContract', 2)):
+        for field, value in (('repository', 'attacker/mojie'), ('sourceRef', 'refs/pull/1/merge'), ('deploymentContract', 3)):
             bad = dict(RELEASE, **{field: value})
             with self.assertRaises(ValueError): validate_release(bad, 'owner/mojie')
         for reference in ('ghcr.io/owner/mojie-web:latest', 'ghcr.io/attacker/mojie-web@sha256:' + 'b' * 64):
@@ -169,7 +169,7 @@ class DeploymentTest(unittest.TestCase):
             bad['images']['web'] = reference
             with self.assertRaises(ValueError): validate_release(bad, 'owner/mojie')
         bad = copy.deepcopy(RELEASE)
-        del bad['images']['executor']
+        del bad['images']['backend']
         with self.assertRaises(ValueError): validate_release(bad, 'owner/mojie')
 
     def test_candidate_does_not_share_resolved_network_names_or_mutate_host_config(self):
@@ -180,13 +180,31 @@ class DeploymentTest(unittest.TestCase):
                 'services': {'postgres': {}, 'files-init': {}, 'backend': {'environment': {}, 'volumes': []},
                              'nginx': {}, 'skill-executor': {'environment': {}, 'volumes': [{'target': '/var/run/docker.sock'}]}}}
         saved = copy.deepcopy(spec)
-        candidate = driver.make_record(spec, 'candidate', 18089, RELEASE['images'], 'test')
+        legacy_images = {**RELEASE['images'], 'executor': 'ghcr.io/owner/mojie-executor@sha256:' + 'b' * 64}
+        legacy = dict(RELEASE, deploymentContract=1, images=legacy_images)
+        validate_release(legacy, 'owner/mojie')
+        candidate = driver.make_record(spec, 'candidate', 18089, legacy_images, 'test')
         output = read_json(candidate['compose'])
         self.assertEqual(spec, saved)
         self.assertNotIn('name', output['networks']['default'])
         self.assertTrue(output['networks']['execution']['internal'])
         self.assertEqual({}, output['volumes']['mojie_files'])
         self.assertTrue(all(service['restart'] == 'no' for service in output['services'].values()))
+        spec['services']['backend']['environment']['MOJIE_SKILL_EXECUTOR_URL'] = 'http://skill-executor:8091'
+        spec['services']['backend']['networks'] = {'default': {}, 'execution': {}}
+        context = driver.make_record(spec, 'context', 18088, RELEASE['images'], 'context')
+        current = read_json(context['compose'])
+        self.assertNotIn('skill-executor', current['services'])
+        self.assertNotIn('execution', current['networks'])
+        self.assertNotIn('execution', current['services']['backend']['networks'])
+        self.assertNotIn('MOJIE_SKILL_EXECUTOR_URL', current['services']['backend']['environment'])
+        self.assertEqual(['backend', 'nginx'], driver.application_services(context))
+        self.assertEqual(['backend', 'skill-executor', 'nginx'], driver.application_services(candidate))
+        with patch.object(driver, 'command', return_value=MagicMock()) as command:
+            with patch.object(driver, 'verify', return_value=None):
+                driver.resume(context)
+            command.assert_called_once_with(context, 'start', 'postgres', 'backend', 'nginx')
+
 
     def test_initial_registration_rejects_shared_or_remapped_data(self):
         spec = {'volumes': {name: {'name': 'live_' + name} for name in ('mojie_files', 'mojie_pgdata')},
@@ -220,6 +238,27 @@ class DeploymentTest(unittest.TestCase):
 
 
 class BackupFailureTest(unittest.TestCase):
+    def test_context_only_backup_stops_and_recovers_only_existing_writers(self):
+        spec = importlib.util.spec_from_file_location('backup', Path(__file__).with_name('backup-conversation-skills.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            def check_output(command, **kwargs):
+                if '--services' in command: return 'backend\n'
+                if 'inspect' in command: return json.dumps([{'Mounts': [{'Destination': '/data', 'Type': 'volume', 'Name': 'files'}]}])
+                if 'psql' in command: return '{"versions":[],"files":[],"artifacts":[]}'
+                return 'container'
+            def run(command, **kwargs):
+                if 'pg_dump' in command: raise subprocess.CalledProcessError(1, command)
+            with patch.object(module.subprocess, 'check_output', side_effect=check_output), \
+                 patch.object(module.subprocess, 'run', side_effect=run) as calls:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    module.backup(['docker', 'compose'], Path(directory) / 'backup')
+                commands = [call.args[0] for call in calls.call_args_list]
+                self.assertIn(['docker', 'compose', 'stop', '-t', '60', 'backend'], commands)
+                self.assertIn(['docker', 'compose', 'start', 'backend'], commands)
+                self.assertFalse(any('skill-executor' in command for command in commands))
+
     def test_file_validation_detects_startup_damage_and_allows_only_expired_artifacts(self):
         import hashlib
         import sys
@@ -268,6 +307,27 @@ class BackupFailureTest(unittest.TestCase):
                 self.assertFalse((output / 'complete.json').exists())
                 self.assertFalse(any('start' in call.args[0] for call in calls.call_args_list))
                 self.assertTrue(any('actual_files:/data:ro' in call.args[0] for call in calls.call_args_list))
+
+
+class ReleaseManifestTest(unittest.TestCase):
+    def test_ci_assembles_a_complete_context_only_release(self):
+        import sys
+        spec = importlib.util.spec_from_file_location('release', Path(__file__).with_name('create-deployment-release.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, reference in RELEASE['images'].items():
+                write_json(root / (name + '.json'), {name: reference})
+            output = root / 'release.json'
+            with patch.object(sys, 'argv', ['release', '--parts', directory, '--output', str(output)]), \
+                 patch.dict('os.environ', {'GITHUB_REPOSITORY': RELEASE['repository'],
+                     'GITHUB_SHA': RELEASE['commit'], 'GITHUB_REF': RELEASE['sourceRef'],
+                     'GITHUB_RUN_ID': '42', 'GITHUB_RUN_NUMBER': '2', 'GITHUB_RUN_ATTEMPT': '1'}):
+                module.main()
+            result = validate_release(read_json(output), RELEASE['repository'])
+            self.assertEqual(2, result['deploymentContract'])
+            self.assertEqual({'backend', 'web'}, set(result['images']))
 
 
 if __name__ == '__main__': unittest.main()

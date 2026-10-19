@@ -91,7 +91,14 @@ const model = http.createServer(async (request, reply) => {
       .filter(block => block.type === 'tool_result')
     let content
     let stopReason
-    if (createDrafts && !replies.length) {
+    if (instruction.includes('E2E_SKILL_CONTEXT') && !replies.some(block => block.tool_use_id.startsWith('browser-reference-'))) {
+      content = [{ type: 'tool_use', id: `browser-reference-${++serial}`, name: 'read_skill_file',
+        input: { skillId: explicit[0].skillId, relativePath: 'references/r.md' } }]
+      stopReason = 'tool_use'
+    } else if (instruction.includes('E2E_SKILL_CONTEXT') && !replies.some(block => block.tool_use_id.startsWith('browser-settings-'))) {
+      content = [{ type: 'tool_use', id: `browser-settings-${++serial}`, name: 'read_settings', input: { settingIds: [settingId] } }]
+      stopReason = 'tool_use'
+    } else if (createDrafts && !replies.length) {
       content = ['任务', '世界观', '写作约束'].map(title => ({ type: 'tool_use', id: `browser-create-${++serial}`, name: 'propose_setting_edit', input: {
         operation: 'CREATE', proposedType: title === '世界观' ? 'WORLD' : 'RULE', proposedTitle: title, proposedContent: `${title}完整草稿`, reason: '根据构思创建' } }))
       content.push({ type: 'tool_use', id: `browser-create-${++serial}`, name: 'propose_chapter_edit', input: {
@@ -121,7 +128,7 @@ const model = http.createServer(async (request, reply) => {
       const match = search.data.matches.find(match => match.chapterId === targetId) || search.data.matches[0]
       content = [{ type: 'tool_use', id: `browser-read-${++serial}`, name: 'read_chapter', input: { chapterId: match.chapterId } }]
       stopReason = 'tool_use'
-    } else if (!replies.length) {
+    } else if (!replies.some(block => block.tool_use_id.startsWith('browser-read-'))) {
       content = [{ type: 'tool_use', id: `browser-read-${++serial}`, name: 'read_chapter', input: { chapterId: targetId } }]
       stopReason = 'tool_use'
     } else if ((instruction.includes('E2E_EDIT') || searchEdit) && !replies.some(block => block.tool_use_id.startsWith('browser-edit-'))) {

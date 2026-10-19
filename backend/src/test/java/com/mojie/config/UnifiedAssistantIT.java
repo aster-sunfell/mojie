@@ -67,7 +67,7 @@ class UnifiedAssistantIT {
       agent.startup().start();
       try {
         var skills = new SkillService(
-            new JdbcSkillRepository(source), new FileSkillStorage(data), new HttpSkillExecutor(null),
+            new JdbcSkillRepository(source), new FileSkillStorage(data),
             tx, PageCursor.configured());
         var service = new ConversationConfiguration().createConversationService(
             source, tx, PageCursor.configured(), content, agent, skills,
@@ -206,7 +206,6 @@ class UnifiedAssistantIT {
             new SkillService(
                 new JdbcSkillRepository(source),
                 new FileSkillStorage(data),
-                new HttpSkillExecutor(null),
                 tx,
                 PageCursor.configured());
         var service =

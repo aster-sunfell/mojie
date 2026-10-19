@@ -28,7 +28,6 @@ public class ConversationConfiguration {
         new JdbcSkillRepository(db),
         new FileSkillStorage(
             Path.of(System.getenv().getOrDefault("MOJIE_DATA_DIR", ".mojie-data"))),
-        new HttpSkillExecutor(System.getenv("MOJIE_SKILL_EXECUTOR_URL")),
         tx,
         cursor);
   }
@@ -101,7 +100,7 @@ public class ConversationConfiguration {
       Supplier<Map<String, Object>> metadata) {
     var repository = new JdbcConversationRepository(db);
     var event = new JdbcRunEventRepository(db);
-    var tools = new SkillTools(skills, repository, tx, event);
+    var tools = new SkillTools(skills, repository);
     agent
         .runs()
         .conversationRuntime(new ContextBuilder(repository, tools, model, agent.trace(), tx));

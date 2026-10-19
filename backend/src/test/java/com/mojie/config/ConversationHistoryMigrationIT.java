@@ -43,7 +43,7 @@ class ConversationHistoryMigrationIT {
           "test-cursor-key-123456".getBytes(), ModelApiConfig.MESSAGES, 1000000, true, true);
       try {
         var skills = new SkillService(new JdbcSkillRepository(source), new FileSkillStorage(data),
-            new HttpSkillExecutor(null), tx, cursor);
+            tx, cursor);
         String project = (String) content.projects().createProject("迁移测试").get("id");
         String recent = UUID.randomUUID().toString();
         String archived = UUID.randomUUID().toString();

@@ -13,13 +13,13 @@ def main():
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
     images = {}
-    for name in ('backend', 'executor', 'web'):
+    for name in ('backend', 'web'):
         part = json.loads((Path(args.parts) / (name + '.json')).read_text())
         if set(part) != {name}:
             raise ValueError('Unexpected image artifact')
         images.update(part)
     release = {
-        'schemaVersion': 1, 'deploymentContract': 1,
+        'schemaVersion': 1, 'deploymentContract': 2,
         'repository': os.environ['GITHUB_REPOSITORY'],
         'commit': os.environ['GITHUB_SHA'], 'sourceRef': os.environ['GITHUB_REF'],
         'runId': int(os.environ['GITHUB_RUN_ID']),

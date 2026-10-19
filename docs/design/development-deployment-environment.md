@@ -83,15 +83,14 @@ sh scripts/start-local-backend.sh
 
 [工作流](../../.github/workflows/images.yml) 在 `main` 的 push、面向 `main` 的 PR 和手动触发时运行。后端测试 job 启动独立 PostgreSQL 18，执行 `mvn verify`，覆盖单元测试、数据库集成和本地模拟模型 HTTP 测试；不会调用真实模型。前端 job 执行 `npm ci`、`npm test` 和 `npm run build`。浏览器端到端测试仍按 README 单独运行，不包含在本工作流中。
 
-两个测试 job 全部通过后，只对 `main` 发布镜像。构建 job 使用现有 Dockerfile 并行发布 `backend`、`executor` 和 `web`，平台为 `linux/amd64`，使用 GitHub Actions 缓存。ARM 服务器需先调整构建平台。CI 使用自带的 `GITHUB_TOKEN`；镜像发布增加 `packages: write`，清单证明 job 使用 `id-token: write` 和 `attestations: write`，无需服务器 SSH 密钥。
+两个测试 job 全部通过后，只对 `main` 发布镜像。构建 job 使用现有 Dockerfile 并行发布 `backend` 和 `web`，平台为 `linux/amd64`，使用 GitHub Actions 缓存。ARM 服务器需先调整构建平台。CI 使用自带的 `GITHUB_TOKEN`；镜像发布增加 `packages: write`，清单证明 job 使用 `id-token: write` 和 `attestations: write`，无需服务器 SSH 密钥。
 
 | 镜像 | 内容 |
 | --- | --- |
 | `ghcr.io/aster-sunfell/mojie-backend:<完整提交SHA>` | Java 21 JRE 与可执行 JAR |
-| `ghcr.io/aster-sunfell/mojie-executor:<完整提交SHA>` | 可信 Skill 执行协调器 |
 | `ghcr.io/aster-sunfell/mojie-web:<完整提交SHA>` | Nginx、静态页面与 API / SSE 代理配置 |
 
-每个发布 job 的 Summary 显示镜像地址、digest 和可复制的镜像环境变量。必须等待整个工作流成功，确认三个镜像及统一发布清单都完成；部分成功或被取消的工作流不能作为发布依据。自动部署使用已证明来源的 digest；手动重跑同一提交可能重新构建 SHA 标签，审计时结合 digest 确认实际镜像。
+每个发布 job 的 Summary 显示镜像地址、digest 和可复制的镜像环境变量。必须等待整个工作流成功，确认两个镜像及统一发布清单都完成；部分成功或被取消的工作流不能作为发布依据。自动部署使用已证明来源的 digest；手动重跑同一提交可能重新构建 SHA 标签，审计时结合 digest 确认实际镜像。
 
 GHCR 新包默认可能为私有，即使源码仓库公开也不代表包公开。私有包拉取前在服务器执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有包读取权限和 `read:packages` scope 的 PAT（classic），不使用 GitHub 登录密码。公开包无需登录；是否公开由用户在包设置中选择。构建推送遇到包权限错误时，检查 Actions 是否允许运行、发布 job 的 `packages: write` 权限，以及已有包是否向本仓库授予 Actions 写权限。
 

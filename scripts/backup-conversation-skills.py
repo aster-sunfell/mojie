@@ -21,7 +21,8 @@ def backup(compose, output, database='mojie', user='mojie', keep_stopped=False):
     running = subprocess.check_output([*compose, 'ps', '--status', 'running', '--services'], text=True).split()
     writers = [service for service in ('backend', 'skill-executor') if service in running]
     try:
-        subprocess.run([*compose, 'stop', '-t', '60', 'backend', 'skill-executor'], check=True)
+        if writers:
+            subprocess.run([*compose, 'stop', '-t', '60', *writers], check=True)
         postgres = subprocess.check_output([*compose, 'ps', '-q', 'postgres'], text=True).strip()
         backend = subprocess.check_output([*compose, 'ps', '-a', '-q', 'backend'], text=True).strip()
         if not postgres or not backend:

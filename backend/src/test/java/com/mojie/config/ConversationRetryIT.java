@@ -75,7 +75,6 @@ class ConversationRetryIT {
             new SkillService(
                 new JdbcSkillRepository(source),
                 new FileSkillStorage(data),
-                new HttpSkillExecutor(null),
                 tx,
                 PageCursor.configured());
         var service =

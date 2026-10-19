@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { mockWorkspace } from './fixtures/workspace.mjs'
 
-async function mockSkills(page) {
+async function mockSkills(page, { unsupported = false } = {}) {
   const items = [
     { skill: { id: 'character', name: '人物检查', enabled: true, version: 1, currentVersionId: 'v-character' }, currentVersion: { id: 'v-character', status: 'READY', metadata: { description: '检查人物行为与设定是否一致' } } },
     { skill: { id: 'outline', name: '大纲整理', enabled: false, version: 1, currentVersionId: 'v-outline' }, currentVersion: { id: 'v-outline', status: 'READY', metadata: { description: '梳理故事结构与章节节奏' } } },
@@ -10,7 +10,7 @@ async function mockSkills(page) {
   await page.route('**/api/v1/skills**', async route => {
     const request = route.request(), path = new URL(request.url()).pathname.replace('/api/v1', '')
     const data = value => route.fulfill({ json: { data: value } })
-    if (path === '/skills/capabilities') return data({ maxRawUploadBytes: 10485760, maxFiles: 500, executor: { configured: false } })
+    if (path === '/skills/capabilities') return data({ maxRawUploadBytes: 10485760, maxFiles: 500, mode: 'CONTEXT_ONLY', scriptExecution: false })
     if (path === '/skills') return data({ items, nextCursor: null })
     if (path === '/skills/import') {
       const imported = { skill: { id: 'imported', name: '表达润色', enabled: false, version: 1, currentVersionId: 'v-imported' }, currentVersion: { id: 'v-imported', status: 'READY', metadata: { description: '调整文字表达' } } }
@@ -21,7 +21,7 @@ async function mockSkills(page) {
     if (!item) return route.fulfill({ status: 404, json: { code: 'RESOURCE_NOT_FOUND' } })
     if (path.endsWith('/files/body')) return route.fulfill({ contentType: 'text/markdown', body: body(item) })
     if (path.endsWith('/versions')) return data({ items: [{ ...item.currentVersion, createdAt: '2026-10-12T00:00:00Z' }], nextCursor: null })
-    if (path.includes('/versions/')) return data({ version: { ...item.currentVersion, compatibility: { partialExecution: false } }, files: [{ id: 'body', relativePath: 'SKILL.md', sizeBytes: 200, mime: 'text/markdown' }] })
+    if (path.includes('/versions/')) return data({ version: { ...item.currentVersion, compatibility: { mode: 'CONTEXT_ONLY', scriptExecution: false, warnings: unsupported ? ['此包包含脚本，本项目不执行脚本；文件仅保留供预览和导出。'] : [], scripts: unsupported ? ['scripts/check.py'] : [] } }, files: [{ id: 'body', relativePath: 'SKILL.md', sizeBytes: 200, mime: 'text/markdown' }] })
     if (request.method() === 'PATCH') { Object.assign(item.skill, request.postDataJSON()); item.skill.version++; return data(item.skill) }
     return data(item)
   })
@@ -103,3 +103,41 @@ test('home settings imports a Skill and exposes it for management', async ({ pag
   await settings.getByRole('searchbox', { name: '搜索 Skill' }).fill('表达')
   await expect(settings.locator('.skillCard')).toHaveCount(1)
 })
+
+for (const mobile of [false, true]) {
+  test(`Skill creation guide keeps library state on ${mobile ? 'mobile' : 'desktop'}`, async ({ page }) => {
+    if (mobile) await page.setViewportSize({ width: 390, height: 844 })
+    await page.route('**/api/v1/system/maintenance', route => route.fulfill({ json: { data: { active: false } } }))
+    await page.route('**/api/v1/projects?**', route => route.fulfill({ json: { data: { items: [], nextCursor: null } } }))
+    await mockSkills(page, { unsupported: true })
+    await page.goto('/')
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: '设置', exact: true })
+    await settings.getByRole('searchbox', { name: '搜索 Skill' }).fill('人物')
+    await settings.getByRole('button', { name: /人物检查/ }).click()
+    await expect(settings.getByRole('note')).toContainText('scripts/check.py')
+    await settings.getByRole('button', { name: '添加 Skill' }).click()
+    await settings.getByRole('button', { name: '编辑并发布新版本' }).click()
+    await settings.getByLabel('Skill 文件内容').fill('尚未保存的 Skill 编辑')
+    await settings.getByRole('button', { name: '如何创建 Skill →' }).click()
+    await expect(settings.getByRole('heading', { name: '如何创建 Skill' })).toBeVisible()
+    await expect(settings.getByRole('table')).toContainText('read_project')
+    expect(await settings.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true)
+    const downloadPromise = page.waitForEvent('download')
+    await settings.getByRole('button', { name: '下载 SKILL.md 模板' }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe('SKILL.md')
+    const stream = await download.createReadStream()
+    const chunks = []
+    for await (const chunk of stream) chunks.push(chunk)
+    const template = Buffer.concat(chunks).toString('utf8')
+    expect(template).toMatch(/^---\nname: 人物一致性审稿/)
+    expect(template).toContain('read_chapter')
+    await page.screenshot({ path: `test-results/skill-guide-${mobile ? 'mobile' : 'desktop'}.png` })
+    await settings.getByRole('button', { name: '返回 Skill 库' }).click()
+    await expect(settings.getByRole('searchbox')).toHaveValue('人物')
+    await expect(settings.getByLabel('导入 Markdown / ZIP', { exact: true })).toBeAttached()
+    await expect(settings.getByLabel('Skill 文件内容')).toHaveValue('尚未保存的 Skill 编辑')
+    await expect(settings.getByRole('button', { name: '如何创建 Skill →' })).toBeFocused()
+  })
+}

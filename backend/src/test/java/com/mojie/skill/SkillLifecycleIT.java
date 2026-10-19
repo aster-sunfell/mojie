@@ -22,6 +22,60 @@ class SkillLifecycleIT {
   @TempDir Path data;
 
   @Test
+  void historicalPackagesUseCurrentPolicyAndPreserveUnsupportedFiles() throws Exception {
+    try (TestDatabase database = new TestDatabase()) {
+      var source = database.source();
+      Flyway.configure().dataSource(source).load().migrate();
+      var repository = new JdbcSkillRepository(source);
+      var skills =
+          new SkillService(
+              repository,
+              new FileSkillStorage(data),
+              TestServices.transactions(source),
+              PageCursor.configured());
+      byte[] script = "raise Exception('must never run')".getBytes(StandardCharsets.UTF_8);
+      var upload =
+          skills.importPackage(
+              null,
+              Map.of(
+                  "SKILL.md",
+                  "---\nname: context-only\ndescription: 检查人物\nallowed-tools: Bash\n---\n先读取人物设定。\n"
+                      .getBytes(StandardCharsets.UTF_8),
+                  "scripts/check.py",
+                  script,
+                  "references/r.md",
+                  "参考".getBytes(StandardCharsets.UTF_8)));
+      assertEquals("READY", upload.status());
+      var db = new JdbcAccess(source);
+      db.update(
+          "UPDATE tb_skill_version SET"
+              + " compatibility='{\"environment\":{\"configured\":true},\"partialExecution\":false}'"
+              + " WHERE id=?::uuid",
+          upload.versionId());
+      var version = skills.requireVersion(upload.skillId(), upload.versionId());
+      assertEquals("CONTEXT_ONLY", version.compatibility().path("mode").asText());
+      assertFalse(version.compatibility().path("scriptExecution").asBoolean(true));
+      assertEquals(2, version.compatibility().path("warnings").size());
+      assertFalse(skills.capabilities().containsKey("executor"));
+      var scriptFile =
+          repository.files(version.id()).stream()
+              .filter(f -> f.relativePath().equals("scripts/check.py"))
+              .findFirst()
+              .orElseThrow();
+      assertArrayEquals(script, skills.read(upload.skillId(), version.id(), scriptFile.id()));
+      assertArrayEquals(
+          script,
+          skills
+              .storage()
+              .unpack(skills.export(upload.skillId(), version.id()))
+              .get("scripts/check.py"));
+      assertEquals(
+          0,
+          ((Number) db.first("SELECT count(*) AS n FROM tb_skill_execution").get("n")).intValue());
+    }
+  }
+
+  @Test
   void concurrentReservationsRespectQuotaAndReleaseExactlyOnce() throws Exception {
     try (TestDatabase database = new TestDatabase()) {
       var source = database.source();
@@ -46,10 +100,7 @@ class SkillLifecycleIT {
                       tx.required(
                           () -> {
                             repository.reserve(
-                                id,
-                                null,
-                                60 * 1024 * 1024L,
-                                UUID.randomUUID().toString());
+                                id, null, 60 * 1024 * 1024L, UUID.randomUUID().toString());
                             return null;
                           });
                       return id;
@@ -97,12 +148,7 @@ class SkillLifecycleIT {
       var tx = TestServices.transactions(source);
       var repository = new JdbcSkillRepository(source);
       var skills =
-          new SkillService(
-              repository,
-              new FileSkillStorage(data),
-              new HttpSkillExecutor(null),
-              tx,
-              PageCursor.configured());
+          new SkillService(repository, new FileSkillStorage(data), tx, PageCursor.configured());
       var db = new JdbcAccess(source);
       byte[] body =
           "---\nname: lifecycle\ndescription: 状态与配额\n---\n指导\n".getBytes(StandardCharsets.UTF_8);

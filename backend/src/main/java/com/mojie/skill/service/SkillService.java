@@ -14,15 +14,12 @@ import java.util.*;
 public final class SkillService {
   private final SkillRepository repo;
   private final SkillStorage storage;
-  private final SkillExecutor executor;
   private final TransactionRunner tx;
   private final PageCursor cursors;
 
-  public SkillService(
-      SkillRepository r, SkillStorage s, SkillExecutor e, TransactionRunner t, PageCursor c) {
+  public SkillService(SkillRepository r, SkillStorage s, TransactionRunner t, PageCursor c) {
     repo = r;
     storage = s;
-    executor = e;
     tx = t;
     cursors = c;
   }
@@ -31,14 +28,10 @@ public final class SkillService {
     for (var upload : repo.unfinishedUploads())
       tx.required(
           () -> {
-            repo.fail(
-                upload.id(),
-                "SERVICE_RESTARTED",
-                "Upload interrupted by service restart");
+            repo.fail(upload.id(), "SERVICE_RESTARTED", "Upload interrupted by service restart");
             return null;
           });
     for (var execution : repo.unfinishedExecutions()) {
-      executor.stop(execution.id());
       tx.required(
           () -> {
             repo.finishExecution(
@@ -88,12 +81,27 @@ public final class SkillService {
     return storage;
   }
 
-  public SkillExecutor executor() {
-    return executor;
-  }
-
   public List<RunSkill> runSkills(String run) {
-    return repo.runSkills(run);
+    return repo.runSkills(run).stream()
+        .map(
+            s ->
+                new RunSkill(
+                    s.skillId(),
+                    s.versionId(),
+                    s.source(),
+                    s.loaded(),
+                    s.providedToModel(),
+                    s.loadedMessageSeq(),
+                    s.name(),
+                    s.metadata(),
+                    tree(
+                        encode(
+                            SkillPolicy.compatibility(
+                                repo.files(s.versionId()).stream()
+                                    .map(FileEntry::relativePath)
+                                    .toList(),
+                                s.metadata())))))
+        .toList();
   }
 
   public List<Artifact> runArtifacts(String run) {
@@ -118,8 +126,10 @@ public final class SkillService {
         1073741824L,
         "maxSkillBytes",
         65536,
-        "executor",
-        executor.capabilities());
+        "mode",
+        "CONTEXT_ONLY",
+        "scriptExecution",
+        false);
   }
 
   public Upload importPackage(String skill, Map<String, byte[]> files) {
@@ -164,25 +174,28 @@ public final class SkillService {
   }
 
   private Map<String, Object> compatibility(Published p) {
-    List<String> scripts =
-        p.files().stream()
-            .filter(f -> !f.mime().equals("inode/directory"))
-            .map(PackageFile::path)
-            .filter(x -> x.startsWith("scripts/"))
-            .toList();
-    boolean unsupported =
-        scripts.stream()
-            .anyMatch(x -> !x.endsWith(".py") && !x.endsWith(".js") && !x.endsWith(".mjs"));
-    var environment = executor.capabilities();
-    return Map.of(
-        "readable",
-        true,
-        "scripts",
-        scripts,
-        "partialExecution",
-        unsupported || (!scripts.isEmpty() && !Boolean.TRUE.equals(environment.get("configured"))),
-        "environment",
-        environment);
+    return SkillPolicy.compatibility(
+        p.files().stream().map(PackageFile::path).toList(), tree(encode(p.metadata())));
+  }
+
+  // Re-evaluate old versions against today's capabilities without mutating immutable packages.
+  private Version contextVersion(Version v) {
+    if (v == null) return null;
+    return new Version(
+        v.id(),
+        v.skillId(),
+        v.packageHash(),
+        v.storageKey(),
+        v.status(),
+        v.metadata(),
+        v.sizeBytes(),
+        v.fileCount(),
+        tree(
+            encode(
+                SkillPolicy.compatibility(
+                    repo.files(v.id()).stream().map(FileEntry::relativePath).toList(),
+                    v.metadata()))),
+        v.createdAt());
   }
 
   public Upload upload(String id) {
@@ -207,12 +220,15 @@ public final class SkillService {
     if (v == null) throw missing();
     if (!v.status().equals("READY"))
       throw new BusinessException("SKILL_PACKAGE_UNAVAILABLE", "Skill package unavailable");
-    return v;
+    return contextVersion(v);
   }
 
   public Map<String, Object> detail(String id) {
     Skill s = requireSkill(id);
-    Version v = s.currentVersionId() == null ? null : repo.version(id, s.currentVersionId());
+    Version v =
+        s.currentVersionId() == null
+            ? null
+            : contextVersion(repo.version(id, s.currentVersionId()));
     Map<String, Object> m = new LinkedHashMap<>();
     m.put("skill", s);
     m.put("currentVersion", v);
@@ -261,7 +277,7 @@ public final class SkillService {
     boolean more = rows.size() > size;
     var items = rows.subList(0, Math.min(size, rows.size()));
     Map<String, Object> result = new LinkedHashMap<>();
-    result.put("items", items);
+    result.put("items", items.stream().map(this::contextVersion).toList());
     result.put("hasMore", more);
     result.put(
         "nextCursor",
@@ -271,8 +287,7 @@ public final class SkillService {
     return result;
   }
 
-  public Skill patch(
-      String id, long expected, Boolean enabled, String version, boolean deleted) {
+  public Skill patch(String id, long expected, Boolean enabled, String version, boolean deleted) {
     return tx.required(
         () -> {
           repo.lockQuota();

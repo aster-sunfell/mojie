@@ -22,27 +22,6 @@ services:
       - mojie_files:/data
     restart: "no"
 
-  skill-executor:
-    image: "${MOJIE_EXECUTOR_IMAGE:-${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-executor:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG}}"
-    restart: always
-    # The trusted coordinator needs the host daemon on SELinux hosts.
-    # Uploaded scripts still run in separate containers with their own labels.
-    security_opt: ["label=disable"]
-    environment:
-      MOJIE_EXECUTOR_BIND: 0.0.0.0
-      MOJIE_EXECUTOR_WORK_DIR: "${MOJIE_EXECUTOR_WORK_DIR:-/var/lib/mojie-executor}"
-      MOJIE_PYTHON_IMAGE: "${MOJIE_PYTHON_IMAGE:-python@sha256:a3ab0b966bc4e91546a033e22093cb840908979487a9fc0e6e38295747e49ac0}"
-      MOJIE_NODE_IMAGE: "${MOJIE_NODE_IMAGE:-node@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c}"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - "${MOJIE_EXECUTOR_WORK_DIR:-/var/lib/mojie-executor}:${MOJIE_EXECUTOR_WORK_DIR:-/var/lib/mojie-executor}:z"
-    networks: [execution]
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8091/health', timeout=3)"]
-      interval: 5s
-      timeout: 5s
-      retries: 6
-
   backend:
     image: "${MOJIE_BACKEND_IMAGE:-${MOJIE_IMAGE_PREFIX:-ghcr.io/aster-sunfell/mojie}-backend:${MOJIE_IMAGE_TAG:?Set MOJIE_IMAGE_TAG to a successful CI commit SHA in deploy/.env.prod}}"
     restart: always
@@ -54,11 +33,9 @@ services:
     volumes:
       - mojie_files:/data
       - "${MOJIE_CONTROL_DIR:-./control}:/run/mojie-control:ro,z"
-    networks: [default, execution]
     environment:
       MOJIE_DATA_DIR: /data
       MOJIE_MAINTENANCE_FILE: /run/mojie-control/maintenance
-      MOJIE_SKILL_EXECUTOR_URL: http://skill-executor:8091
       MOJIE_DB_URL: jdbc:postgresql://postgres:5432/mojie
       MOJIE_DB_USER: mojie
       MOJIE_DB_PASSWORD: "${MOJIE_DB_PASSWORD:?Set MOJIE_DB_PASSWORD in deploy/.env.prod}"
@@ -95,7 +72,3 @@ services:
 volumes:
   mojie_pgdata:
   mojie_files:
-
-networks:
-  execution:
-    internal: true

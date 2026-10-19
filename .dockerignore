@@ -3,7 +3,8 @@
 .codex/
 .aws/
 reference/
-docs/
+docs/*
+!docs/user-guide/
 scripts/
 backend/
 web/node_modules/

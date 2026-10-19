@@ -335,26 +335,6 @@ public final class FileSkillStorage implements SkillStorage {
     }
   }
 
-  public void saveArtifact(String id, byte[] bytes) {
-    UUID.fromString(id);
-    if (bytes.length > FILE_LIMIT) throw limit();
-    try {
-      Path dir = root.resolve("artifacts/" + id);
-      Files.createDirectory(dir);
-      try (FileChannel ch =
-          FileChannel.open(
-              dir.resolve("file"), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-        ByteBuffer b = ByteBuffer.wrap(bytes);
-        while (b.hasRemaining()) ch.write(b);
-        ch.force(true);
-      }
-      sync(dir);
-      sync(dir.getParent());
-    } catch (IOException e) {
-      throw unavailable();
-    }
-  }
-
   public byte[] artifact(Artifact file) {
     try {
       Path path = root.resolve("artifacts/" + UUID.fromString(file.id()) + "/file");

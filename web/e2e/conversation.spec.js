@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 
 test('persistent conversations isolate history and manage complete Skills', async ({ page, request }) => {
   const project = (await (await request.post('http://127.0.0.1:18080/api/v1/projects', { data: { title: `对话测试-${Date.now()}` } })).json()).data
@@ -56,4 +57,41 @@ test('persistent conversations isolate history and manage complete Skills', asyn
   await expect(page.locator('.conversationMessage.assistant .assistantAnswer')).toHaveCount(4)
   const nextMessages = (await (await request.get(`http://127.0.0.1:18080/api/v1/conversations/${first}/messages`)).json()).data.items
   expect(nextMessages.find(message => message.content === '继续讨论').skillMentions).toEqual([])
+})
+
+
+test('context-only Skill guidance works with project reads and preserves unsupported files', async ({ page, request }) => {
+  const api = 'http://127.0.0.1:18080/api/v1'
+  const project = (await (await request.post(`${api}/projects`, { data: { title: '上下文 Skill 验证' } })).json()).data
+  const chapter = (await (await request.post(`${api}/projects/${project.id}/chapters`, { data: { title: '人物行为' } })).json()).data
+  const setting = (await (await request.post(`${api}/projects/${project.id}/settings`, { data: { type: 'CHARACTER', title: '林舟', content: '林舟不会游泳。' } })).json()).data
+  const content = '林舟沿桥走到了对岸。'
+  await request.put(`${api}/chapters/${chapter.id}/content`, { data: { content, expectedVersion: chapter.version } })
+  const name = `context-${Date.now()}`
+  const guide = readFileSync(new URL('../../docs/user-guide/skills.md', import.meta.url), 'utf8')
+  const template = guide.match(/```markdown\n([\s\S]*?)\n```/)[1].replace('name: 人物一致性审稿', `name: ${name}`)
+  const form = new FormData()
+  for (const [path, text] of [['SKILL.md', template], ['scripts/check.py', "raise Exception('must never run')"], ['references/r.md', '人物行为检查清单']]) {
+    form.append('files', new Blob([text], { type: 'text/plain' }), path.split('/').at(-1))
+    form.append('paths', path)
+  }
+  const imported = (await (await request.post(`${api}/skills/import`, { multipart: form })).json()).data
+  expect(imported.status).toBe('READY')
+  const detail = (await (await request.get(`${api}/skills/${imported.skillId}`)).json()).data
+  expect(detail.currentVersion.compatibility).toMatchObject({ mode: 'CONTEXT_ONLY', scriptExecution: false, scripts: ['scripts/check.py'] })
+  expect(detail.currentVersion.compatibility.warnings).toHaveLength(1)
+  await request.patch(`${api}/skills/${detail.skill.id}`, { data: { expectedVersion: detail.skill.version, enabled: true } })
+  await page.goto(`/projects/${project.id}/chapters/${chapter.id}`)
+  await page.getByRole('textbox', { name: '对话消息' }).fill(`E2E_SKILL_CONTEXT TARGET=${chapter.id} SETTING=${setting.id} 使用 $${name} 分析这一章，不要修改。`)
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await expect(page.locator('.conversationMessage.assistant .assistantAnswer')).toContainText('已核对目标章完整正文')
+  const runs = (await (await request.get(`${api}/agent/runs?projectId=${project.id}`)).json()).data.items
+  expect(runs[0].status).toBe('SUCCEEDED')
+  const run = (await (await request.get(`${api}/agent/runs/${runs[0].id}`)).json()).data
+  expect(run.steps.map(step => step.toolName)).toEqual(['read_skill', 'read_skill_file', 'read_settings', 'read_chapter'])
+  const resources = (await (await request.get(`${api}/agent/runs/${run.id}/resources`)).json()).data
+  expect(resources.skills.find(skill => skill.skillId === imported.skillId).providedToModel).toBe(true)
+  expect(resources.artifacts).toEqual([])
+  expect((await (await request.get(`${api}/chapters/${chapter.id}`)).json()).data.content).toBe(content)
+  expect((await request.delete(`${api}/projects/${project.id}`)).status()).toBe(204)
 })

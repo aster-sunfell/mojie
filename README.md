@@ -10,7 +10,7 @@ AI 小说写作工作台。管理作品、章节和人物 / 世界观设定，�
 
 工作台助手面板的“连续对话”支持新建、切换、重命名及连续消息；历史对话统一展示。普通聊天不需要章节；章节审阅与修改须选择并保存目标章。Skill 库支持 Markdown、ZIP 和目录文件上传、文件树预览、启停、不可变版本、文本编辑、回滚及完整导出；显式选择或固定版本与每轮自动发现共存。
 
-Skill 脚本使用独立执行器，需要预拉固定 Python/Node 镜像并配置 `MOJIE_SKILL_EXECUTOR_URL`；见 [执行器说明](executor/README.md)。未配置执行器时仍能读取指导及参考。部署新增 `mojie_files` 文件卷；备份须同时包含 PG 和文件，见 [恢复说明](docs/design/conversation-skills-operations.md)。验收证据与尚未签收的故障组合见 [验证记录](docs/verification/conversation-skills-2026-10-02.md)。
+Skill 仅按需加载角色、方法和参考文本，结合当前作品的系统工具工作；不运行脚本、不联网或安装依赖。设置中的“如何创建 Skill”与仓库共用 [创建指南](docs/user-guide/skills.md)。部署新增 `mojie_files` 文件卷；备份须同时包含 PG 和文件，见 [恢复说明](docs/design/conversation-skills-operations.md)。验收证据与尚未签收的故障组合见 [验证记录](docs/verification/conversation-skills-2026-10-02.md)。
 
 新对话采用统一助手：可选章节提供优先上下文，助手按需检索、读取并生成建议；见 [上下文设计](docs/design/unified-assistant-context.md)。
 
@@ -45,7 +45,7 @@ MOJIE_TEST_JDBC_URL=jdbc:postgresql://127.0.0.1:5432/mojie_browser_e2e \
 
 ## 远程部署
 
-采用 GitHub Actions 构建镜像 → GHCR 发布 → 服务器拉取运行。推送 `main` 后，[镜像工作流](.github/workflows/images.yml) 执行后端单元 / PostgreSQL 集成 / 本地模拟模型测试、部署故障测试、前端测试与静态构建，通过后发布 backend、executor、web 三个镜像。全部构建成功后生成包含三个 digest 的 `deployment-release`，并用 GitHub artifact attestation 证明来源。PR 只测试，不发布镜像；手动运行工作流时也只发布 `main`。当前镜像平台是 `linux/amd64`。
+采用 GitHub Actions 构建镜像 → GHCR 发布 → 服务器拉取运行。推送 `main` 后，[镜像工作流](.github/workflows/images.yml) 执行后端单元 / PostgreSQL 集成 / 本地模拟模型测试、部署故障测试、前端测试与静态构建，通过后发布 backend、web 两个镜像。全部构建成功后生成包含两个 digest 的 `deployment-release`，并用 GitHub artifact attestation 证明来源。PR 只测试，不发布镜像；手动运行工作流时也只发布 `main`。当前镜像平台是 `linux/amd64`。
 
 首次手动部署需要 Docker 和 Compose，无需在服务器安装 Maven、Java、Node 或构建镜像。接入自动更新还需要 Python 3、GitHub CLI 和 systemd。首次部署选择 Actions 全部成功的提交，服务器检出同一提交后，复制 `deploy/.env.example` 为 `deploy/.env.prod`，填写数据库密码、稳定的 `MOJIE_CURSOR_KEY` 和 `MOJIE_IMAGE_TAG`（该提交的完整 SHA），按需填写 `MOJIE_MODEL_API_KEY`。GHCR 包默认可能为私有；私有包先执行 `docker login ghcr.io -u aster-sunfell`，在密码提示中输入具有 `read:packages` 权限的 PAT。公开包无需登录。从仓库根目录启动：
 
@@ -68,7 +68,9 @@ HTTP 取消回归可运行 `node scripts/check-http-cancel.mjs`：同样先构�
 | 文档 | 用途 |
 | --- | --- |
 | [MVP PRD v0.3](docs/prd/MVP_PRD_v0.3.md) | 当前开发与验收依据 |
-| [连续对话与完整 Skill PRD v0.1](docs/prd/Conversation_and_Skills_PRD_v0.1.md) | 新功能需求与验收门槛 |
+| [连续对话与 Skill 历史 PRD v0.1](docs/prd/Conversation_and_Skills_PRD_v0.1.md) | 新功能需求与验收门槛 |
+| [Skill 创建指南](docs/user-guide/skills.md) | 用户可用能力、限制、格式和示例；设置内直接展示同一文档 |
+| [上下文 Skill 设计](docs/design/context-only-skills.md) | 当前能力边界、工具规则、历史数据和部署契约 |
 | [连续对话与 Skill 设计](docs/design/conversation-skills.md) | 隔离、输入快照、版本与执行器边界 |
 | [Skill 部署及恢复](docs/design/conversation-skills-operations.md) | 文件卷、执行器、协调备份与独立恢复 |
 | [显式 Agent 工具循环 PRD v0.1](docs/prd/Agent_Tool_Loop_PRD_v0.1.md) | 章节检查的工具循环、预算边界、异常规则与专项验收 |
