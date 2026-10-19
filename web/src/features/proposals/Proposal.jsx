@@ -41,6 +41,7 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
     {items.some(item => item.status === 'PENDING') && <ReviewToolbar items={items} frames={document.frames}
       selected={selected} busy={busy} review={review} onNavigate={navigate} />}
     {notice && <p className="hint" role="status">{notice}</p>}
+    {review.saveFailed && <button className="secondary" disabled={review.saving} onClick={review.retrySave}>重试保存修改</button>}
     {review.error && <p className="error" role="alert">{review.error}</p>}
     {!items.length && proposal.status === 'PENDING' && <button className="secondary" disabled={busy || review.loading} onClick={review.dismiss}>关闭无修改建议</button>}
     <div className="inlineDocument" aria-label="完整正文与修改建议">
@@ -58,8 +59,8 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
         const index = items.findIndex(value => value.id === item.id)
         const pending = item.status === 'PENDING'
         const applied = item.status === 'APPLIED'
-        const status = applied ? item.unsaved ? '已应用到草稿' : `已保存 · 版本 ${item.savedVersion}`
-          : !pending ? item.unsaved ? '已忽略 · 未保存' : '已忽略'
+        const status = item.unsaved ? review.saveFailed ? '保存失败' : '正在保存'
+          : applied ? `已应用 · 版本 ${item.savedVersion}` : !pending ? '已忽略'
             : conflict ? '需要手动确认' : item.preview ? '已调整 · 待应用' : '待处理'
         return <div className={`inlineChange ${selected === index ? 'selectedChange' : ''}`} key={segment.key}
           ref={element => { changes.current[item.id] = element }} tabIndex={-1} onFocus={() => setSelected(index)}>
@@ -68,7 +69,6 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
             <div className="changeActions">
               {pending && <><button disabled={busy || review.loading || conflict} onClick={() => apply([item.id])}>应用</button>
                 <button className="secondary" disabled={busy || review.loading} onClick={() => ignore([item.id])}>忽略</button></>}
-              {item.status === 'IGNORED' && item.unsaved && <button className="link" disabled={busy || review.loading} onClick={() => review.restore(item.id)}>恢复待处理</button>}
               {item.preview && <button className="link" disabled={busy || review.loading} onClick={() => review.resetSuggestion(item.id)}>重置建议</button>}
             </div>
           </div>

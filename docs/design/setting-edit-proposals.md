@@ -24,7 +24,7 @@ V15 移除 run_id 的单建议唯一约束，增加每轮 proposal_index（1–8
 
 作者确认 CREATE 时，同一事务锁作品与建议，校验建议类型及状态，分配正式 ID，写入完整 v1 内容和关联建议的 AGENT 历史，再标记 APPLIED。新章节顺序在保存时分配，默认追加；不会先创建空章再写成 v2。重复保存／并发请求返回同一个已创建目标，不产生额外对象或修订。
 
-UPDATE 保存保留乐观版本控制和 CONFLICTED 状态，绝不覆盖新版本。章节保留原行内差异审阅与保存流程；设定通过 PUT /edit-proposals/{id}/setting 保存审阅稿。CREATE 设定请求省略 expectedVersion；UPDATE 必填。新章节通过 PUT /edit-proposals/{id}/chapter 保存 title/content。两个新建保存结果返回实际 targetSettingId/targetChapterId。
+UPDATE 保存保留乐观版本控制和 CONFLICTED 状态，绝不覆盖新版本。章节行内差异审阅中，应用、忽略及标记手动处理立即提交当前正文与处理状态，无需再次保存；失败保留草稿与处理选择，提供重试。普通手动修改仍需保存正文。设定通过 PUT /edit-proposals/{id}/setting 保存审阅稿。CREATE 设定请求省略 expectedVersion；UPDATE 必填。新章节通过 PUT /edit-proposals/{id}/chapter 保存 title/content。两个新建保存结果返回实际 targetSettingId/targetChapterId。
 
 ## 查询与界面
 

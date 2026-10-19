@@ -57,10 +57,13 @@ test('source view and inline diff preserve customized edits through saving and r
   await page.locator('.drawer').getByRole('button', { name: '关闭' }).click()
   await expect(input).toHaveValue(customized)
   await page.getByRole('button', { name: '应用全部', exact: true }).click()
+  await expect(page.locator('.proposalReview')).toContainText('已应用 · 版本 3')
+  await expect(page.getByRole('button', { name: '保存正文', exact: true })).toBeDisabled()
   const current = page.getByRole('textbox', { name: '修改 1 后的正文' })
   await current.fill(`${customized}用户补写的细节。`)
   await page.getByRole('button', { name: '保存正文', exact: true }).click()
-  await expect(page.locator('.proposalReview')).toContainText('已保存 · 版本 3')
+  await expect(page.locator('.editorHeader')).toContainText('版本 4')
+  await expect(page.locator('.editorHeader')).toContainText('已保存')
   await page.reload()
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(current).toHaveValue(`${customized}用户补写的细节。`)
@@ -69,6 +72,27 @@ test('source view and inline diff preserve customized edits through saving and r
   const runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}&chapterId=${chapterId}`)).json()).data.items
   const proposal = (await (await request.get(`${api}/edit-proposals/${runs[0].proposalId}`)).json()).data
   expect(proposal.items[0].editedContent).toBe(customized)
+})
+
+test('ignoring a suggestion persists immediately, survives reload and releases project deletion', async ({ page, request }) => {
+  const original = (await (await request.get(`${api}/chapters/${chapterId}`)).json()).data
+  await page.goto(`/projects/${projectId}/chapters/${chapterId}`)
+  await page.getByRole('textbox', { name: '对话消息' }).fill('E2E_EDIT 检查设定并提交候选稿。')
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+  expect((await request.delete(`${api}/projects/${projectId}`)).status()).toBe(409)
+  await page.locator('.inlineChange').getByRole('button', { name: '忽略', exact: true }).click()
+  await expect(page.locator('.inlineChange .changeState')).toHaveText('已忽略')
+  await expect(page.locator('.messageProposal')).toContainText('已忽略')
+  await expect(page.getByRole('button', { name: '保存正文', exact: true })).toBeDisabled()
+  const current = (await (await request.get(`${api}/chapters/${chapterId}`)).json()).data
+  expect(current.content).toBe(original.content)
+  expect(current.version).toBe(original.version)
+  await page.reload()
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+  await expect(page.locator('.inlineChange .changeState')).toHaveText('已忽略')
+  expect((await request.delete(`${api}/projects/${projectId}`)).status()).toBe(204)
+  projectId = null
 })
 
 test('selected references and retrieved edit targets stay independent across conversation turns', async ({ page, request }) => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, readableError } from '../../shared/api/client.js'
 import { inlineDocument, reviewStatus } from './merge.js'
 
-export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onDirtyChange }) {
+export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onDirtyChange, onSave, onStatusChange }) {
   const [sessions, setSessions] = useState({})
   const sessionsRef = useRef({})
   const [error, setError] = useState('')
@@ -10,7 +10,11 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
   const [loading, setLoading] = useState(false)
   const [retry, setRetry] = useState(0)
   const lastRetry = useRef(0)
-  const saveEpoch = useRef(0)
+  const scope = useRef(chapterId)
+  scope.current = chapterId
+  const saveAttempt = useRef(0)
+  const [saving, setSaving] = useState(false)
+  const [saveFailed, setSaveFailed] = useState(false)
   const id = run?.status === 'SUCCEEDED' ? run.proposalId : null
   function update(transform) {
     sessionsRef.current = transform(sessionsRef.current)
@@ -19,18 +23,18 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
   }
   useEffect(() => {
     sessionsRef.current = {}; setSessions({}); setError(''); setNotice('')
+    saveAttempt.current++; setSaving(false); setSaveFailed(false)
     onDirtyChange(false)
   }, [chapterId])
   useEffect(() => {
     let cancelled = false
-    const epoch = saveEpoch.current
     const forced = lastRetry.current !== retry
     lastRetry.current = retry
     setError(''); setNotice(''); setLoading(false)
     if (!id || (sessionsRef.current[id] && !forced)) return
     setLoading(true)
     api(`/edit-proposals/${id}`).then(proposal => {
-      if (cancelled || epoch !== saveEpoch.current) return
+      if (cancelled) return
       if (proposal.targetChapterId && proposal.targetChapterId !== chapterId) return
       if (!Array.isArray(proposal.items)) throw new Error('修改审阅需要新版后端，请重启后端后重试。')
       update(current => {
@@ -54,6 +58,21 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
   const dirty = Object.values(sessions).some(value => Object.keys(value.choices).length > 0)
   const hasPendingEdits = Object.values(sessions).some(value => Object.keys(value.previews || {}).length > 0)
 
+  function currentItems(value) {
+    return value.proposal.items.map(item => ({ ...item,
+      status: value.choices[item.id] || item.status,
+      preview: value.previews[item.id], editedContent: value.replacements[item.id] ?? item.editedContent }))
+  }
+  async function persist(message) {
+    const attempt = ++saveAttempt.current
+    const currentChapter = chapterId
+    setSaving(true); setSaveFailed(false); setNotice('正在保存…')
+    const saved = await onSave()
+    if (scope.current !== currentChapter || attempt !== saveAttempt.current) return
+    setSaving(false); setSaveFailed(!saved)
+    setNotice(saved ? message : '保存失败，修改已保留，请重试。')
+  }
+
   function choose(itemIds, status) {
     update(current => {
       const value = current[id]
@@ -64,11 +83,12 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
     })
   }
   function apply(itemIds) {
-    if (!session) return
+    const value = sessionsRef.current[id]
+    if (!value) return
     const original = draftRef.current
     let next = original, conflicts = 0, included = 0
     const applied = []
-    const document = inlineDocument(session.proposal.baseContent, original, items)
+    const document = inlineDocument(value.proposal.baseContent, original, currentItems(value))
     const located = document.segments.filter(frame => frame.type === 'change' && frame.item.status === 'PENDING' && itemIds.includes(frame.item.id))
       .sort((a, b) => (b.range?.start ?? -1) - (a.range?.start ?? -1))
     const replacements = {}
@@ -91,8 +111,10 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
         for (const itemId of applied) { choices[itemId] = 'APPLIED'; delete previews[itemId] }
         return { ...current, [id]: { ...value, choices, previews, replacements: { ...value.replacements, ...replacements } } }
       })
+      persist(`${applied.length} 处已应用${included ? `（其中 ${included} 处正文已包含）` : ''}${conflicts ? `，${conflicts} 处需要手动确认，已保留当前内容` : ''}。`)
+    } else if (conflicts) {
+      setNotice(`${conflicts} 处需要手动确认，已保留当前内容。`)
     }
-    setNotice(`${applied.length} 处已应用到草稿${included ? `（其中 ${included} 处正文已包含）` : ''}${conflicts ? `，${conflicts} 处需要手动确认，已保留当前内容` : ''}。保存正文后生效。`)
   }
   function snapshot() {
     return Object.entries(sessionsRef.current).filter(([, value]) => Object.keys(value.choices).length)
@@ -100,8 +122,12 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
         .map(([itemId, status]) => ({ itemId: Number(itemId), status,
           ...(status === 'APPLIED' && value.replacements?.[itemId] != null ? { editedContent: value.replacements[itemId] } : {}) })) }))
   }
+  function pendingReviews(reviews) {
+    return reviews.map(review => ({ ...review, decisions: review.decisions.filter(choice =>
+      sessionsRef.current[review.proposalId]?.choices[choice.itemId] === choice.status) }))
+      .filter(review => review.decisions.length)
+  }
   function commit(reviews, version) {
-    saveEpoch.current++
     update(current => {
       const next = { ...current }
       for (const review of reviews) {
@@ -119,17 +145,24 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
       }
       return next
     })
-    setNotice('正文和修改处理状态已保存。剩余建议可以继续处理。')
+    for (const review of reviews) {
+      const value = sessionsRef.current[review.proposalId]
+      if (value) onStatusChange?.(review.proposalId, value.proposal.status)
+    }
+    setSaveFailed(false)
+    setNotice('正文和修改处理状态已保存。')
   }
   async function dismiss() {
     setLoading(true); setError('')
     try {
       const result = await api(`/edit-proposals/${id}/reject`, 'POST')
       update(current => ({ ...current, [id]: { ...current[id], proposal: { ...current[id].proposal, ...result } } }))
+      onStatusChange?.(id, result.status)
     } catch (e) { setError(readableError(e)) }
     finally { setLoading(false) }
   }
-  return { id, proposal: session?.proposal, items, dirty, hasPendingEdits, loading, error, notice, apply,
+  return { id, proposal: session?.proposal, items, dirty, hasPendingEdits, loading, error, notice, apply, saving, saveFailed,
+    retrySave: () => persist('正文和修改处理状态已保存。'),
     dismiss,
     editSuggestion: (itemId, text, against) => update(current => {
       const value = current[id]
@@ -140,26 +173,28 @@ export function useProposalReview({ chapterId, run, draftRef, onDraftChange, onD
       return { ...current, [id]: { ...value, previews } }
     }),
     markHandled: itemId => {
-      const frame = inlineDocument(session.proposal.baseContent, draftRef.current, items).frames.find(value => value.item.id === itemId)
+      const value = sessionsRef.current[id]
+      if (!value || value.choices[itemId] || value.proposal.items.find(item => item.id === itemId)?.status !== 'PENDING') return
+      const frame = inlineDocument(value.proposal.baseContent, draftRef.current, currentItems(value)).frames.find(value => value.item.id === itemId)
       update(current => {
         const value = current[id], previews = { ...value.previews }; delete previews[itemId]
         return { ...current, [id]: { ...value, previews, choices: { ...value.choices, [itemId]: 'APPLIED' },
           replacements: { ...value.replacements, ...(frame?.current != null ? { [itemId]: frame.current } : {}) } } }
       })
-      setNotice('已记录为手动处理。请保存正文以保存当前内容和处理状态。')
+      persist('已保存正文并记录为手动处理。')
     },
     ignore: itemIds => {
+      const value = sessionsRef.current[id]
+      if (!value) return
+      itemIds = currentItems(value).filter(item => item.status === 'PENDING' && itemIds.includes(item.id)).map(item => item.id)
+      if (!itemIds.length) return
       choose(itemIds, 'IGNORED')
       update(current => {
         const value = current[id], previews = { ...value.previews }
         for (const itemId of itemIds) delete previews[itemId]
         return { ...current, [id]: { ...value, previews } }
       })
-      setNotice('已忽略所选修改；保存正文后记录处理状态。')
+      persist(`${itemIds.length} 处已忽略。`)
     },
-    restore: itemId => update(current => {
-      const value = current[id], choices = { ...value.choices }; delete choices[itemId]
-      return { ...current, [id]: { ...value, choices } }
-    }),
-    snapshot, commit, retry: () => setRetry(value => value + 1) }
+    snapshot, pendingReviews, commit, retry: () => setRetry(value => value + 1) }
 }

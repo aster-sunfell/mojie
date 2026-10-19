@@ -229,7 +229,7 @@ test('failed save during chapter switch preserves the draft and stays on the cha
   expect(document.querySelector('.editor').value).toBe('未保存的草稿')
 })
 
-test('saving applied suggestions preserves newer typing without follow-up reads', async () => {
+test('applying suggestions saves immediately and preserves newer typing without follow-up reads', async () => {
   window.history.replaceState({}, '', '/projects/p/chapters/c')
   let finishSave
   const saved = new Promise(resolve => { finishSave = resolve })
@@ -255,13 +255,14 @@ test('saving applied suggestions preserves newer typing without follow-up reads'
   fireEvent.click(await screen.findByRole('button', { name: '应用全部' }))
   expect(screen.queryByRole('button', { name: '编辑正文' })).toBeNull()
   expect(screen.getByRole('textbox', { name: '修改 1 后的正文' }).value).toBe('采纳后的正文')
-  fireEvent.click(screen.getByRole('button', { name: '保存正文' }))
+  expect(writes).toHaveLength(1)
+  expect(screen.getByRole('button', { name: '保存正文' }).disabled).toBe(true)
   fireEvent.change(screen.getByRole('textbox', { name: '修改 1 后的正文' }), { target: { value: '采纳后的正文，加上新输入' } })
   await act(async () => { finishSave(reply({ ...chapter, content: '采纳后的正文', version: 2 })) })
   expect(screen.getByRole('textbox', { name: '修改 1 后的正文' }).value).toBe('采纳后的正文，加上新输入')
   expect(writes).toEqual([{ content: '采纳后的正文', expectedVersion: 1,
     proposalReviews: [{ proposalId: 'q', decisions: [{ itemId: 0, status: 'APPLIED' }] }] }])
-  expect(screen.getByText('已保存 · 版本 2')).toBeTruthy()
+  expect(screen.getByText('已应用 · 版本 2')).toBeTruthy()
   expect(fetch.mock.calls.filter(([url]) => url === '/api/v1/chapters/c')).toHaveLength(1)
 })
 

@@ -43,6 +43,7 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   const chapterRef = useRef(chapter)
   const draftRef = useRef(draft)
   const saveInFlight = useRef(null)
+  const saveRequest = useRef(null)
   const reviewDirtyRef = useRef(false)
   const workspaceRef = useRef(null)
   selectedRef.current = selectedChapterId
@@ -60,6 +61,8 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   }, [])
   const review = useProposalReview({ chapterId: selectedChapterId,
     run: reviewRun?.targetChapterId === selectedChapterId ? reviewRun : null, draftRef,
+    onSave: () => saveRequest.current(),
+    onStatusChange: (id, status) => setProposalStatuses(current => ({ ...current, [id]: status })),
     onDraftChange: changeDraft, onDirtyChange: value => {
       reviewDirtyRef.current = value
       if (value) setSaveStatus(current => current === '保存中' ? current : '未保存')
@@ -101,26 +104,32 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
     return () => window.removeEventListener('beforeunload', check)
   }, [dirty, review.hasPendingEdits])
   const save = useCallback(() => {
-    if (saveInFlight.current) return saveInFlight.current
-    if (!chapter || accepting) return Promise.resolve(false)
-    const chapterId = chapter.id
+    const currentChapter = chapterRef.current
+    if (!currentChapter || accepting) return Promise.resolve(false)
+    const chapterId = currentChapter.id
     const submitted = draftRef.current
     const proposalReviews = review.snapshot()
+    const previous = saveInFlight.current
     setSaveStatus('保存中')
     const pending = (async () => {
+      // Each request keeps its own draft and decisions, then uses the version
+      // returned by the preceding save. A failed save stops the queued writes.
+      if (previous && !(await previous)) return false
+      if (selectedRef.current !== chapterId || chapterRef.current?.id !== chapterId) return false
       try {
-        const value = await api(`/chapters/${chapterId}/content`, 'PUT', { content: submitted, expectedVersion: chapter.version,
-          ...(proposalReviews.length ? { proposalReviews } : {}) })
+        const decisions = review.pendingReviews(proposalReviews)
+        const value = await api(`/chapters/${chapterId}/content`, 'PUT', { content: submitted, expectedVersion: chapterRef.current.version,
+          ...(decisions.length ? { proposalReviews: decisions } : {}) })
         if (selectedRef.current !== chapterId) return false
         chapterRef.current = value; setChapter(value)
         setChapters(items => items.map(item => item.id === chapterId
           ? { ...item, title: value.title, version: value.version } : item))
-        review.commit(proposalReviews, value.version)
+        review.commit(decisions, value.version)
         const unchanged = draftRef.current === submitted && !reviewDirtyRef.current
         if (unchanged) { draftRef.current = value.content; setDraft(value.content) }
-        setSaveStatus(unchanged ? '已保存' : '未保存')
+        setSaveStatus(saveInFlight.current !== pending ? '保存中' : unchanged ? '已保存' : '未保存')
         setError('')
-        return selectedRef.current === chapterId && draftRef.current === submitted && !reviewDirtyRef.current
+        return true
       } catch (e) {
         if (selectedRef.current === chapterId) {
           setSaveStatus(e.code === 'VERSION_CONFLICT' ? '版本冲突' : '保存失败')
@@ -132,15 +141,19 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
     saveInFlight.current = pending
     pending.finally(() => { if (saveInFlight.current === pending) saveInFlight.current = null })
     return pending
-  }, [chapter, accepting, review.snapshot, review.commit])
+  }, [accepting, review.snapshot, review.pendingReviews, review.commit])
+  saveRequest.current = save
   useEffect(() => { const key = event => { if (!showSettings && !newChapterProposalId && !applicationSettingsOpen && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }; window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key) }, [save, showSettings, newChapterProposalId, applicationSettingsOpen])
   async function prepareLeave() {
     if (accepting) return
-    if (dirty || review.hasPendingEdits) {
+    // An already confirmed suggestion needs no second confirmation while saving.
+    while (saveInFlight.current) await saveInFlight.current
+    if ((chapterRef.current && draftRef.current !== chapterRef.current.content) || reviewDirtyRef.current || review.hasPendingEdits) {
       const decision = window.prompt(review.hasPendingEdits
         ? '还有未应用的建议调整。输入“保存”保存正文后离开（未应用的建议调整会丢弃）、“放弃”直接离开，或“取消”继续编辑。'
         : '正文未保存。输入“保存”后离开、“放弃”直接离开，或“取消”继续编辑。', '取消')
       if (decision === '保存') return await save()
+        && draftRef.current === chapterRef.current?.content && !reviewDirtyRef.current
       if (decision !== '放弃') return false
     }
     return true

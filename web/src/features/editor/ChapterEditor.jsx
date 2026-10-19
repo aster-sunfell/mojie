@@ -23,7 +23,7 @@ export function ChapterEditor({ chapter, draft, saveStatus, dirty, accepting,
       </div>
       {error && <p className="error">{error}</p>}
       {review?.proposal ? <Proposal review={review} draft={draft}
-        busy={saveStatus === '保存中'} onDraftChange={onDraftChange} />
+        busy={accepting} onDraftChange={onDraftChange} />
         : <div className="editorDocument"><InlineText className="editor" label="章节正文" value={draft} disabled={accepting}
           onChange={onDraftChange} placeholder="从这里开始写作…" /></div>}
       {showHistory && <History chapterId={chapter.id} close={() => onHistoryChange(false)} />}

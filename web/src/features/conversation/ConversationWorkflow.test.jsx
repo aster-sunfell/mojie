@@ -380,7 +380,7 @@ test('missing model metadata recovers without losing the input', async () => {
   expect(input().value).toBe('恢复后发送')
 })
 
-test('a later chat reply preserves the explicitly opened proposal and applied draft', async () => {
+test('a later chat reply preserves the explicitly opened proposal and saved suggestion', async () => {
   const state = setup({ provideProposal: true }); await ready('修改本章')
   fireEvent.click(send()); fireEvent.click(await screen.findByRole('button', { name: '在正文中查看' }))
   fireEvent.click(await screen.findByRole('button', { name: '应用全部' }))
@@ -388,7 +388,9 @@ test('a later chat reply preserves the explicitly opened proposal and applied dr
   await waitFor(() => expect(state.writes).toHaveLength(2))
   await waitFor(() => expect(document.querySelectorAll('.conversationMessage.assistant')).toHaveLength(2))
   expect(screen.getByRole('textbox', { name: '修改 1 后的正文' }).value).toBe('改写正文')
-  expect(state.saves).toHaveLength(0)
+  expect(state.saves).toHaveLength(1)
+  expect(state.saves[0]).toMatchObject({ content: '改写正文',
+    proposalReviews: [{ proposalId: 'q-r1', decisions: [{ itemId: 0, status: 'APPLIED' }] }] })
   expect(screen.getByRole('button', { name: '定位正文修改' })).toBeTruthy()
 })
 

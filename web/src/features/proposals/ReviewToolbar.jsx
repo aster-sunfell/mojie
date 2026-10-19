@@ -20,9 +20,9 @@ export function ReviewToolbar({ items, frames, selected, busy, review, onNavigat
   }
   return <div className="reviewToolbar" role="region" aria-label="修改导航工具栏">
     <div className="reviewCount">
-      <span>{pending.length ? `待处理 ${pending.length} 处` : items.length ? '已全部处理' : '没有修改'}</span>
+      <span>{pending.length ? `待处理 ${pending.length} 处` : unsaved ? review.saveFailed ? '保存失败' : '正在保存' : items.length ? '已全部处理' : '没有修改'}</span>
       {!!conflicts && <span className="conflictState"> · 待确认 {conflicts} 处</span>}
-      {!!unsaved && <span> · 待保存 {unsaved} 处</span>}
+      {!!unsaved && !!pending.length && <span> · {review.saveFailed ? '保存失败' : '正在保存'} {unsaved} 处</span>}
     </div>
     <div className="reviewToolbarControls">
       <div className="reviewNavigation">
@@ -43,7 +43,7 @@ export function ReviewToolbar({ items, frames, selected, busy, review, onNavigat
           <summary>更多</summary>
           <div className="reviewMoreActions">
             <button className="secondary" disabled={disabled || !pending.length} onClick={() => action(() => review.ignore(pending.map(({ item }) => item.id)))}>忽略剩余</button>
-            <button className="secondary" disabled={disabled} onClick={() => action(review.retry)}>刷新状态</button>
+            <button className="secondary" disabled={disabled || review.saving || review.dirty} onClick={() => action(review.retry)}>刷新状态</button>
           </div>
         </details>
       </div>
