@@ -98,6 +98,8 @@
   text-align: center;
 }
 
+.pending { display: block; width: 100%; margin-top: -8px; padding-bottom: 12px; text-align: center; font-size: 11px; line-height: 1.7; color: #59794f; }
+
 .actions {
   position: absolute;
   top: 10px;

@@ -21,6 +21,7 @@ paths:
   /projects:
     get:
       operationId: listProjects
+      description: Each project includes pendingProposalCount and conflictedProposalCount, counting published proposal documents across all conversations.
       parameters:
         - { $ref: '#/components/parameters/Cursor' }
         - { $ref: '#/components/parameters/Limit' }
@@ -250,6 +251,31 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Data' }
         '404': { $ref: '#/components/responses/Error' }
+  /projects/{id}/edit-proposals/summary:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: getProjectProposalSummary
+      description: Returns pendingCount (PENDING and PARTIALLY_APPLIED), conflictedCount and targetCount across all successful runs in the visible project. Counts are proposal documents, not individual edit blocks. Merely viewing suggestions does not change these counts.
+      responses:
+        '200': { $ref: '#/components/responses/Data' }
+        '404': { $ref: '#/components/responses/Error' }
+  /projects/{id}/edit-proposals:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+    get:
+      operationId: listProjectPendingProposals
+      description: Lists published actionable proposals across all conversations, ordered by immutable createdAt/id descending. Includes source run/conversation, target title/order/type, operation, status, reason and remainingItemCount for chapter UPDATEs. Does not return chapter drafts. The cursor is bound to this project and filter.
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+        - name: filter
+          in: query
+          schema: { type: string, enum: [all, pending, conflicted], default: all }
+      responses:
+        '200': { $ref: '#/components/responses/Page' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
   /edit-proposals/{id}:
     parameters:
       - { $ref: '#/components/parameters/Id' }
@@ -327,6 +353,7 @@ paths:
           $ref: '#/components/responses/Error'
     get:
       operationId: listConversations
+      description: Conversation rows include pendingProposalCount and conflictedProposalCount for their published proposals, including suggestions from older turns.
       responses:
         '200':
           $ref: '#/components/responses/Data'

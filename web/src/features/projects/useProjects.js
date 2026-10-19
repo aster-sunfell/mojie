@@ -10,6 +10,7 @@ export function useProjects(keyword) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [removing, setRemoving] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [blockedProject, setBlockedProject] = useState(null)
   const requestNumber = useRef(0)
   const deletePending = useRef(false)
   const query = keyword.trim()
@@ -19,6 +20,7 @@ export function useProjects(keyword) {
     if (after) setLoadingMore(true)
     else setLoading(true)
     setError('')
+    setBlockedProject(null)
     try {
       const page = await projectsApi.list({ keyword: query, cursor: after })
       if (request !== requestNumber.current) return
@@ -43,15 +45,19 @@ export function useProjects(keyword) {
   async function confirmRemove() {
     if (!removing || deletePending.current) return
     deletePending.current = true
+    setBlockedProject(null)
     setDeleting(true)
     try {
       await projectsApi.remove(removing.id)
       setProjects(current => current.filter(item => item.id !== removing.id))
       setRemoving(null)
-    } catch (failure) { setError(readableError(failure)); setRemoving(null) }
+    } catch (failure) {
+      setError(readableError(failure)); setRemoving(null)
+      if (failure.code === 'RESOURCE_BUSY') setBlockedProject(removing)
+    }
     finally { deletePending.current = false; setDeleting(false) }
   }
 
   return { projects, cursor, error, loading, loadingMore, removing, setRemoving,
-    deleting, load, confirmRemove }
+    deleting, load, confirmRemove, blockedProject }
 }

@@ -7,6 +7,17 @@ import java.util.*;
 import javax.sql.DataSource;
 
 public final class JdbcConversationRepository implements ConversationRepository {
+  private static final String SELECT_WITH_PROPOSALS = """
+      SELECT c.*,counts.pending_proposal_count,counts.conflicted_proposal_count
+        FROM tb_conversation c
+        LEFT JOIN LATERAL (
+          SELECT count(*) FILTER (WHERE p.status IN ('PENDING','PARTIALLY_APPLIED')) AS pending_proposal_count,
+                 count(*) FILTER (WHERE p.status='CONFLICTED') AS conflicted_proposal_count
+            FROM tb_agent_run r JOIN tb_edit_proposal p ON p.run_id=r.id
+           WHERE r.conversation_id=c.id AND r.status='SUCCEEDED'
+             AND p.status IN ('PENDING','PARTIALLY_APPLIED','CONFLICTED')
+        ) counts ON true
+      """;
   private final JdbcAccess db;
 
   public JdbcConversationRepository(DataSource source) {
@@ -16,7 +27,7 @@ public final class JdbcConversationRepository implements ConversationRepository 
   public Conversation get(String id, boolean lock) {
     return db.firstRecord(
         Conversation.class,
-        "SELECT * FROM tb_conversation WHERE id=?::uuid" + (lock ? " FOR UPDATE" : ""),
+        SELECT_WITH_PROPOSALS + " WHERE c.id=?::uuid" + (lock ? " FOR UPDATE OF c" : ""),
         id);
   }
 
@@ -33,8 +44,8 @@ public final class JdbcConversationRepository implements ConversationRepository 
   public List<Conversation> page(String project, String time, String id, int size) {
     return db.records(
         Conversation.class,
-        "SELECT * FROM tb_conversation WHERE project_id=?::uuid AND (?::timestamptz IS NULL OR"
-            + " (created_at,id)<(?::timestamptz,?::uuid)) ORDER BY created_at DESC,id DESC LIMIT ?",
+        SELECT_WITH_PROPOSALS + " WHERE c.project_id=?::uuid AND (?::timestamptz IS NULL OR"
+            + " (c.created_at,c.id)<(?::timestamptz,?::uuid)) ORDER BY c.created_at DESC,c.id DESC LIMIT ?",
         project,
         time,
         time,

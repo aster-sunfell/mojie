@@ -18,7 +18,8 @@ public class ContentConfiguration {
       ProjectAccessService access,
       ChapterSaveCoordinator saves,
       ProposalService proposals,
-      ProposalReviewService reviews) {}
+      ProposalReviewService reviews,
+      ProposalInboxService proposalInbox) {}
 
   public static Services create(
       DataSource source, TransactionRunner transactions, PageCursor cursors) {
@@ -40,7 +41,8 @@ public class ContentConfiguration {
         access,
         new ChapterSaveCoordinator(chapterService, reviewService, access, transactions),
         new ProposalService(proposals, chapterService, settingService, access, transactions),
-        reviewService);
+        reviewService,
+        new ProposalInboxService(new JdbcProposalInboxRepository(source), projects, transactions, cursors));
   }
 
   @Bean
@@ -71,5 +73,10 @@ public class ContentConfiguration {
   @Bean
   ProposalService proposalService(Services services) {
     return services.proposals();
+  }
+
+  @Bean
+  ProposalInboxService proposalInboxService(Services services) {
+    return services.proposalInbox();
   }
 }

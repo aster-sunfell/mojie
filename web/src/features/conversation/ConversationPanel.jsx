@@ -12,7 +12,7 @@ import { ConversationSkills } from './ConversationSkills.jsx'
 import { ConversationHistory } from './ConversationHistory.jsx'
 import './conversation.css'
 
-export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, proposalStatuses, onOpenProposal, onActivityChange, skillRevision, visible = true, onUnreadChange }) {
+export function ConversationPanel({ projectId, chapter, dirty, projectBusy, review, getContext, proposalStatuses, onOpenProposal, onActivityChange, skillRevision, visible = true, onUnreadChange, requestedConversation }) {
   const chat = useConversation({ projectId, getContext, projectBusy, onActivityChange })
   const [picker, setPicker] = useState(false), [skillPicker, setSkillPicker] = useState(false)
   const [skills, setSkills] = useState([]), [source, setSource] = useState(null), [skillError, setSkillError] = useState('')
@@ -108,6 +108,20 @@ export function ConversationPanel({ projectId, chapter, dirty, projectBusy, revi
     setSkillQuery(null); chat.send(mentions)
   }
   function selectConversation(id) { restoreReading.current = true; chat.select(id); setPicker(false) }
+  const handledNavigation = useRef(0)
+  useEffect(() => {
+    if (!requestedConversation || handledNavigation.current === requestedConversation.requestId || chat.busy) return
+    if (chat.id !== requestedConversation.id) { selectConversation(requestedConversation.id); return }
+    if (chat.loading) return
+    const turn = [...(messagesArea.current?.querySelectorAll('[data-run-id]') || [])]
+      .find(element => element.dataset.runId === requestedConversation.runId)
+    if (!turn) return
+    handledNavigation.current = requestedConversation.requestId
+    restoreReading.current = false; atBottom.current = false
+    turn.tabIndex = -1
+    turn.focus({ preventScroll: true })
+    turn.scrollIntoView?.({ block: 'start' })
+  }, [requestedConversation, chat.id, chat.loading, chat.messages, chat.busy])
   function openHistory() {
     setPicker(true)
     chat.loadList().catch(() => {})

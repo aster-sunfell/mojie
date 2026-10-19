@@ -10,6 +10,8 @@ import { Drawer } from '../../shared/ui/Drawer.jsx'
 import { Icon } from '../../shared/ui/Icon.jsx'
 import { Settings } from '../settings/Settings.jsx'
 import { useProposalReview } from '../proposals/useProposalReview.js'
+import { useProposalInbox } from '../proposals/useProposalInbox.js'
+import { ProposalInbox } from '../proposals/ProposalInbox.jsx'
 
 export function Workspace({ projectId, selectedChapterId, navigate, onSettings, applicationSettingsOpen, skillRevision }) {
   const [project, setProject] = useState(null)
@@ -24,6 +26,22 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   const [settingProposalId, setSettingProposalId] = useState(null)
   const [newChapterProposalId, setNewChapterProposalId] = useState(null)
   const [proposalStatuses, setProposalStatuses] = useState({})
+  const inbox = useProposalInbox(projectId)
+  const [inboxOpen, setInboxOpen] = useState(() => new URLSearchParams(window.location.search).get('proposals') === 'pending')
+  const [conversationRequest, setConversationRequest] = useState(null)
+  const conversationRequestId = useRef(0)
+  function closeInbox() {
+    setInboxOpen(false)
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('proposals') === 'pending') {
+      url.searchParams.delete('proposals')
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+    }
+  }
+  const proposalChanged = useCallback((id, status) => {
+    setProposalStatuses(current => ({ ...current, [id]: status }))
+    inbox.refresh()
+  }, [inbox.refresh])
   const [showHistory, setShowHistory] = useState(false)
   const [runBusy, setRunBusy] = useState(false)
   const [assistantHasReply, setAssistantHasReply] = useState(false)
@@ -62,7 +80,7 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   const review = useProposalReview({ chapterId: selectedChapterId,
     run: reviewRun?.targetChapterId === selectedChapterId ? reviewRun : null, draftRef,
     onSave: () => saveRequest.current(),
-    onStatusChange: (id, status) => setProposalStatuses(current => ({ ...current, [id]: status })),
+    onStatusChange: proposalChanged,
     onDraftChange: changeDraft, onDirtyChange: value => {
       reviewDirtyRef.current = value
       if (value) setSaveStatus(current => current === '保存中' ? current : '未保存')
@@ -186,6 +204,7 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
     const timer = window.setInterval(refreshBusy, 5000)
     return () => { window.clearInterval(timer); busyRequest.current++ }
   }, [refreshBusy])
+  const refreshActivity = useCallback(() => { refreshBusy(); inbox.refresh() }, [refreshBusy, inbox.refresh])
   async function openProposal(run) {
     if (run?.status !== 'SUCCEEDED' || !run.proposalId) return false
     if (run.targetType === 'SETTING') {
@@ -214,13 +233,13 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
   }, [review.id, review.loading])
   if (error && !project) return <main className="home"><p className="error">{error}</p><button onClick={() => navigate('/')}>返回作品列表</button></main>
   const sidebar = <ChapterSidebar projectId={projectId} project={project} chapters={chapters} selectedChapterId={selectedChapterId}
-    busy={runBusy} cursor={chapterCursor} inert={showSettings || !!newChapterProposalId}
+    busy={runBusy} cursor={chapterCursor} inert={showSettings || !!newChapterProposalId || inboxOpen}
     onLeave={leave} onAddChapter={addChapter}
     onLoadMore={() => loadChapters(chapterCursor).catch(e => setError(readableError(e)))} />
 
   return <div ref={workspaceRef} className="workspace">
     {!mobile && sidebar}
-    <div className="writingColumn" inert={showSettings || !!newChapterProposalId}>
+    <div className="writingColumn" inert={showSettings || !!newChapterProposalId || inboxOpen}>
       <header className="workspaceToolbar" aria-label="作品工具栏">
         {mobile && <button className="secondary" onClick={() => setShowChapters(true)}>
           <Icon name="menu" size={16} />章节
@@ -233,6 +252,12 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
           <button aria-pressed={layoutMode === 'conversation'} onClick={() => setReadingMode('conversation')}>
             <Icon name="message" size={16} />专注对话{assistantHasReply && <span className="assistantReplyBadge" role="status">有新回复</span>}</button>
         </div>
+        <div className="proposalInboxEntry"><button className={`secondary proposalInboxButton ${inbox.counts && inbox.counts.pendingCount + inbox.counts.conflictedCount > 0 ? 'hasSuggestions' : ''}`}
+          aria-haspopup="dialog" title={inbox.error ? '建议状态暂不可用，点击重试查看' : '查看本作品所有对话的未处理建议'}
+          onClick={() => { inbox.refresh(); setInboxOpen(true) }}>
+          <Icon name="edit" size={16} />待处理建议
+          <span className="proposalInboxCount">{inbox.counts ? inbox.counts.pendingCount + inbox.counts.conflictedCount : '—'}</span>
+        </button>{inbox.arrival && <span className="proposalInboxArrival" role="status">新增 {inbox.arrival.count} 份待处理建议</span>}</div>
         <button className="secondary workspaceSettingsButton" aria-haspopup="dialog" onClick={() => { setSettingProposalId(null); setShowSettings(true) }}>
           <Icon name="book" size={16} />作品设定
         </button>
@@ -250,19 +275,25 @@ export function Workspace({ projectId, selectedChapterId, navigate, onSettings, 
         <ConversationPanel key={projectId} projectId={projectId} chapter={chapter} dirty={dirty} skillRevision={skillRevision}
           visible={layoutMode !== 'chapter'} onUnreadChange={setAssistantHasReply}
           projectBusy={runBusy} review={review} getContext={getContext} proposalStatuses={proposalStatuses}
-          onOpenProposal={openProposal} onActivityChange={refreshBusy} />
+          onOpenProposal={openProposal} onActivityChange={refreshActivity} requestedConversation={conversationRequest} />
       </div>
     </div>
     {mobile && showChapters && <Drawer title="章节导航" onClose={() => setShowChapters(false)}>{sidebar}</Drawer>}
     {newChapterProposalId && <NewChapterProposal key={newChapterProposalId} proposalId={newChapterProposalId} disabled={runBusy}
       onClose={() => setNewChapterProposalId(null)}
-      onStatusChange={(id, status) => setProposalStatuses(current => ({ ...current, [id]: status }))}
+      onStatusChange={proposalChanged}
       onSaved={async id => {
         await loadChapters()
         if (await prepareLeave()) { setNewChapterProposalId(null); navigate(`/projects/${projectId}/chapters/${id}`) }
       }} />}
     {showSettings && <Settings key={projectId} projectId={projectId} disabled={runBusy} proposalId={settingProposalId}
-      onProposalChange={(id, status) => setProposalStatuses(current => ({ ...current, [id]: status }))}
+      onProposalChange={proposalChanged}
       onClose={() => { setShowSettings(false); setSettingProposalId(null) }} />}
+    {inboxOpen && <ProposalInbox projectId={projectId} counts={inbox.counts} onRefresh={inbox.refresh}
+      onReview={openProposal} onClose={closeInbox}
+      onConversation={item => {
+        setConversationRequest({ id: item.conversationId, runId: item.runId, requestId: ++conversationRequestId.current })
+        setReadingMode(selectedRef.current && !compact ? 'split' : 'conversation')
+      }} />}
   </div>
 }

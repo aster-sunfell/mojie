@@ -11,7 +11,7 @@ export function ProjectHome({ open, onSettings }) {
   const [keyword, setKeyword] = useState('')
   const [creating, setCreating] = useState(false)
   const { projects, cursor, error, loading, loadingMore, removing, setRemoving,
-    deleting, load, confirmRemove } = useProjects(keyword)
+    deleting, load, confirmRemove, blockedProject } = useProjects(keyword)
 
   return <main className={styles.home}>
     <header className={styles.header}>
@@ -23,6 +23,7 @@ export function ProjectHome({ open, onSettings }) {
     {error && <div className={styles.error} role="alert">
       <p className="error">{error}</p>
       <button className="secondary" onClick={() => load()}>重试加载</button>
+      {blockedProject && <button className="secondary" onClick={() => open(blockedProject.id, true)}>查看待处理建议</button>}
     </div>}
     <section className={styles.grid} aria-label="作品列表" aria-busy={loading || loadingMore}>
       <div className={styles.createSlot}>

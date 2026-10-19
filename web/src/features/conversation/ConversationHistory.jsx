@@ -42,7 +42,8 @@ export function ConversationHistory({ chat, onSelect, onClose }) {
       <ScrollArea className="conversationHistoryList" id={panelId} role="region" aria-label="历史对话列表"
         aria-busy={chat.listLoading}>
         {chat.items.map(record => {
-          const item = record.id === chat.id && chat.conversation ? { ...record, ...chat.conversation } : record
+          const item = record.id === chat.id && chat.conversation ? { ...record, ...chat.conversation,
+            pendingProposalCount: record.pendingProposalCount, conflictedProposalCount: record.conflictedProposalCount } : record
           const current = item.id === chat.id, blocked = chat.busy || Boolean(item.activeRunId)
           const updated = updatedTime(item)
           return <div className={`conversationHistoryRow ${current ? 'current' : ''}`} key={item.id}>
@@ -60,6 +61,11 @@ export function ConversationHistory({ chat, onSelect, onClose }) {
                 <span className="conversationHistoryTitle">{item.title}</span>
                 <span className="conversationHistoryMeta">{updated && <time dateTime={item.updatedAt || item.createdAt}>更新于 {updated}</time>}
                   {current && <span>当前对话</span>}{item.activeRunId && <span>执行中</span>}</span>
+                {(item.pendingProposalCount > 0 || item.conflictedProposalCount > 0) && <span className="conversationPendingBadge">
+                  {item.pendingProposalCount > 0 && `${item.pendingProposalCount} 份建议待处理`}
+                  {item.pendingProposalCount > 0 && item.conflictedProposalCount > 0 && ' · '}
+                  {item.conflictedProposalCount > 0 && `${item.conflictedProposalCount} 份需核对`}
+                </span>}
               </button>
               <div className="conversationHistoryRowActions" ref={menuId === item.id ? menu : undefined}>
                 <Tooltip label="更多操作"><button className="assistantIconButton" aria-label={`更多操作：${item.title}`}

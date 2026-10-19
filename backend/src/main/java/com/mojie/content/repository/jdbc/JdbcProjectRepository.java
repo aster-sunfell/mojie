@@ -19,11 +19,20 @@ public final class JdbcProjectRepository implements ProjectRepository {
     return db.records(
         ProjectSummary.class,
         """
-        SELECT id, name AS title, updated_at FROM tb_project
-         WHERE deleted_at IS NULL
-           AND strpos(lower(name), lower(?)) > 0
-           AND (?::timestamptz IS NULL OR (updated_at, id) < (?::timestamptz, ?::uuid))
-         ORDER BY updated_at DESC, id DESC LIMIT ?
+        SELECT p.id,p.name AS title,p.updated_at,
+               counts.pending_proposal_count,counts.conflicted_proposal_count
+          FROM (SELECT id,name,updated_at FROM tb_project
+                 WHERE deleted_at IS NULL AND strpos(lower(name),lower(?))>0
+                   AND (?::timestamptz IS NULL OR (updated_at,id)<(?::timestamptz,?::uuid))
+                 ORDER BY updated_at DESC,id DESC LIMIT ?) p
+          LEFT JOIN LATERAL (
+            SELECT count(*) FILTER (WHERE e.status IN ('PENDING','PARTIALLY_APPLIED')) AS pending_proposal_count,
+                   count(*) FILTER (WHERE e.status='CONFLICTED') AS conflicted_proposal_count
+              FROM tb_edit_proposal e JOIN tb_agent_run r ON r.id=e.run_id
+             WHERE e.project_id=p.id AND r.status='SUCCEEDED'
+               AND e.status IN ('PENDING','PARTIALLY_APPLIED','CONFLICTED')
+          ) counts ON true
+         ORDER BY p.updated_at DESC,p.id DESC
         """,
         keyword,
         beforeTime,

@@ -16,6 +16,11 @@ export function ProjectCard({ project, open, onRemove }) {
         <span className={styles.seal} aria-hidden="true">墨</span>
       </span>
       <small className={styles.updated}>最近编辑 · {timeAgo(project.updatedAt)}</small>
+      {(project.pendingProposalCount > 0 || project.conflictedProposalCount > 0) && <small className={styles.pending}>
+        {project.pendingProposalCount > 0 && `${project.pendingProposalCount} 份建议待处理`}
+        {project.pendingProposalCount > 0 && project.conflictedProposalCount > 0 && ' · '}
+        {project.conflictedProposalCount > 0 && `${project.conflictedProposalCount} 份需核对`}
+      </small>}
     </button>
     <div className={styles.actions}>
       <Tooltip label="删除">

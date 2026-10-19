@@ -12,7 +12,7 @@ export default function App() {
       {projectId
         ? <Workspace key={projectId} projectId={projectId} selectedChapterId={chapterId} navigate={navigate}
           onSettings={() => setSettingsOpen(true)} applicationSettingsOpen={settingsOpen} skillRevision={skillRevision} />
-        : <ProjectHome open={id => navigate(`/projects/${id}`)} onSettings={() => setSettingsOpen(true)} />}
+        : <ProjectHome open={(id, proposals) => navigate(`/projects/${id}${proposals ? '?proposals=pending' : ''}`)} onSettings={() => setSettingsOpen(true)} />}
     </div>
     {settingsOpen && <AppSettings onClose={() => setSettingsOpen(false)} onSkillsChange={() => setSkillRevision(value => value + 1)} />}
   </>

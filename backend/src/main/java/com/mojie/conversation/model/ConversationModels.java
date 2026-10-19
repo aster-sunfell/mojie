@@ -16,7 +16,9 @@ public final class ConversationModels {
       String modelId,
       JsonNode modelConfig,
       String createdAt,
-      String updatedAt) {}
+      String updatedAt,
+      long pendingProposalCount,
+      long conflictedProposalCount) {}
 
   public record DisplayMessage(
       String id,
