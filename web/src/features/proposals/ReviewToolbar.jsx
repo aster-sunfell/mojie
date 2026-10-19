@@ -1,7 +1,17 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useMediaQuery } from '../../shared/useMediaQuery.js'
 
 export function ReviewToolbar({ items, frames, selected, busy, review, onNavigate }) {
   const more = useRef(null)
+  const active = items.some(item => item.status === 'PENDING' || item.unsaved)
+  const [visible, setVisible] = useState(active)
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  useLayoutEffect(() => {
+    if (active) { setVisible(true); return }
+    if (reducedMotion) { setVisible(false); return }
+    const timer = window.setTimeout(() => setVisible(false), 200)
+    return () => window.clearTimeout(timer)
+  }, [active, reducedMotion])
   useEffect(() => {
     const close = event => { if (!more.current?.contains(event.target)) more.current?.removeAttribute('open') }
     document.addEventListener('pointerdown', close)
@@ -18,7 +28,9 @@ export function ReviewToolbar({ items, frames, selected, busy, review, onNavigat
   function action(callback) {
     more.current?.removeAttribute('open'); more.current?.querySelector('summary')?.focus({ preventScroll: true }); callback()
   }
-  return <div className="reviewToolbar" role="region" aria-label="修改导航工具栏">
+  if (!visible && !active) return null
+  return <div className={`reviewToolbar ${active ? '' : 'reviewToolbarClosing'}`} role="region" aria-label="修改导航工具栏"
+    inert={!active ? true : undefined} aria-hidden={!active ? true : undefined}>
     <div className="reviewCount">
       <span>{pending.length ? `待处理 ${pending.length} 处` : unsaved ? review.saveFailed ? '保存失败' : '正在保存' : items.length ? '已全部处理' : '没有修改'}</span>
       {!!conflicts && <span className="conflictState"> · 待确认 {conflicts} 处</span>}

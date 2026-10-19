@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const base = '开头：雨还在下。\n\n林舟游过河。\n\n两人在桥边整理工具。\n\n他拿起红灯。\n\n尾声：他们继续赶路。\n'
-async function mockReview(page, { baseContent = base, currentContent = baseContent, changes = [['游过河', '走过桥'], ['红', '蓝']] } = {}) {
+async function mockReview(page, { baseContent = base, currentContent = baseContent, changes = [['游过河', '走过桥'], ['红', '蓝']], save } = {}) {
   const chapter = { id: 'c', projectId: 'p', title: '第二章 · 暴雨', chapterOrder: 2, version: 1, content: currentContent }
   const run = { id: 'r', projectId: 'p', targetChapterId: 'c', status: 'SUCCEEDED', proposalId: 'q',
     baseVersion: 1, queuedAt: '2026-10-01T00:00:00Z', lastEventSeq: 1, steps: [], sources: [],
@@ -25,6 +25,8 @@ async function mockReview(page, { baseContent = base, currentContent = baseConte
     if (path === '/chapters/c') return data(chapter)
     if (path === '/chapters/c/content') {
       const body = request.postDataJSON(); writes.push(body)
+      const error = await save?.(body, writes.length)
+      if (error) return route.fulfill({ status: 409, json: { code: error } })
       if (body.expectedVersion !== chapter.version) return route.fulfill({ status: 409, json: { code: 'VERSION_CONFLICT' } })
       if (body.content !== chapter.content) { chapter.content = body.content; chapter.version++ }
       for (const review of body.proposalReviews || []) for (const choice of review.decisions)
@@ -48,6 +50,122 @@ async function mockReview(page, { baseContent = base, currentContent = baseConte
   })
   return { chapter, proposal, writes }
 }
+
+for (const width of [1280, 390]) {
+  test(`committed comparisons collapse into plain text without losing typing or reading position at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 })
+    let releaseSave
+    const gate = new Promise(resolve => { releaseSave = resolve })
+    const prefix = Array.from({ length: 35 }, (_, i) => `前文第${i}行，记录沿途的见闻。`).join('\n')
+    const suffix = Array.from({ length: 45 }, (_, i) => `后文第${i}行，继续沿桥后的道路前行。`).join('\n')
+    const state = await mockReview(page, { baseContent: `${prefix}\n${base}\n${suffix}`, save: async () => { await gate } })
+    await page.goto('/projects/p/chapters/c')
+    if (width < 1200) await page.getByRole('button', { name: '专注对话', exact: true }).click()
+    await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+    await page.getByRole('button', { name: '应用全部', exact: true }).click()
+    const row = page.locator('[data-change-id="1"]')
+    const input = page.getByRole('textbox', { name: '修改 2 后的正文' })
+    await expect(row).toHaveAttribute('data-phase', 'review')
+    await expect(row.locator('.diffBefore')).toBeVisible()
+    await input.fill('他拿起蓝灯。保存期间继续输入。')
+    const before = await input.evaluate(element => {
+      window.motionInput = element
+      const area = element.closest('.editorArea')
+      area.scrollTop += element.getBoundingClientRect().top - area.getBoundingClientRect().top - 220
+      return { top: element.getBoundingClientRect().top, cursor: element.selectionStart }
+    })
+    releaseSave()
+    await expect(row).toHaveAttribute('data-phase', 'highlight')
+    await expect(page.locator('.diffBefore')).toHaveCount(0)
+    await page.screenshot({ path: `test-results/proposal-applied-highlight-${width}.png` })
+    await expect(row).toHaveAttribute('data-phase', 'plain')
+    const after = await input.evaluate(element => ({ same: element === window.motionInput,
+      focused: document.activeElement === element, top: element.getBoundingClientRect().top, cursor: element.selectionStart,
+      background: getComputedStyle(element.parentElement.parentElement).backgroundColor,
+      color: getComputedStyle(element).color }))
+    expect(after.same).toBe(true)
+    expect(after.focused).toBe(true)
+    expect(after.cursor).toBe(before.cursor)
+    expect(Math.abs(after.top - before.top)).toBeLessThanOrEqual(2)
+    expect(after.background).toBe('rgba(0, 0, 0, 0)')
+    expect(after.color).toBe(await page.getByRole('textbox', { name: '章节正文', exact: true }).first().evaluate(element => getComputedStyle(element).color))
+    const lineGapError = await page.locator('[data-change-id="0"]').evaluate(element => {
+      const number = element.querySelector('.lineNumber')
+      const next = [...element.closest('.inlineDocument').querySelectorAll('.lineNumber')]
+        .find(value => Number(value.textContent) === Number(number.textContent) + 1)
+      return Math.abs(next.getBoundingClientRect().top - number.getBoundingClientRect().top
+        - Math.max(32, parseFloat(getComputedStyle(element.querySelector('textarea')).lineHeight)))
+    })
+    expect(lineGapError).toBeLessThanOrEqual(1.5)
+    await expect(input).toHaveValue('他拿起蓝灯。保存期间继续输入。')
+    await expect(page.locator('.inlineChange,.changeHeader,.diffAfter')).toHaveCount(0)
+    expect(state.chapter.content).not.toContain('保存期间继续输入')
+    await expect(page.locator('.editorHeader')).toContainText('未保存')
+    await page.screenshot({ path: `test-results/proposal-applied-plain-${width}.png` })
+    await page.getByRole('button', { name: '保存正文', exact: true }).click()
+    await expect(page.locator('.editorHeader')).toContainText('已保存')
+    await page.getByRole('button', { name: '查看修改记录（2）' }).click()
+    const dialog = page.getByRole('dialog', { name: '修改记录' })
+    await expect(dialog.getByLabel('记录 2 建议')).toHaveText('他拿起蓝灯。')
+    await expect(dialog.getByRole('textbox')).toHaveCount(0)
+    await dialog.getByRole('button', { name: '关闭' }).click()
+    await page.reload()
+    if (width < 1200) await page.getByRole('button', { name: '专注对话', exact: true }).click()
+    await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+    await expect(page.locator('[data-phase="plain"]')).toHaveCount(2)
+    await expect(page.locator('.diffBefore,.appliedHighlight')).toHaveCount(0)
+    await expect(input).toHaveValue('他拿起蓝灯。保存期间继续输入。')
+  })
+}
+
+test('reduced motion skips the transition and ignored comparisons remain available in records', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const state = await mockReview(page, { changes: [['游过河', '走过桥']] })
+  await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+  await page.getByRole('button', { name: '忽略', exact: true }).click()
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', 'plain')
+  await expect(page.locator('.diffBefore,.appliedHighlight,.changeHeader')).toHaveCount(0)
+  expect(state.chapter.content).toBe(base)
+  await expect(page.getByRole('status')).toContainText('1 处已忽略')
+  await page.getByRole('button', { name: '查看修改记录（1）' }).click()
+  const dialog = page.getByRole('dialog', { name: '修改记录' })
+  await expect(dialog).toContainText('已忽略')
+  await expect(dialog).toContainText('未采纳的建议')
+  await expect(dialog.getByLabel('记录 1 原文')).toHaveText('林舟游过河。')
+  await expect(dialog.getByLabel('记录 1 建议')).toHaveText('林舟走过桥。')
+})
+
+test('failed saving keeps the comparison until a retry actually commits', async ({ page }) => {
+  const state = await mockReview(page, { changes: [['游过河', '走过桥']], save: (body, count) => count === 1 ? 'VERSION_CONFLICT' : null })
+  await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect(page.getByRole('button', { name: '重试保存修改' })).toBeVisible()
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', 'review')
+  await expect(page.locator('.diffBefore')).toBeVisible()
+  await expect(page.locator('.changeState')).toHaveText('保存失败')
+  await expect(page.getByRole('button', { name: /查看修改记录/ })).toHaveCount(0)
+  expect(state.chapter.content).toBe(base)
+  await page.getByRole('button', { name: '重试保存修改' }).click()
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', 'plain')
+  await expect(page.locator('.diffBefore')).toHaveCount(0)
+  expect(state.chapter.content).toContain('林舟走过桥。')
+})
+
+test('deleting all text restores an editable empty chapter without a persistent comparison', async ({ page }) => {
+  await mockReview(page, { baseContent: '删除全文。', changes: [['删除全文。', '']] })
+  await page.goto('/projects/p/chapters/c')
+  await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
+  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', 'plain')
+  await expect(page.locator('.diffBefore,.changeHeader')).toHaveCount(0)
+  const input = page.getByRole('textbox', { name: '修改 1 后的正文' })
+  await expect(input).toBeEditable()
+  await expect(input).toHaveValue('')
+  await input.fill('从这里重新写作。')
+  await expect(input).toBeFocused()
+})
 
 for (const width of [1280, 390]) {
   test(`wrapped Chinese text has no phantom whitespace and keeps logical line numbers at ${width}px`, async ({ page }) => {
@@ -108,7 +226,7 @@ test('one continuous document saves suggestions immediately and preserves manual
   const state = await mockReview(page)
   await page.goto('/projects/p/chapters/c')
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
-  const changes = page.locator('.inlineChange')
+  const changes = page.locator('[data-change-id]')
   await expect(changes).toHaveCount(2)
   await expect(page.locator('.editorTabs')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '编辑正文', exact: true })).toHaveCount(0)
@@ -119,7 +237,7 @@ test('one continuous document saves suggestions immediately and preserves manual
   await page.screenshot({ path: 'test-results/proposal-inline-desktop.png' })
   await changes.first().getByRole('button', { name: '应用', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '修改 1 后的正文' })).toHaveValue('林舟走过桥。')
-  await expect(changes.first()).toContainText('已应用 · 版本 2')
+  await expect(changes.first()).toHaveAttribute('data-phase', /highlight|plain/)
   expect(state.writes[0].content).toBe(base.replace('游过河', '走过桥'))
   expect(state.writes[0].proposalReviews).toEqual([{ proposalId: 'q', decisions: [{ itemId: 0, status: 'APPLIED' }] }])
   const tail = page.getByRole('textbox', { name: '章节正文', exact: true }).last()
@@ -131,7 +249,8 @@ test('one continuous document saves suggestions immediately and preserves manual
   expect(state.writes[1].proposalReviews).toBeUndefined()
   await page.reload()
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
-  await expect(changes.first()).toContainText('已应用 · 版本 2')
+  await expect(changes.first()).toHaveAttribute('data-phase', 'plain')
+  await expect(changes.first().locator('.diffBefore')).toHaveCount(0)
   await expect(changes.last().getByRole('button', { name: '应用', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: '应用剩余', exact: true }).click()
   await expect(page.locator('.editorHeader')).toContainText('已保存')
@@ -217,14 +336,15 @@ test('refreshing server review choices keeps the current manual draft', async ({
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(page.locator('.inlineChange')).toHaveCount(2)
   await page.locator('.inlineChange').first().getByRole('button', { name: '应用', exact: true }).click()
-  await expect(page.locator('.inlineChange').first()).toContainText('已应用 · 版本 2')
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', /highlight|plain/)
   const applied = page.getByRole('textbox', { name: '修改 1 后的正文' })
   await applied.fill('林舟走过桥。我的新内容。')
   Object.assign(state.proposal.items[0], { status: 'IGNORED', savedVersion: 1 })
   await page.getByText('更多', { exact: true }).click()
   await page.getByRole('button', { name: '刷新状态', exact: true }).click()
   await expect(page.getByRole('status')).toContainText('已同步建议处理状态')
-  await expect(page.locator('.inlineChange').first().locator('.changeState')).toHaveText('已忽略')
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', 'plain')
+  await expect(page.locator('.messageProposal')).toContainText('待处理')
   await expect(page.getByRole('textbox', { name: '修改 1 当前正文' })).toHaveValue('林舟走过桥。我的新内容。')
   await page.getByRole('button', { name: '保存正文', exact: true }).click()
   await expect(page.locator('.editorHeader')).toContainText('已保存')
@@ -335,7 +455,7 @@ test('the document toolbar skips processed changes, includes conflicts and never
   await page.goto('/projects/p/chapters/c')
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   const toolbar = page.getByRole('region', { name: '修改导航工具栏' })
-  const changes = page.locator('.inlineChange')
+  const changes = page.locator('[data-change-id]')
   await expect(toolbar).toContainText('待处理 2 处')
   await expect(toolbar).toContainText('待确认 1 处')
   await expect(toolbar.getByRole('combobox')).toHaveCount(0)
@@ -351,7 +471,7 @@ test('the document toolbar skips processed changes, includes conflicts and never
   await expect(changes.nth(0)).toBeFocused()
   await changes.nth(0).getByRole('button', { name: '应用', exact: true }).click()
   await expect(toolbar).toContainText('待处理 1 处')
-  await expect(changes.nth(0)).toHaveClass(/selectedChange/)
+  await expect(changes.nth(0)).toHaveAttribute('data-phase', 'plain')
   await expect(changes.nth(2)).not.toHaveClass(/selectedChange/)
   await toolbar.getByRole('button', { name: '下一处待处理修改' }).click()
   await expect(changes.nth(2)).toBeFocused()

@@ -57,7 +57,7 @@ test('source view and inline diff preserve customized edits through saving and r
   await page.locator('.drawer').getByRole('button', { name: '关闭' }).click()
   await expect(input).toHaveValue(customized)
   await page.getByRole('button', { name: '应用全部', exact: true }).click()
-  await expect(page.locator('.proposalReview')).toContainText('已应用 · 版本 3')
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', /highlight|plain/)
   await expect(page.getByRole('button', { name: '保存正文', exact: true })).toBeDisabled()
   const current = page.getByRole('textbox', { name: '修改 1 后的正文' })
   await current.fill(`${customized}用户补写的细节。`)
@@ -67,6 +67,10 @@ test('source view and inline diff preserve customized edits through saving and r
   await page.reload()
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   await expect(current).toHaveValue(`${customized}用户补写的细节。`)
+  await expect(page.locator('.proposalReview .diffBefore')).toHaveCount(0)
+  await page.getByRole('button', { name: '查看修改记录（1）' }).click()
+  await expect(page.getByRole('dialog', { name: '修改记录' })).toContainText('版本 3')
+  await page.getByRole('dialog').getByRole('button', { name: '关闭' }).click()
   const revisions = (await (await request.get(`${api}/chapters/${chapterId}/revisions`)).json()).data.items
   expect(revisions.filter(revision => revision.source === 'MIXED')).toHaveLength(1)
   const runs = (await (await request.get(`${api}/agent/runs?projectId=${projectId}&chapterId=${chapterId}`)).json()).data.items
@@ -82,7 +86,7 @@ test('ignoring a suggestion persists immediately, survives reload and releases p
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
   expect((await request.delete(`${api}/projects/${projectId}`)).status()).toBe(409)
   await page.locator('.inlineChange').getByRole('button', { name: '忽略', exact: true }).click()
-  await expect(page.locator('.inlineChange .changeState')).toHaveText('已忽略')
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', 'plain')
   await expect(page.locator('.messageProposal')).toContainText('已忽略')
   await expect(page.getByRole('button', { name: '保存正文', exact: true })).toBeDisabled()
   const current = (await (await request.get(`${api}/chapters/${chapterId}`)).json()).data
@@ -90,7 +94,8 @@ test('ignoring a suggestion persists immediately, survives reload and releases p
   expect(current.version).toBe(original.version)
   await page.reload()
   await page.getByRole('button', { name: '在正文中查看', exact: true }).click()
-  await expect(page.locator('.inlineChange .changeState')).toHaveText('已忽略')
+  await expect(page.locator('[data-change-id="0"]')).toHaveAttribute('data-phase', 'plain')
+  await expect(page.locator('.proposalReview .diffBefore')).toHaveCount(0)
   expect((await request.delete(`${api}/projects/${projectId}`)).status()).toBe(204)
   projectId = null
 })

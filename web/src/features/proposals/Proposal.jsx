@@ -1,17 +1,41 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { inlineDocument } from './merge.js'
 import { InlineText } from './InlineText.jsx'
 import { ReviewToolbar } from './ReviewToolbar.jsx'
+import { ProposalChange } from './ProposalChange.jsx'
+import { ProposalHistory } from './ProposalHistory.jsx'
+import { preserveReadingPosition } from './reviewMotion.js'
+import { useMediaQuery } from '../../shared/useMediaQuery.js'
 
 export const proposalStatusName = status => ({ PENDING: '待处理', PARTIALLY_APPLIED: '部分已保存',
   APPLIED: '处理完成', REJECTED: '已忽略', CONFLICTED: '需要重新核对' }[status] || status)
 
 export function Proposal({ review, draft, busy, onDraftChange }) {
-  const { proposal, items, apply, ignore, notice } = review
+  const { proposal, items, notice } = review
   const [selected, setSelected] = useState(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [visibleNotice, setVisibleNotice] = useState(notice)
+  const root = useRef(null)
   const changes = useRef({})
   const editingText = useRef(null)
-  useEffect(() => { setSelected(null) }, [proposal?.id])
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+  const saved = items.filter(item => item.status !== 'PENDING' && !item.unsaved)
+  const savedKey = saved.map(item => `${item.id}:${item.status}`).join('|')
+  const previousSaved = useRef({ proposalId: proposal?.id, keys: new Set() })
+  useEffect(() => { setSelected(null); setHistoryOpen(false) }, [proposal?.id])
+  useEffect(() => {
+    setVisibleNotice(notice)
+    if (!notice || review.saving || review.saveFailed) return
+    const timer = window.setTimeout(() => setVisibleNotice(''), 2200)
+    return () => window.clearTimeout(timer)
+  }, [notice, review.saving, review.saveFailed])
+  useLayoutEffect(() => {
+    const keys = new Set(savedKey.split('|').filter(Boolean))
+    const newlySaved = previousSaved.current.proposalId === proposal?.id
+      && [...keys].some(key => !previousSaved.current.keys.has(key))
+    previousSaved.current = { proposalId: proposal?.id, keys }
+    if (newlySaved && !reducedMotion) return preserveReadingPosition(root.current)
+  }, [proposal?.id, savedKey, reducedMotion])
   if (!proposal) return null
   const document = inlineDocument(proposal.baseContent, draft, items,
     { editingText: editingText.current?.proposalId === proposal.id ? editingText.current : null })
@@ -37,10 +61,13 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
     onDraftChange(draft.slice(0, range.start) + text + draft.slice(range.end))
   }
   const lineAt = offset => draft.slice(0, offset).split('\n').length
-  return <section className="proposalReview" aria-label="正文行内修改">
-    {items.some(item => item.status === 'PENDING') && <ReviewToolbar items={items} frames={document.frames}
-      selected={selected} busy={busy} review={review} onNavigate={navigate} />}
-    {notice && <p className="hint" role="status">{notice}</p>}
+  return <section ref={root} className="proposalReview" aria-label="正文行内修改">
+    <ReviewToolbar key={proposal.id} items={items} frames={document.frames}
+      selected={selected} busy={busy} review={review} onNavigate={navigate} />
+    <div className="reviewUtility">
+      {!!saved.length && <button className="link" aria-haspopup="dialog" onClick={() => setHistoryOpen(true)}>查看修改记录（{saved.length}）</button>}
+      {visibleNotice && <div className="reviewFeedback"><p className={review.saveFailed ? 'error' : 'hint'} role="status">{visibleNotice}</p></div>}
+    </div>
     {review.saveFailed && <button className="secondary" disabled={review.saving} onClick={review.retrySave}>重试保存修改</button>}
     {review.error && <p className="error" role="alert">{review.error}</p>}
     {!items.length && proposal.status === 'PENDING' && <button className="secondary" disabled={busy || review.loading} onClick={review.dismiss}>关闭无修改建议</button>}
@@ -55,44 +82,12 @@ export function Proposal({ review, draft, busy, onDraftChange }) {
                 .filter(value => value.type === 'change').map(value => value.item.id) } }}
             onBlur={() => { if (editingText.current?.key === segment.key) editingText.current = null }} />
         </div>
-        const { item, range, original, current, preview, conflict } = segment
-        const index = items.findIndex(value => value.id === item.id)
-        const pending = item.status === 'PENDING'
-        const applied = item.status === 'APPLIED'
-        const status = item.unsaved ? review.saveFailed ? '保存失败' : '正在保存'
-          : applied ? `已应用 · 版本 ${item.savedVersion}` : !pending ? '已忽略'
-            : conflict ? '需要手动确认' : item.preview ? '已调整 · 待应用' : '待处理'
-        return <div className={`inlineChange ${selected === index ? 'selectedChange' : ''}`} key={segment.key}
-          ref={element => { changes.current[item.id] = element }} tabIndex={-1} onFocus={() => setSelected(index)}>
-          <div className="changeHeader">
-            <span>修改 {index + 1} · 原文第 {item.lineNumber} 行</span><span className={`changeState ${conflict ? 'conflictState' : ''}`}>{status}</span>
-            <div className="changeActions">
-              {pending && <><button disabled={busy || review.loading || conflict} onClick={() => apply([item.id])}>应用</button>
-                <button className="secondary" disabled={busy || review.loading} onClick={() => ignore([item.id])}>忽略</button></>}
-              {item.preview && <button className="link" disabled={busy || review.loading} onClick={() => review.resetSuggestion(item.id)}>重置建议</button>}
-            </div>
-          </div>
-          {(pending || applied) && <div className="diffLine diffBefore" aria-label={`修改 ${index + 1} 前（只读）`}>
-            <span className="diffGutter" aria-hidden="true">−</span>
-            <InlineText startLine={item.lineNumber} readOnly value={original || '（原无文字）'} />
-          </div>}
-          {range && (applied || !pending || conflict) && <div className={`diffLine ${applied ? 'diffAfter' : conflict ? 'diffCurrent' : 'diffUnchanged'}`}>
-            <span className="diffGutter" aria-hidden="true">{applied ? '+' : '·'}</span>
-            <InlineText startLine={lineAt(range.start)} label={applied ? `修改 ${index + 1} 后的正文` : `修改 ${index + 1} 当前正文`}
-              value={current} onChange={text => editRange(range, text)} />
-          </div>}
-          {pending && <div className="diffLine diffAfter">
-            <span className="diffGutter" aria-hidden="true">+</span>
-            <InlineText startLine={range ? lineAt(range.start) : item.lineNumber} label={`修改 ${index + 1} 建议（应用前可编辑）`} value={preview}
-              disabled={busy || review.loading} onChange={text => review.editSuggestion(item.id, text, current)} />
-          </div>}
-          {conflict && <div className="changeConflict">
-            <span>{range ? '此处已有手动修改，保留当前正文。编辑完成后可标记已手动处理。' : '无法唯一定位此处，正文已完整保留在页面中。请在正文中手动处理。'}</span>
-            <button className="link" disabled={busy || review.loading} onClick={() => review.markHandled(item.id)}>已手动处理</button>
-          </div>}
-          {applied && !range && <p className="changeConflict">此处正文已再次修改，处理记录保留。当前文字可在上方正文中继续编辑。</p>}
-        </div>
+        const index = items.findIndex(value => value.id === segment.item.id)
+        return <ProposalChange key={`${proposal.id}:${segment.key}`} segment={segment} index={index} selected={selected === index}
+          changeRef={element => { changes.current[segment.item.id] = element }} onSelect={() => setSelected(index)}
+          review={review} busy={busy} lineAt={lineAt} onEdit={editRange} emptyChapter={!draft.length} />
       })}
     </div>
+    {historyOpen && <ProposalHistory proposal={proposal} items={items} onClose={() => setHistoryOpen(false)} />}
   </section>
 }
